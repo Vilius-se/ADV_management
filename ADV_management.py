@@ -216,6 +216,107 @@ def excel_file_any(file):
     else:
         return pd.ExcelFile(file)  # gali mesti klaidą, jei formatas ne Excel
 
+#                                                                                                        BOM filtravimas + konvertacija
+
+def process_bom(df_bom_raw, xf_data, df_part_no):
+    """
+    Apdoroja BOM pagal Part_code mapping ir atmeta nereikalingus komponentus.
+    """
+    # 1. BOM stulpelių paruošimas
+    df_bom = df_bom_raw.copy()
+    df_bom.columns = ['Original_Item_Ref','Type','Quantity','Manufacturer','Description']
+    df_bom['Quantity'] = pd.to_numeric(df_bom['Quantity'], errors='coerce').fillna(0)
+
+    # 2. Part_code mapping
+    df_partcode_full = pd.read_excel(xf_data, sheet_name='Part_code', usecols=[0,1,2], header=0)
+    df_partcode_full.columns = ['From','To','PC_Manufacturer']
+
+    # žemėlapiai
+    name_map = {
+        norm_name(a): str(b).strip()
+        for a, b in df_partcode_full[['From','To']].dropna(subset=['From']).values
+        if pd.notna(b) and str(b).strip()
+    }
+    manuf_map = {}
+    for _, r in df_partcode_full.iterrows():
+        a, b, m = r['From'], r['To'], r['PC_Manufacturer']
+        if pd.isna(a): continue
+        if pd.notna(m) and str(m).strip():
+            if pd.notna(b) and str(b).strip():
+                manuf_map[norm_name(str(b))] = str(m).strip()
+            manuf_map.setdefault(norm_name(str(a)), str(m).strip())
+
+    # 3. pritaikom mapping
+    df_bom['Type'] = df_bom['Type'].apply(
+        lambda s: name_map.get(norm_name(s), s) if (pd.notna(s) and str(s).strip()) else s
+    )
+    mask_missing_manuf = df_bom['Manufacturer'].isna() | (df_bom['Manufacturer'].astype(str).str.strip() == '')
+    df_bom.loc[mask_missing_manuf, 'Manufacturer'] = df_bom.loc[mask_missing_manuf, 'Type'].apply(
+        lambda s: manuf_map.get(norm_name(s)) if (pd.notna(s) and str(s).strip()) else None
+    )
+
+    # 4. Exclude sąrašai
+    exclude_manufacturers = [
+        "BITZER KÜHLMACHINENBAU GMBH","BELDEN","KABELTEC","HELUKABEL","LAPP",
+        "GENERAL CAVI","EMERSON CLIMATE TECHNOLOGIES","ELFAC A/S","DEKA CONTROLS GMBH",
+        "TYPE SPECIFIED IN BOM","PRYSMIAN","CO4","BELIMO","PEPPERL + FUCHS","WAGO"
+    ]
+    exclude_types = [
+        "47KOHM","134F7613","134H7160","CABLE JZ","AKSF","ROUNDPACKART","XALK178E",
+        "LMBWLB32-180S","ACH580-01-026A-4","ACH580-01-033A-4","ACH580-01-073A-4","PSP650MT3-230U"
+    ]
+    comments_to_exclude = {"Q1","NO NEED"}
+
+    df_stock_comments = pd.read_excel(xf_data, sheet_name="Stock", usecols=[0,1,2],
+                                      names=["Component","Quantity","Comment"], header=None, skiprows=1)
+    df_stock_comments["Component_norm"] = df_stock_comments["Component"].astype(str).str.strip().str.upper()
+    df_stock_comments["Comment_norm"] = df_stock_comments["Comment"].astype(str).str.strip().str.upper()
+    exclude_by_comment = set(
+        df_stock_comments.loc[df_stock_comments["Comment_norm"].isin(comments_to_exclude),"Component_norm"].unique()
+    )
+
+    _dfm = df_bom.copy()
+    _dfm["Type_norm"] = _dfm["Type"].astype(str).str.strip().str.upper()
+    _dfm["Manufacturer_norm"] = _dfm["Manufacturer"].astype(str).str.strip().str.upper()
+
+    mask_types = ~_dfm["Type_norm"].isin(set(t.upper() for t in exclude_types))
+    mask_comment = ~_dfm["Type_norm"].isin(exclude_by_comment)
+    mask_manuf = ~_dfm["Manufacturer_norm"].isin(set(m.upper() for m in exclude_manufacturers))
+
+    df_bom_filtered = _dfm[mask_types & mask_comment & mask_manuf].reset_index(drop=True)
+
+    # 5. BOM po konvertacijos (jungiam su Part_no info)
+    merged_conv = df_bom_filtered.copy()
+    merged_conv['Norm_Ref'] = merged_conv['Type'].astype(str).map(norm_name)
+    merged_conv = merged_conv.merge(
+        df_part_no[['PartNo_A','PartName_B','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
+        left_on='Norm_Ref', right_on='Norm_B', how='left'
+    )
+
+    def profit_by_manuf(x: str) -> int:
+        s = ('' if pd.isna(x) else str(x)).upper()
+        return 10 if ('DANFOSS' in s or 'CAREL' in s) else 17
+
+    merged_conv['ProfitVal'] = merged_conv['Manufacturer_D'].apply(profit_by_manuf)
+
+    df_bom_po_konvertacijos = pd.DataFrame({
+        'Type': 'item',
+        'No.': merged_conv['PartNo_A'],
+        'Quantity': pd.to_numeric(merged_conv['Quantity'], errors='coerce'),
+        'Supplier No.': merged_conv['SupplierNo_E'],
+        'Supplier': merged_conv['Manufacturer_D'],
+        'Profit': merged_conv['ProfitVal'],
+        'Discount': 0,
+        'Vendor Item Number': merged_conv['PartName_B'],
+        'Description': merged_conv['Desc_C'],
+        'Unit Cost': pd.to_numeric(merged_conv['UnitPrice_F'], errors='coerce')
+    })
+
+    df_bom_po_konvertacijos = move_no_second_item_last(df_bom_po_konvertacijos)
+    df_bom_po_konvertacijos = reorder_supplier_after_discount(df_bom_po_konvertacijos)
+
+    return df_bom_po_konvertacijos
+
 
 
 # =====================
@@ -268,6 +369,18 @@ if generate:
             df_kaunas['Norm']=df_kaunas['Component'].apply(norm_name)
             df_kaunas=df_kaunas[df_kaunas['Quantity']>0].reset_index(drop=True)
             kaunas_bins_index=build_kaunas_index(df_kaunas)
+
+            # Skaitymas Part_no
+            df_part_no = pd.read_excel(xf_data, sheet_name='Part_no', usecols="A:F", header=0)
+            df_part_no.columns = ['PartNo_A','PartName_B','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F']
+            df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).map(norm_name)
+
+            # BOM filtravimas ir konvertacija
+            df_bom_po_konvertacijos = process_bom(df_bom_raw, xf_data, df_part_no)
+
+            st.subheader("📊 BOM po konvertacijos")
+            st.dataframe(df_bom_po_konvertacijos.head())
+
 
             # =====================
             # BOM apdorojimas (trumpinta versija, integruojama tavo logika)
