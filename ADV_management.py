@@ -335,6 +335,29 @@ if generate and file_cubic and file_bom and file_data and file_ks and doc_number
         today_str=pd.Timestamp.today().strftime('%Y-%m-%d')
         export_filename=f"{safe_filename(doc_number)}_{safe_filename(type_choice)}_{safe_filename(earthing_choice)}_{safe_filename(palette_val)}_{today_str}.xlsx"
 
+     
+
+        if 'mech_alloc' in locals() and not mech_alloc.empty:
+            st.subheader("📦 Mechanika")
+            st.dataframe(mech_alloc, use_container_width=True)
+
+        if 'prod_alloc' in locals() and not prod_alloc.empty:
+            st.subheader("🏭 Gamyba")
+            st.dataframe(prod_alloc, use_container_width=True)
+
+        if 'df_used_total' in locals() and not df_used_total.empty:
+            st.subheader("📉 Paimta iš Stock")
+            st.dataframe(df_used_total, use_container_width=True)
+
+        if 'sms_alloc' in locals() and not sms_alloc.empty:
+            st.subheader("🔌 BOM Schneider Main Switch")
+            st.dataframe(sms_alloc, use_container_width=True)
+
+        if 'other_alloc' in locals() and not other_alloc.empty:
+            st.subheader("⚙️ BOM Likę Komponentai")
+            st.dataframe(other_alloc, use_container_width=True)
+
+
         with pd.ExcelWriter(export_filename,engine="openpyxl") as writer:
             if not mech_alloc.empty: mech_alloc.to_excel(writer,sheet_name="Mechanika",index=False)
             if not prod_alloc.empty: prod_alloc.to_excel(writer,sheet_name="Gamyba",index=False)
