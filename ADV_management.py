@@ -168,17 +168,19 @@ def get_main_switch_and_accessories(ms_df, selected):
     return out
 
 def read_excel_any(file, sheet_name=0):
+    """Saugiai skaito xls/xlsx/xlsm/csv failus su teisingu engine."""
     name = getattr(file, "name", "")
     ext = os.path.splitext(name)[1].lower()
-    if ext in [".xlsx", ".xlsm", ".xltx", ".xltm"]:
+
+    if ext in (".xlsx", ".xlsm", ".xltx", ".xltm"):
         return pd.read_excel(file, sheet_name=sheet_name, engine="openpyxl")
     elif ext == ".xls":
-        # Reikia xlrd==1.2.0
+        # Reikalingas xlrd==2.0.1
         return pd.read_excel(file, sheet_name=sheet_name, engine="xlrd")
     elif ext == ".csv":
         return pd.read_csv(file)
     else:
-        # bandymas su default
+        # Paskutinis bandymas – leisti pandas pačiai pasirinkti (gali mesti klaidą)
         return pd.read_excel(file, sheet_name=sheet_name)
 
 
@@ -191,10 +193,10 @@ st.title("⚙️ Advansor Component Tool")
 
 # Failų įkėlimas (drag & drop)
 st.header("📂 Įkelk failus")
-cubic_file = st.file_uploader("Įkelk CUBIC", type=["xls", "xlsx", "xlsm", "csv"])
-bom_file   = st.file_uploader("Įkelk BOM",   type=["xls", "xlsx", "xlsm", "csv"])
-data_file  = st.file_uploader("Įkelk Data",  type=["xls", "xlsx", "xlsm"])
-ks_file    = st.file_uploader("Įkelk Kaunas Stock", type=["xls", "xlsx", "xlsm", "csv"])
+cubic_file = st.file_uploader("Įkelk CUBIC", type=["xls","xlsx","xlsm","csv"])
+bom_file   = st.file_uploader("Įkelk BOM",   type=["xls","xlsx","xlsm","csv"])
+data_file  = st.file_uploader("Įkelk Data",  type=["xls","xlsx","xlsm"])
+ks_file    = st.file_uploader("Įkelk Kaunas Stock", type=["xls","xlsx","xlsm","csv"])
 
 # Projekto parametrai
 st.header("📋 Projekto parametrai")
@@ -222,11 +224,11 @@ if generate:
             # =====================
             # Failų nuskaitymas
             # =====================
-            df_cubic = read_excel_any(cubic_file)
-            df_bom_raw = read_excel_any(cubic_file)
+            df_cubic   = read_excel_any(cubic_file)
+            df_bom_raw = read_excel_any(bom_file)
+            df_kaunas  = read_excel_any(ks_file, sheet_name=0, header=None, skiprows=3, usecols=[1,3,10])
             df_data = pd.ExcelFile(data_file)
             df_ks      = read_excel_any(ks_file, sheet_name=0)
-            df_kaunas = pd.read_excel(ks_file, sheet_name=0, header=None, skiprows=3, usecols=[1,3,10])
             df_kaunas.columns=['Bin Code','Quantity','Component']
             df_kaunas['Quantity']=df_kaunas['Quantity'].apply(parse_qty).fillna(0)
             df_kaunas['Norm']=df_kaunas['Component'].apply(norm_name)
