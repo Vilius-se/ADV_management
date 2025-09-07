@@ -167,21 +167,55 @@ def get_main_switch_and_accessories(ms_df, selected):
             seen.add(key); out.append(v)
     return out
 
-def read_excel_any(file, sheet_name=0):
-    """Saugiai skaito xls/xlsx/xlsm/csv failus su teisingu engine."""
+def read_excel_any(file, sheet_name=0, **kwargs):
+    """
+    Saugiai skaito xls/xlsx/xlsm/csv.
+    Papildomi pandas.read_excel / read_csv argumentai paduodami per **kwargs.
+    """
+    if file is None:
+        raise ValueError("No file provided to read_excel_any")
+
+    # Streamlit UploadedFile yra file-like; gerai prieš skaitymą atsukti pradžią
+    try:
+        file.seek(0)
+    except Exception:
+        pass
+
     name = getattr(file, "name", "")
     ext = os.path.splitext(name)[1].lower()
 
     if ext in (".xlsx", ".xlsm", ".xltx", ".xltm"):
-        return pd.read_excel(file, sheet_name=sheet_name, engine="openpyxl")
+        return pd.read_excel(file, sheet_name=sheet_name, engine="openpyxl", **kwargs)
     elif ext == ".xls":
-        # Reikalingas xlrd==2.0.1
-        return pd.read_excel(file, sheet_name=sheet_name, engine="xlrd")
+        # Reikalingas xlrd (žr. requirements.txt)
+        return pd.read_excel(file, sheet_name=sheet_name, engine="xlrd", **kwargs)
     elif ext == ".csv":
-        return pd.read_csv(file)
+        # Pandas read_csv nenaudoja sheet_name; kiti kwargs (header/usecols/skiprows) veikia
+        return pd.read_csv(file, **{k:v for k,v in kwargs.items() if k != "sheet_name"})
     else:
-        # Paskutinis bandymas – leisti pandas pačiai pasirinkti (gali mesti klaidą)
-        return pd.read_excel(file, sheet_name=sheet_name)
+        # Fallback – leisk pandas parinkti engine
+        return pd.read_excel(file, sheet_name=sheet_name, **kwargs)
+
+def excel_file_any(file):
+    """Grąžina pandas.ExcelFile su teisingu engine pagal plėtinį."""
+    if file is None:
+        raise ValueError("No file provided to excel_file_any")
+
+    try:
+        file.seek(0)
+    except Exception:
+        pass
+
+    name = getattr(file, "name", "")
+    ext = os.path.splitext(name)[1].lower()
+
+    if ext in (".xlsx", ".xlsm", ".xltx", ".xltm"):
+        return pd.ExcelFile(file, engine="openpyxl")
+    elif ext == ".xls":
+        return pd.ExcelFile(file, engine="xlrd")
+    else:
+        return pd.ExcelFile(file)  # gali mesti klaidą, jei formatas ne Excel
+
 
 
 # =====================
