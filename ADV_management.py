@@ -33,40 +33,72 @@ def build_kaunas_index(df_kaunas):
 
 def allocate_bins_for_table(df_orders, bins_index):
     if df_orders is None or df_orders.empty:
-        return pd.DataFrame(columns=list(df_orders.columns)+['Bin Code'])
+        return pd.DataFrame(columns=(list(df_orders.columns) if df_orders is not None else []) + ['Bin Code'])
+    df_orders = ensure_item_column(df_orders.copy())
     rows=[]
     for _, r in df_orders.iterrows():
-        item=r['Item No.']; key=norm_name(item); remaining=float(r['Quantity'])
-        if remaining<=0: continue
+        item=r['Item No.']
+        key=norm_name(item)
+        remaining=float(r.get('Quantity', 0))
+        if remaining<=0:
+            continue
         if key not in bins_index:
-            row=r.copy(); row['Document No.']=str(row.get('Document No.',''))+'/NERA'; row['Bin Code']=''; rows.append(row); continue
+            row=r.copy()
+            row['Document No.']=str(row.get('Document No.',''))+'/NERA'
+            row['Bin Code']=''
+            rows.append(row)
+            continue
         bins=bins_index[key]; i=0
         while remaining>0 and i<len(bins):
             bin_code, avail=bins[i]
-            if avail<=0: i+=1; continue
+            if avail<=0:
+                i+=1; continue
             take=min(remaining, avail)
-            row=r.copy(); row['Job Task No.']=row.get('Job Task No.',1144); row['Quantity']=round(take,2); row['Bin Code']=bin_code
-            rows.append(row); remaining-=take; bins[i][1]=round(avail-take,6)
-            if bins[i][1]<=1e-9: i+=1
+            row=r.copy()
+            row['Job Task No.']=row.get('Job Task No.',1144)
+            row['Quantity']=round(take,2)
+            row['Bin Code']=bin_code
+            rows.append(row)
+            remaining-=take
+            bins[i][1]=round(avail-take,6)
+            if bins[i][1]<=1e-9:
+                i+=1
         if remaining>1e-9:
-            row=r.copy(); row['Quantity']=round(remaining,2); row['Document No.']=str(row.get('Document No.',''))+'/NERA'; row['Bin Code']=''; rows.append(row)
-    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=list(df_orders.columns)+['Bin Code'])
+            row=r.copy()
+            row['Quantity']=round(remaining,2)
+            row['Document No.']=str(row.get('Document No.',''))+'/NERA'
+            row['Bin Code']=''
+            rows.append(row)
+    out = pd.DataFrame(rows)
+    return out if not out.empty else pd.DataFrame(columns=list(df_orders.columns)+['Bin Code'])
+
 
 def process_stock_usage_keep_zeros(df_target, stock_df):
+    if df_target is None or df_target.empty:
+        return df_target, pd.DataFrame(columns=['Item No.','Used from stock'])
+    df_target = ensure_item_column(df_target.copy())
     used_rows, adjusted_rows = [], []
-    stock_tmp=stock_df.copy()
-    stock_tmp['Norm']=stock_tmp['Component'].astype(str).map(norm_name)
-    stock_norm_qty=stock_tmp.groupby('Norm',as_index=True)['Quantity'].sum().to_dict()
+    stock_tmp = stock_df.copy()
+    stock_tmp['Norm'] = stock_tmp['Component'].astype(str).map(norm_name)
+    stock_norm_qty = stock_tmp.groupby('Norm', as_index=True)['Quantity'].sum().to_dict()
     for _, row in df_target.iterrows():
-        item=row['Item No.']; key=norm_name(item); qty_needed=float(row['Quantity']); qty_used=0.0
-        qty_in_stock=float(stock_norm_qty.get(key,0))
-        if qty_in_stock>0:
-            qty_used=min(qty_needed, qty_in_stock); stock_norm_qty[key]=qty_in_stock-qty_used
-        if qty_used>0: used_rows.append({'Item No.': item, 'Used from stock': qty_used})
-        qty_remaining=qty_needed-qty_used
-        adjusted=row.copy(); adjusted['Job Task No.']=adjusted.get('Job Task No.',1144); adjusted['Quantity']=round(qty_remaining,2)
+        item = row['Item No.']
+        key = norm_name(item)
+        qty_needed = float(row.get('Quantity', 0))
+        qty_used = 0.0
+        qty_in_stock = float(stock_norm_qty.get(key, 0))
+        if qty_in_stock > 0:
+            qty_used = min(qty_needed, qty_in_stock)
+            stock_norm_qty[key] = qty_in_stock - qty_used
+        if qty_used > 0:
+            used_rows.append({'Item No.': item, 'Used from stock': qty_used})
+        qty_remaining = qty_needed - qty_used
+        adjusted = row.copy()
+        adjusted['Job Task No.'] = adjusted.get('Job Task No.', 1144)
+        adjusted['Quantity'] = round(qty_remaining, 2)
         adjusted_rows.append(adjusted)
     return pd.DataFrame(adjusted_rows), pd.DataFrame(used_rows)
+
 
 def move_no_second_item_last(df):
     if df is None or df.empty: return df
@@ -105,6 +137,17 @@ def get_main_switch_and_accessories(ms_df, selected):
         key=norm_name(v)
         if key and key not in seen: seen.add(key); out.append(v)
     return out
+
+def ensure_item_column(df):
+    if df is None or df.empty:
+        return df
+    if 'Item No.' in df.columns:
+        return df
+    for alt in ['Vendor Item Number', 'Cross-Reference No.', 'Item ref.', 'Vendor', 'Type']:
+        if alt in df.columns:
+            return df.rename(columns={alt: 'Item No.'})
+    raise KeyError("Item No.")
+
 
 st.title("ADV Management Tool")
 
