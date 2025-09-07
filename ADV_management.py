@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import io, re
 from collections import Counter
+import os
 
 # =====================
 # Pagalbinės funkcijos
@@ -165,6 +166,22 @@ def get_main_switch_and_accessories(ms_df, selected):
         if key and key not in seen:
             seen.add(key); out.append(v)
     return out
+
+def read_excel_any(file, sheet_name=0):
+    name = getattr(file, "name", "")
+    ext = os.path.splitext(name)[1].lower()
+    if ext in [".xlsx", ".xlsm", ".xltx", ".xltm"]:
+        return pd.read_excel(file, sheet_name=sheet_name, engine="openpyxl")
+    elif ext == ".xls":
+        # Reikia xlrd==1.2.0
+        return pd.read_excel(file, sheet_name=sheet_name, engine="xlrd")
+    elif ext == ".csv":
+        return pd.read_csv(file)
+    else:
+        # bandymas su default
+        return pd.read_excel(file, sheet_name=sheet_name)
+
+
 # =====================
 # Streamlit UI
 # =====================
@@ -174,10 +191,10 @@ st.title("⚙️ Advansor Component Tool")
 
 # Failų įkėlimas (drag & drop)
 st.header("📂 Įkelk failus")
-cubic_file = st.file_uploader("Įkelk CUBIC.xls", type=["xls", "xlsx"])
-bom_file   = st.file_uploader("Įkelk BOM list", type=["xls", "xlsx"])
-data_file  = st.file_uploader("Įkelk Data.xlsx (visi lapai)", type=["xls", "xlsx"])
-ks_file    = st.file_uploader("Įkelk Kaunas Stock Excel", type=["xls", "xlsx"])
+cubic_file = st.file_uploader("Įkelk CUBIC", type=["xls", "xlsx", "xlsm", "csv"])
+bom_file   = st.file_uploader("Įkelk BOM",   type=["xls", "xlsx", "xlsm", "csv"])
+data_file  = st.file_uploader("Įkelk Data",  type=["xls", "xlsx", "xlsm"])
+ks_file    = st.file_uploader("Įkelk Kaunas Stock", type=["xls", "xlsx", "xlsm", "csv"])
 
 # Projekto parametrai
 st.header("📋 Projekto parametrai")
@@ -205,9 +222,10 @@ if generate:
             # =====================
             # Failų nuskaitymas
             # =====================
-            df_cubic = pd.read_excel(cubic_file)
-            df_bom_raw = pd.read_excel(bom_file)
+            df_cubic = read_excel_any(cubic_file)
+            df_bom_raw = read_excel_any(cubic_file)
             df_data = pd.ExcelFile(data_file)
+            df_ks      = read_excel_any(ks_file, sheet_name=0)
             df_kaunas = pd.read_excel(ks_file, sheet_name=0, header=None, skiprows=3, usecols=[1,3,10])
             df_kaunas.columns=['Bin Code','Quantity','Component']
             df_kaunas['Quantity']=df_kaunas['Quantity'].apply(parse_qty).fillna(0)
