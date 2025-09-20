@@ -414,6 +414,31 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 
     return df_out
 
+def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sutvarko CUBIC BOM stulpelius:
+    - 'Item Id' → 'Type'
+    - 'Quantity' → 'Quantity'
+    - Saugom originalius stulpelius
+    """
+    if df_cubic is None or df_cubic.empty:
+        return pd.DataFrame()
+
+    df_out = df_cubic.copy()
+    cols = {c: str(c).strip() for c in df_out.columns}
+    df_out = df_out.rename(columns=cols)
+
+    # Perkeliame svarbiausius laukus į standartinius pavadinimus
+    if "Item Id" in df_out.columns:
+        df_out["Type"] = df_out["Item Id"].astype(str).str.strip()
+        df_out["Original Type"] = df_out["Type"]
+
+    if "Quantity" in df_out.columns:
+        df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
+    else:
+        df_out["Quantity"] = 0
+
+    return df_out
 
 
 
@@ -464,7 +489,7 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     """
     Sukuria NAV užsakymo lentelę iš df_alloc (turi turėti 'No.' ir 'Quantity'):
-      - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount, Description, Original Type
+      - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount, Description
       - Supplier paimamas iš Part_no (Supplier No.) pagal PartNo_A
       - Profit = 17, o jei gamintojas DANFOSS -> 10
       - Discount = 0
@@ -476,23 +501,24 @@ def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> 
     for col in needed:
         if col not in df_part_no.columns:
             st.error(f"❌ Part_no sheet missing required column: {col}")
-            return pd.DataFrame(columns=[
-                "Type","No.","Quantity","Supplier","Profit","Discount","Description","Original Type"
-            ])
+            return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
     # Map'ai
     supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
     manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
 
+    # Užtikrinam, kad turim kopiją su reikiamais stulpeliais
     tmp = df_alloc.copy()
     if "No." not in tmp.columns:
         st.error("❌ NAV table source must contain 'No.' column")
-        return pd.DataFrame(columns=[
-            "Type","No.","Quantity","Supplier","Profit","Discount","Description","Original Type"
-        ])
+        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+
+    # Jei nėra Quantity → pridedam stulpelį su nulinėmis reikšmėmis
+    if "Quantity" not in tmp.columns:
+        tmp["Quantity"] = 0
 
     tmp["No."] = tmp["No."].astype(str)
-    tmp["Quantity"] = pd.to_numeric(tmp.get("Quantity", 0), errors="coerce").fillna(0)
+    tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
 
     rows = []
     for _, r in tmp.iterrows():
@@ -509,13 +535,11 @@ def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> 
             "Supplier": supplier,
             "Profit": profit,
             "Discount": 0,
-            "Description": r.get("Description", ""),
-            "Original Type": r.get("Original Type", "")
+            "Description": r.get("Description", "")
         })
 
-    return pd.DataFrame(rows, columns=[
-        "Type","No.","Quantity","Supplier","Profit","Discount","Description","Original Type"
-    ])
+    return pd.DataFrame(rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+
 
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
                              panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
