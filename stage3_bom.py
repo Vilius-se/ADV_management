@@ -102,16 +102,21 @@ def allocate_from_stock(no, qty_needed, stock_rows):
     allocations = []
     remaining = qty_needed
 
-    # Jei tuščias stock_rows → viskas eina į /NERA
+    # Jei stock_rows tuščias → viskas kaip trūkumas
     if stock_rows.empty:
         return [{
             "No.": no,
-            "Bin Code": "67-01-01-01",
-            "Allocated Qty": int(remaining)
+            "Bin Code": "",
+            "Allocated Qty": int(remaining),
+            "Status": "NERA"
         }]
 
     for _, srow in stock_rows.iterrows():
-        bin_code = str(srow["Bin Code"])
+        bin_code = str(srow["Bin Code"]).strip()
+        if bin_code == "67-01-01-01":  
+            # Šitą lokaciją ignoruojam
+            continue
+
         available = int(srow["Quantity"]) if pd.notna(srow["Quantity"]) else 0
 
         if available <= 0:
@@ -122,22 +127,24 @@ def allocate_from_stock(no, qty_needed, stock_rows):
             allocations.append({
                 "No.": no,
                 "Bin Code": bin_code,
-                "Allocated Qty": take
+                "Allocated Qty": take,
+                "Status": "OK"
             })
             remaining -= take
 
         if remaining <= 0:
             break
 
+    # Jei trūksta – papildom įrašą su statusu "NERA"
     if remaining > 0:
         allocations.append({
             "No.": no,
-            "Bin Code": "67-01-01-01",
-            "Allocated Qty": int(remaining)
+            "Bin Code": "",
+            "Allocated Qty": int(remaining),
+            "Status": "NERA"
         })
 
     return allocations
-
 
 
 def read_excel_any(file, **kwargs):
@@ -485,7 +492,6 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
         no = row.get("No.")
         qty_needed = float(row.get("Quantity", 0))
 
-        # Jeigu Stock Rows neegzistuoja, sukuriam tuščią DataFrame
         stock_rows = row.get("Stock Rows")
         if not isinstance(stock_rows, pd.DataFrame):
             stock_rows = pd.DataFrame(columns=["Bin Code", "Quantity"])
@@ -493,10 +499,14 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
         allocations = allocate_from_stock(no, qty_needed, stock_rows)
 
         for alloc in allocations:
+            doc_no = project_number
+            if alloc["Status"] == "NERA":
+                doc_no += "/NERA"
+
             rows.append({
                 "Type": "Item",
                 "No.": no,
-                "Document No.": project_number + ("/NERA" if alloc["Bin Code"] == "67-01-01-01" else ""),
+                "Document No.": doc_no,
                 "Job No.": project_number,
                 "Job Task No.": 1144,
                 "Quantity": alloc["Allocated Qty"],
