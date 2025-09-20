@@ -725,7 +725,6 @@ def render():
             inputs["grounding"],
             inputs["project_number"]
         )
-
         # --- išvedimas ---
         st.success("✅ BOM processing complete!")
 
