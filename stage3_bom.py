@@ -647,17 +647,20 @@ def render():
             return
 
         # --- BOM processing ---
-        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
+        df_bom = files["bom"].copy()
 
-        # ✅ Išsaugom originalius BOM pavadinimus iš pirmo failo (A ir B stulpeliai)
-        if files["bom"].shape[1] >= 2:
-            df_bom["Original Article"] = files["bom"].iloc[:, 0].fillna("").astype(str).str.strip()
-            df_bom["Original Type"]    = files["bom"].iloc[:, 1].fillna("").astype(str).str.strip()
-        elif files["bom"].shape[1] == 1:
-            df_bom["Original Article"] = files["bom"].iloc[:, 0].fillna("").astype(str).str.strip()
+        # pridėdam _OrigIdx, Original Article, Original Type
+        df_bom["_OrigIdx"] = df_bom.index
+        if df_bom.shape[1] >= 2:
+            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]    = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+        else:
+            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"]    = df_bom["Original Article"]
 
-        # jei yra Part_code → pakeičiam pavadinimus
+        # Filtrai ir transformacijos
+        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
+
         if df_part_code is not None and not df_part_code.empty:
             rename_map = dict(zip(
                 df_part_code.iloc[:,0].astype(str).str.strip(),
@@ -671,15 +674,14 @@ def render():
 
         # --- Missing NAV numbers lentelė ---
         missing_nav = df_bom[df_bom["No."].isna()]
-
         if not missing_nav.empty:
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
-        
-            missing_table = missing_nav[["_OrigIdx","Original Article","Original Type","Quantity","No."]].rename(
-                columns={"No.":"NAV No."}
-            )
-        
+
+            missing_table = missing_nav[["_OrigIdx","Original Article","Original Type"]].copy()
+            missing_table["Quantity"] = pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int)
+            missing_table["NAV No."]  = missing_nav["No."]
+
             st.dataframe(missing_table, use_container_width=True)
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
@@ -713,9 +715,4 @@ def render():
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
-
-        # --- Original BOM preview ---
-        st.subheader("📂 Original BOM (raw from file)")
-        st.dataframe(files["bom"], use_container_width=True)
-
 
