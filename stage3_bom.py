@@ -715,3 +715,7 @@ def render():
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
+
+        # --- Original BOM preview ---
+        st.subheader("📂 Original BOM (raw from file)")
+        st.dataframe(files["bom"], use_container_width=True)
