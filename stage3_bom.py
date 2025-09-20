@@ -263,13 +263,13 @@ import pandas as pd
 def pipeline_3_4_check_stock(df_bom, ks_file):
     """
     Tikrina ar komponentai yra Kauno sandėlyje.
-    Failas gali turėti stulpelius bet kokiais pavadinimais – pervadinam.
+    Palaiko ir .xlsx, ir .xlsm failus.
     """
     df_out = df_bom.copy()
 
-    # Pirmiausia nuskaityti failą
+    # Bandome atidaryti su openpyxl (veikia ir su xlsm, ir su xlsx)
     try:
-        df_kaunas = pd.read_excel(ks_file)
+        df_kaunas = pd.read_excel(ks_file, engine="openpyxl")
     except Exception as e:
         raise ValueError(f"⚠️ Cannot open Kaunas Stock: {e}")
 
@@ -303,7 +303,6 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
-
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
