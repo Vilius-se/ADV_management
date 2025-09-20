@@ -376,75 +376,75 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     """
-    Tikrina Kaunas Stock pagal NAV numerius (No.):
-    - Priskiria Bin Code (pirmą sutiktą, jei keli)
-    - Suskaičiuoja Stock Quantity (viso pagal NAV numerį, išskyrus 67-01-01-01)
+    Tikrina Kaunas Stock:
+    - Match pagal 'No.' (BOM) = 'Item No.' (Stock, C stulpelis).
+    - Sumuojamas Quantity, ignoruojant '67-01-01-01'.
+    - Surenkami visi Bin Code į vieną lauką.
+    - Prideda stulpelius 'Bin Code' ir 'Stock Quantity' į BOM.
     """
+
     df_out = df_bom.copy()
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # Jei failas jau DataFrame
+    # Skaitymas
     if isinstance(ks_file, pd.DataFrame):
-        df_kaunas = ks_file.copy()
+        df_stock = ks_file.copy()
     else:
         import io
         content = ks_file.getvalue()
-        df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
+    df_stock.columns = [str(c).strip() for c in df_stock.columns]
 
-    # Pervadinam stulpelius
+    # Identifikuojam stulpelius
     rename_map = {}
-    for col in df_kaunas.columns:
-        col_up = col.strip().upper()
-        if "COMP" in col_up or "NO." in col_up:
-            rename_map[col] = "Component"
-        elif "BIN" in col_up:
+    for col in df_stock.columns:
+        col_up = col.upper()
+        if col_up.startswith("B"):   # Bin Code
             rename_map[col] = "Bin Code"
-        elif "QTY" in col_up or "QUANTITY" in col_up:
+        elif col_up.startswith("C"): # Item No.
+            rename_map[col] = "Item No."
+        elif col_up.startswith("D"): # Quantity
             rename_map[col] = "Quantity"
-    df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    for req in ["Component", "Bin Code", "Quantity"]:
-        if req not in df_kaunas.columns:
-            df_kaunas[req] = ""
+    df_stock = df_stock.rename(columns=rename_map)
 
-    # Normalizuojam Component (No.)
-    df_kaunas["Component"] = df_kaunas["Component"].astype(str).str.strip()
-    df_kaunas["Quantity"] = pd.to_numeric(df_kaunas["Quantity"], errors="coerce").fillna(0)
+    # Saugikliai
+    for req in ["Item No.", "Bin Code", "Quantity"]:
+        if req not in df_stock.columns:
+            raise ValueError(f"❌ Stock sheet must have '{req}' column. Available: {list(df_stock.columns)}")
 
-    # Susumuojam pagal Component, ignoruojant 67-01-01-01
-    stock_sum = (
-        df_kaunas[df_kaunas["Bin Code"] != "67-01-01-01"]
-        .groupby("Component")["Quantity"]
-        .sum()
-        .to_dict()
+    df_stock["Item No."] = df_stock["Item No."].astype(str).str.strip()
+    df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
+    df_stock["Bin Code"] = df_stock["Bin Code"].astype(str).str.strip()
+
+    # Grupavimas: kiekiai + visos lokacijos
+    stock_grouped = (
+        df_stock[df_stock["Bin Code"] != "67-01-01-01"]
+        .groupby("Item No.")
+        .agg({
+            "Quantity": "sum",
+            "Bin Code": lambda x: "; ".join(sorted(set(x)))
+        })
+        .reset_index()
     )
 
-    # Bin Code – imame pirmą reikšmę (tik atvaizdavimui)
-    stock_bin = (
-        df_kaunas.groupby("Component")["Bin Code"]
-        .first()
-        .to_dict()
+    # Sujungiam su BOM
+    df_out["No."] = df_out["No."].astype(str).str.strip()
+    df_out = df_out.merge(
+        stock_grouped,
+        left_on="No.", right_on="Item No.",
+        how="left"
     )
 
-    if "No." in df_out.columns:
-        key_col = "No."
-    elif "Item No." in df_out.columns:
-        key_col = "Item No."
-    elif "Type" in df_out.columns:
-        key_col = "Type"
-    else:
-        raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
+    # Pervadinam
+    df_out = df_out.rename(columns={
+        "Quantity": "Stock Quantity"
+    })
 
-    df_out["Bin Code"] = df_out[key_col].astype(str).map(stock_bin).fillna("")
-    df_out["Stock Quantity"] = df_out[key_col].astype(str).map(stock_sum).fillna(0).astype(int)
-
-    if "Document No." not in df_out.columns:
-        df_out["Document No."] = ""
-
-    mask_no_stock = (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01")
-    df_out.loc[mask_no_stock, "Document No."] = df_out[key_col].astype(str) + "/NERA"
+    # Jei nerasta → tuščia
+    df_out["Bin Code"] = df_out["Bin Code"].fillna("")
+    df_out["Stock Quantity"] = df_out["Stock Quantity"].fillna(0).astype(int)
 
     return df_out
 
