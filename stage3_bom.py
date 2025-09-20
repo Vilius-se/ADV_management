@@ -306,16 +306,17 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
-    # Saugo Quantity prieš merge
-    qty_backup = df_bom.get("Quantity", None)
-
-    # Originalūs stulpeliai
+    # --- Išsaugom originalius ---
     if "Original Type" not in df_bom.columns:
-        df_bom["Original Type"] = df_bom["Type"]
+        df_bom["Original Type"] = df_bom.get("Type", "")
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # Paruošiam Part_no
+    # --- Backup prieš merge ---
+    qty_backup = df_bom.get("Quantity", None)
+    orig_type_backup = df_bom.get("Original Type", None)
+
+    # --- Pasiruošiam Part_no ---
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A', 'PartName_B', 'Desc_C',
@@ -324,14 +325,14 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
     map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # Normalizuojam BOM
+    # --- Normalizuojam BOM ---
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
 
-    # NAV numeriai
+    # --- Priskiriam NAV numerius ---
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # Merge
+    # --- Merge su Part_no ---
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
@@ -345,9 +346,11 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # Gražinam Quantity jei prapuolė
-    if qty_backup is not None:
-        df_bom["Quantity"] = pd.to_numeric(df_bom.get("Quantity", qty_backup), errors="coerce").fillna(0)
+    # --- Grąžinam Quantity ir Original Type, jei dingo ---
+    if "Quantity" not in df_bom.columns and qty_backup is not None:
+        df_bom["Quantity"] = qty_backup
+    if "Original Type" not in df_bom.columns and orig_type_backup is not None:
+        df_bom["Original Type"] = orig_type_backup
 
     st.session_state["part_no"] = df_part_no
     return df_bom
