@@ -167,9 +167,20 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
 
     st.info("🚦 Filtering BOM according to DATA.xlsx Stock (Comment)...")
 
-    # Reikalaujami stulpeliai
+    # Normalizuojam stulpelių pavadinimus
+    colmap = {}
+    for col in df_stock.columns:
+        name = str(col).strip().upper()
+        if "COMP" in name:
+            colmap[col] = "Component"
+        elif "COMM" in name:
+            colmap[col] = "Comment"
+
+    df_stock = df_stock.rename(columns=colmap)
+
+    # Tikrinam ar dabar turim reikiamus stulpelius
     if "Component" not in df_stock.columns or "Comment" not in df_stock.columns:
-        st.error("❌ Stock sheet must have 'Component' and 'Comment' columns")
+        st.error(f"❌ Stock sheet must have 'Component' and 'Comment' columns (got {list(df_stock.columns)})")
         return df_bom
 
     # Atrenkam komponentus su komentarais
@@ -186,6 +197,7 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
     st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
                f"(removed {len(df_bom) - len(filtered)} items with comments)")
     return filtered.drop(columns=["Norm_Type"])
+
 
 
 
