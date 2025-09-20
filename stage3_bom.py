@@ -389,15 +389,16 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
 
-def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.DataFrame:
+def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
     """
-    Sukuria Job Journal lentelę NAV formatui:
+    Sukuria Job Journal lentelę NAV formatui iš BOM arba CUBIC:
     - Jei nėra stock → prie Document No. prideda '/NERA'
     - Job Task No. = 1144
     - Location Code = KAUNAS
-    - Prideda Description ir Original Type stulpelius gale
+    - Prideda Description ir Original Type gale
+    source: 'BOM' arba 'CUBIC' (naudojama tik atvaizdinti)
     """
-    st.info("📑 Creating Job Journal table...")
+    st.info(f"📑 Creating Job Journal table from {source}...")
 
     cols = [
         "Type", "No.", "Document No.", "Job No.", "Job Task No.",
@@ -419,11 +420,12 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
             "Quantity": row.get("Quantity", 0),
             "Location Code": "KAUNAS",
             "Bin Code": row.get("Bin Code", ""),
-            "Description": row.get("Description", ""),       # <- iš Part_no
-            "Original Type": row.get("Original Type", "")    # <- iš BOM prieš rename
+            "Description": row.get("Description", ""),
+            "Original Type": row.get("Original Type", "")
         }])], ignore_index=True)
 
     return df_out
+
 
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
@@ -681,26 +683,32 @@ def render():
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
 
-        # --- galutinės lentelės ---
-        job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
-        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
-        calc_table  = pipeline_4_3_calculation(
-            df_bom,
-            files.get("cubic_bom"),
-            df_hours,
-            inputs["panel_type"],
-            inputs["grounding"],
-            inputs["project_number"]
-        )
+# --- galutinės lentelės ---
+job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
+job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"], source="CUBIC")
 
-        # --- išvedimas ---
-        st.success("✅ BOM processing complete!")
+# NAV ir Calculation paliekam kaip buvo
+nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
+calc_table  = pipeline_4_3_calculation(
+    df_bom,
+    files.get("cubic_bom"),
+    df_hours,
+    inputs["panel_type"],
+    inputs["grounding"],
+    inputs["project_number"]
+)
 
-        st.subheader("📑 Job Journal")
-        st.dataframe(job_journal, use_container_width=True)
+# --- išvedimas ---
+st.success("✅ BOM processing complete!")
 
-        st.subheader("🛒 NAV Table")
-        st.dataframe(nav_table, use_container_width=True)
+st.subheader("📑 Job Journal (BOM)")
+st.dataframe(job_journal_bom, use_container_width=True)
 
-        st.subheader("💰 Calculation")
-        st.dataframe(calc_table, use_container_width=True)
+st.subheader("📑 Job Journal (CUBIC)")
+st.dataframe(job_journal_cubic, use_container_width=True)
+
+st.subheader("🛒 NAV Table")
+st.dataframe(nav_table, use_container_width=True)
+
+st.subheader("💰 Calculation")
+st.dataframe(calc_table, use_container_width=True)
