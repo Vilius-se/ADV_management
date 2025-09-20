@@ -641,12 +641,16 @@ def render():
             st.warning(f"⚠️ {len(missing_nav)} components could not be matched with NAV numbers")
             st.subheader("📋 Missing NAV numbers")
 
-            # Rodom tiek normalizuotą, tiek originalų pavadinimą
-            missing_display = missing_nav[["Type", "No."]].copy()
-            missing_display = missing_display.rename(columns={
-                "Type": "Original Type",
-                "No.": "NAV No."
-            })
+            # Rodom originalų BOM pavadinimą (Type)
+            # ir NAV numerį (bus tuščias / None)
+            missing_display = missing_nav[["Type"]].copy()
+            missing_display["NAV No."] = None
+
+            st.dataframe(
+                missing_display.drop_duplicates().reset_index(drop=True),
+                use_container_width=True
+            )
+
 
             st.dataframe(missing_display.drop_duplicates().reset_index(drop=True),
                          use_container_width=True)
