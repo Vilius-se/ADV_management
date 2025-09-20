@@ -122,25 +122,33 @@ def pipeline_2_2_file_uploads(rittal=False):
         cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
         if cubic_bom:
             try:
-                # B ir G stulpeliai, header 14 eilutėje (skiprows=13)
+                # bandome openpyxl (xlsx/xlsm)
                 df_cubic = pd.read_excel(
                     cubic_bom,
                     skiprows=13,
                     usecols="B,G",
                     engine="openpyxl"
                 )
-                df_cubic = df_cubic.rename(columns={
-                    "Item Id": "Type",
-                    "Quantity": "Quantity"
-                })
+            except Exception:
+                # fallback į xlrd (senas .xls)
+                df_cubic = pd.read_excel(
+                    cubic_bom,
+                    skiprows=13,
+                    usecols="B,G",
+                    engine="xlrd"
+                )
+        
+            df_cubic = df_cubic.rename(columns=lambda x: str(x).strip())
+            if "Item Id" in df_cubic.columns:
+                df_cubic = df_cubic.rename(columns={"Item Id": "Type"})
+            if "Quantity" in df_cubic.columns:
+                df_cubic = df_cubic.rename(columns={"Quantity": "Quantity"})
+        
+            df_cubic["Original Type"] = df_cubic["Type"]
+            df_cubic["Original Article"] = df_cubic["Type"]
+        
+            dfs["cubic_bom"] = df_cubic
 
-                # Išsaugom originalą
-                df_cubic["Original Type"] = df_cubic["Type"]
-                df_cubic["Original Article"] = df_cubic["Type"]
-
-                dfs["cubic_bom"] = df_cubic
-            except Exception as e:
-                st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
         # --- BOM ---
         st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
