@@ -87,39 +87,60 @@ def pipeline_2_1_user_inputs():
 
 
 
+def validate_excel(uploaded_file, required_columns, name=""):
+    """
+    Patikrina ar įkeltas failas yra Excel ir ar turi reikiamus stulpelius.
+    """
+    try:
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
+    except Exception as e:
+        st.error(f"⚠️ Cannot open {name}: {e}")
+        return None
+
+    missing = [col for col in required_columns if col not in df.columns]
+    if missing:
+        st.error(f"⚠️ {name} missing required columns: {missing}")
+        return None
+    return df
+
+
 def pipeline_2_2_file_uploads(rittal: bool):
     """
-    Įkelia reikalingus Excel failus:
-    - CUBIC BOM (tik jei ne Rittal)
-    - BOM
-    - DATA.xlsx (visi lapai)
-    - Kaunas Stock
+    Įkelia visus reikiamus failus (CUBIC BOM – tik jei ne Rittal).
+    Leidžiami formatai: xls, xlsx, xlsm.
     """
     st.subheader("📂 Upload Required Files")
+    allowed_types = ["xls", "xlsx", "xlsm"]
+
     dfs = {}
 
+    # CUBIC BOM (tik jei nėra Rittal)
     if not rittal:
-        st.markdown("<h4 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h4>", unsafe_allow_html=True)
-        cubic = st.file_uploader("", type=["xls", "xlsx"], key="cubic_bom")
-        if cubic:
-            dfs["cubic"] = pd.read_excel(cubic)
+        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
+        cubic_bom = st.file_uploader("", type=allowed_types, key="cubic_bom")
+        if cubic_bom:
+            dfs["cubic_bom"] = validate_excel(cubic_bom, ["Item No."], "CUBIC BOM")
 
-    st.markdown("<h4 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h4>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=["xls", "xlsx"], key="bom")
+    # BOM
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
+    bom = st.file_uploader("", type=allowed_types, key="bom")
     if bom:
-        dfs["bom"] = pd.read_excel(bom)
+        dfs["bom"] = validate_excel(bom, ["Part No."], "BOM")
 
-    st.markdown("<h4 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h4>", unsafe_allow_html=True)
-    data = st.file_uploader("", type=["xls", "xlsx"], key="data")
-    if data:
-        dfs["data"] = pd.read_excel(data, sheet_name=None)  # visi lapai
+    # DATA
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
+    data_file = st.file_uploader("", type=allowed_types, key="data")
+    if data_file:
+        dfs["data"] = pd.read_excel(data_file, sheet_name=None, engine="openpyxl")  # visi lapai
 
-    st.markdown("<h4 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h4>", unsafe_allow_html=True)
-    ks = st.file_uploader("", type=["xls", "xlsx", "xmls"], key="ks")
-    if ks:
-        df = pd.read_excel(uploaded_file, engine="openpyxl")
+    # Kaunas Stock
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
+    ks_file = st.file_uploader("", type=allowed_types, key="ks")
+    if ks_file:
+        dfs["ks"] = validate_excel(ks_file, ["Manufacturer", "Qty"], "Kaunas Stock")
 
     return dfs if dfs else None
+
 # =====================================================
 # Pipeline 3.x – Duomenų apdorojimas
 # =====================================================
