@@ -424,38 +424,33 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
 
-    # Jei failas jau DataFrame
+    # Įsikeliam Kaunas Stock
     if isinstance(ks_file, pd.DataFrame):
         df_stock = ks_file.copy()
     else:
-        import io
-        content = ks_file.getvalue()
-        df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-
-    # Pervadinam svarbiausius stulpelius
-    df_stock.columns = [str(c).strip() for c in df_stock.columns]
-    if "Item No." not in df_stock.columns or "Bin Code" not in df_stock.columns or "Quantity" not in df_stock.columns:
-        raise ValueError(f"❌ Stock sheet missing required columns. Available: {list(df_stock.columns)}")
+        df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
 
     # Normalizacija
-    df_stock["Item No."] = df_stock["Item No."].map(normalize_no)
-    df_out["No."] = df_out["No."].map(normalize_no)
+    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
+    df_stock = df_stock[[df_stock.columns[1], df_stock.columns[0], df_stock.columns[3]]]  # C, B, D
+    df_stock.columns = ["No.", "Bin Code", "Quantity"]
 
-    # Susumuojam kiekius pagal No. ir Bin Code, išmetam 67-01-01-01
-    stock_grouped = (
-        df_stock[df_stock["Bin Code"].astype(str) != "67-01-01-01"]
-        .groupby(["Item No.","Bin Code"], as_index=False)["Quantity"].sum()
-    )
+    df_stock["No."] = df_stock["No."].map(normalize_no)
+    df_out["No."]   = df_out["No."].map(normalize_no)
 
-    # Pridedam stock info prie df_out
-    stock_map = stock_grouped.groupby("Item No.")["Quantity"].sum().to_dict()
-    df_out["Stock Quantity"] = df_out["No."].map(stock_map).fillna(0).astype(int)
+    # --- DEBUG: parodyti pirmus raktus ---
+    st.subheader("🔎 Debug: BOM vs Kaunas Stock keys")
+    st.write("👉 BOM No. pavyzdžiai:")
+    st.dataframe(df_out[["No."]].drop_duplicates().head(20))
+    st.write("👉 Kaunas Stock No. pavyzdžiai:")
+    st.dataframe(df_stock[["No."]].drop_duplicates().head(20))
 
-    # Kad Job Journal gautų visas lokacijas – pasaugom pilną sublentelę
-    stock_rows_map = {k: v for k, v in stock_grouped.groupby("Item No.")}
-    df_out["Stock Rows"] = df_out["No."].map(stock_rows_map)
+    # Sukuriam grupes
+    stock_groups = {k: v for k, v in df_stock.groupby("No.")}
+    df_out["Stock Rows"] = df_out["No."].map(stock_groups)
 
     return df_out
+
 
 
 def normalize_no(x):
