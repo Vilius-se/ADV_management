@@ -527,35 +527,42 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     """
-    Sukuria NAV užsakymo lentelę iš df_alloc (turi turėti 'No.' ir 'Quantity'):
+    Sukuria NAV užsakymo lentelę iš df_alloc:
       - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount, Description
+      - Supplier paimamas iš Part_no pagal PartNo_A
+      - Profit = 17, o jei gamintojas DANFOSS -> 10
     """
     st.info("🛒 Creating NAV order table...")
 
     if df_alloc is None or df_alloc.empty:
         return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
-    # Užtikrinam reikiamus Part_no stulpelius
+    # Užtikrinam Part_no stulpelius
     needed = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
     for col in needed:
         if col not in df_part_no.columns:
             st.error(f"❌ Part_no sheet missing required column: {col}")
             return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
-    # Map'ai
     supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
     manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
 
-    # Užtikrinam, kad turim kopiją su reikiamais stulpeliais
     tmp = df_alloc.copy()
+
+    # --- Saugikliai ---
     if "No." not in tmp.columns:
         st.error("❌ NAV table source must contain 'No.' column")
         return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
-    # Filtrai
-    tmp = tmp[tmp["No."].notna()]
+    if "Quantity" not in tmp.columns:
+        tmp["Quantity"] = 0   # <-- jei trūksta, sukuriam
+
+    if "Description" not in tmp.columns:
+        tmp["Description"] = ""
+
+    # Konversijos
+    tmp["No."] = tmp["No."].astype(str)
     tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
-    tmp = tmp[tmp["Quantity"] > 0]
 
     rows = []
     for _, r in tmp.iterrows():
@@ -576,6 +583,7 @@ def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> 
         })
 
     return pd.DataFrame(rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+
 
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
                              panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
