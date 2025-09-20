@@ -448,7 +448,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     # Sukuriam grupes
     stock_groups = {k: v for k, v in df_stock.groupby("No.")}
     df_out["Stock Rows"] = df_out["No."].map(stock_groups)
-
+ 
     return df_out
 
 
