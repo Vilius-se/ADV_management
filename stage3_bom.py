@@ -258,16 +258,23 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     return df_bom
 
-def pipeline_3_4_check_stock(df_bom, df_kaunas_raw):
+import pandas as pd
+
+def pipeline_3_4_check_stock(df_bom, ks_file):
     """
     Tikrina ar komponentai yra Kauno sandėlyje.
     Failas gali turėti stulpelius bet kokiais pavadinimais – pervadinam.
     """
     df_out = df_bom.copy()
 
-    # Normalizuojam Kaunas Stock struktūrą
-    df_kaunas = df_kaunas_raw.copy()
-    df_kaunas.columns = [c.strip() for c in df_kaunas.columns]
+    # Pirmiausia nuskaityti failą
+    try:
+        df_kaunas = pd.read_excel(ks_file)
+    except Exception as e:
+        raise ValueError(f"⚠️ Cannot open Kaunas Stock: {e}")
+
+    # Normalizuojam stulpelių pavadinimus
+    df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
     # Pervadinam į standartą
     rename_map = {}
@@ -296,6 +303,7 @@ def pipeline_3_4_check_stock(df_bom, df_kaunas_raw):
     df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
+
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
