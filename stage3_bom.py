@@ -255,11 +255,11 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
-    """
-    Prideda NAV numerius į BOM pagal Part_no lapą iš DATA.xlsx.
-    Jei nepavyko priskirti – No. paliekamas tuščias (None).
-    Sukuriama papildoma lentelė su nerastais komponentais.
-    """
+    # --- Išsaugom originalų BOM pavadinimą ---
+    if "Original Type" not in df_bom.columns:
+        df_bom["Original Type"] = df_bom["Type"]
+
+    # --- Pervadinam stulpelius pagal realų failo turinį ---
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A',       # "Item no."
@@ -270,16 +270,13 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F'     # "Cost price / Unit cost DKK"
     ]
 
-    # Normalizavimas
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
     part_map = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # BOM papildymas
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
-    df_bom['No.'] = df_bom['Norm_Type'].map(part_map)  # <- jei nerasta → None
+    df_bom['No.'] = df_bom['Norm_Type'].map(part_map)
 
-    # Merge papildomos info
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A', 'Desc_C', 'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F', 'Norm_B']],
         left_on='Norm_Type', right_on='Norm_B', how='left'
@@ -287,21 +284,17 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     df_bom = df_bom.drop(columns=['Norm_Type', 'Norm_B'])
     df_bom = df_bom.rename(columns={
-        'PartNo_A': 'NAV_No',
+        'PartNo_A': 'No.',
         'Desc_C': 'Description',
         'Manufacturer_D': 'Supplier',
         'SupplierNo_E': 'Supplier No.',
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # Lentelė su nerastais
-    missing_df = df_bom[df_bom['No.'].isna()][['Type', 'Description']].copy()
-    missing_df['Status'] = "NERASTA"
-
     st.session_state["part_no"] = df_part_no
-    st.session_state["missing_parts"] = missing_df
 
     return df_bom
+
 
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
@@ -642,15 +635,13 @@ def render():
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
 
-            # Sukuriam lentelę su originaliu BOM 'Type'
             missing_table = pd.DataFrame({
-                "Type (from BOM)": missing_nav["Type"],
+                "Original Type (from BOM)": missing_nav["Original Type"],
                 "NAV No.": missing_nav["No."]
             })
 
             st.dataframe(missing_table, use_container_width=True)
-
-
+            
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
 
