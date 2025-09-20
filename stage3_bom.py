@@ -418,25 +418,31 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     return df_out
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sutvarko CUBIC BOM stulpelius:
+    - B stulpelis → Type
+    - G stulpelis → Quantity
+    - Saugom originalius pavadinimus
+    """
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
 
-    # Normalizuojam stulpelius
-    df_out = df_cubic.copy()
-    df_out = df_out.rename(columns=lambda x: str(x).strip())
-
-    # Saugom svarbius stulpelius pagal indeksą (B = Type, G = Quantity)
-    if df_out.shape[1] >= 7:   # bent jau iki G
-        df_out = df_out.iloc[:, [1, 6]]   # B = 1, G = 6 (0-based)
+    # Pasiimam tik B ir G stulpelius pagal indeksus
+    try:
+        df_out = df_cubic.iloc[:, [1, 6]].copy()   # 0-based: B=1, G=6
         df_out.columns = ["Type", "Quantity"]
+    except Exception as e:
+        st.error(f"❌ Cannot prepare CUBIC BOM: {e}")
+        return pd.DataFrame()
 
-    # Sutvarkom kiekį
+    # Tvarkom kiekius
     df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
 
-    # Original Type
+    # Išsaugom originalų tipą
     df_out["Original Type"] = df_out["Type"]
 
     return df_out
+
 
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
