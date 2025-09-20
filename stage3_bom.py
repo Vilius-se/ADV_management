@@ -322,17 +322,13 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
-    # --- Išsaugom originalius ---
+    # Išsaugom originalius
     if "Original Type" not in df_bom.columns:
-        df_bom["Original Type"] = df_bom.get("Type", "")
+        df_bom["Original Type"] = df_bom["Type"]
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # --- Backup prieš merge ---
-    qty_backup = df_bom.get("Quantity", None)
-    orig_type_backup = df_bom.get("Original Type", None)
-
-    # --- Pasiruošiam Part_no ---
+    # Pasiruošiam Part_no
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A', 'PartName_B', 'Desc_C',
@@ -341,14 +337,17 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
     map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # --- Normalizuojam BOM ---
+    # Normalizuojam BOM
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
 
-    # --- Priskiriam NAV numerius ---
+    # Priskiriam NAV numerius
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # --- Merge su Part_no ---
+    # --- išsaugom Quantity prieš merge ---
+    qty_backup = df_bom.get("Quantity", None)
+
+    # Merge
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
@@ -362,14 +361,17 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # --- Grąžinam Quantity ir Original Type, jei dingo ---
+    # Jei Quantity prapuolė per merge – gražinam iš backup
     if "Quantity" not in df_bom.columns and qty_backup is not None:
         df_bom["Quantity"] = qty_backup
-    if "Original Type" not in df_bom.columns and orig_type_backup is not None:
-        df_bom["Original Type"] = orig_type_backup
+
+    # --- Filtrai: išmetam tuščius NAV numerius ir 0 kiekius ---
+    df_bom = df_bom[df_bom["No."].notna()]
+    df_bom = df_bom[df_bom["Quantity"] > 0]
 
     st.session_state["part_no"] = df_part_no
     return df_bom
+
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
@@ -479,64 +481,79 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
     - Job Task No. = 1144
     - Location Code = KAUNAS
     - Prideda Description ir Original Type gale
-    source: 'BOM' arba 'CUBIC' (naudojama tik atvaizdinti)
     """
+    st.info(f"📑 Creating Job Journal table from {source}...")
+
     if df_alloc is None or df_alloc.empty:
         return pd.DataFrame()
 
-    st.info(f"📑 Creating Job Journal table from {source}...")
+    # Filtrai – tik su No. ir Quantity > 0
+    df_alloc = df_alloc[df_alloc["No."].notna()]
+    df_alloc = df_alloc[df_alloc["Quantity"] > 0]
 
-    df_out = pd.DataFrame({
-        "Type": "Item",
-        "No.": df_alloc.get("No.", ""),
-        "Document No.": project_number,
-        "Job No.": project_number,
-        "Job Task No.": 1144,
-        "Quantity": df_alloc.get("Quantity", 0),
-        "Location Code": "KAUNAS",
-        "Bin Code": df_alloc.get("Bin Code", ""),
-        "Description": df_alloc.get("Description", ""),
-        "Original Type": df_alloc.get("Original Type", "")
-    })
+    cols = [
+        "Type", "No.", "Document No.", "Job No.", "Job Task No.",
+        "Quantity", "Location Code", "Bin Code", "Description", "Original Type"
+    ]
+    df_out = pd.DataFrame(columns=cols)
 
-    # jei nėra Bin Code arba jis tuščias → pridedam /NERA
-    mask_no_stock = df_out["Bin Code"].isin(["", "67-01-01-01"])
-    df_out.loc[mask_no_stock, "Document No."] = df_out["Document No."].astype(str) + "/NERA"
+    for _, row in df_alloc.iterrows():
+        doc_no = str(project_number)
+        if str(row.get("Bin Code", "")) in ("", "67-01-01-01"):
+            doc_no += "/NERA"
+
+        df_out = pd.concat([df_out, pd.DataFrame([{
+            "Type": "Item",
+            "No.": row.get("No."),
+            "Document No.": doc_no,
+            "Job No.": project_number,
+            "Job Task No.": 1144,
+            "Quantity": row.get("Quantity", 0),
+            "Location Code": "KAUNAS",
+            "Bin Code": row.get("Bin Code", ""),
+            "Description": row.get("Description", ""),
+            "Original Type": row.get("Original Type", "")
+        }])], ignore_index=True)
 
     return df_out
 
+
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sukuria NAV užsakymo lentelę iš df_alloc (turi turėti 'No.' ir 'Quantity'):
+      - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount, Description
+    """
     st.info("🛒 Creating NAV order table...")
 
+    if df_alloc is None or df_alloc.empty:
+        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+
+    # Užtikrinam reikiamus Part_no stulpelius
     needed = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
     for col in needed:
         if col not in df_part_no.columns:
             st.error(f"❌ Part_no sheet missing required column: {col}")
             return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
+    # Map'ai
     supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
     manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
 
+    # Užtikrinam, kad turim kopiją su reikiamais stulpeliais
     tmp = df_alloc.copy()
     if "No." not in tmp.columns:
         st.error("❌ NAV table source must contain 'No.' column")
         return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
-    if "Quantity" not in tmp.columns:
-        tmp["Quantity"] = 0
-
-    tmp["No."] = tmp["No."].astype(str).str.strip()
-    tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0).astype(int)
+    # Filtrai
+    tmp = tmp[tmp["No."].notna()]
+    tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
+    tmp = tmp[tmp["Quantity"] > 0]
 
     rows = []
     for _, r in tmp.iterrows():
-        part_no = r["No."]
-        qty = r["Quantity"]
-
-        # ❌ filtruojam tuščius ir 0 kiekius
-        if not part_no or qty <= 0:
-            continue
-
+        part_no = str(r["No."])
+        qty = float(r.get("Quantity", 0) or 0)
         manuf = manuf_map.get(part_no, "")
         profit = 10 if "DANFOSS" in manuf.upper() else 17
         supplier = supplier_map.get(part_no, 30093)
