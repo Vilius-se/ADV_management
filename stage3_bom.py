@@ -374,45 +374,50 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # Pasiruošiam Part_no
+    # Part_no
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A', 'PartName_B', 'Desc_C',
         'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
     ]
 
-    # Normalizuoti NAV numerius
+    # Normalizuojam NAV numerius
     def normalize_no(x):
         try:
-            return str(int(float(str(x).strip())))
+            return str(int(float(str(x).replace(",", ".").strip())))
         except:
             return str(x).strip()
 
-    df_part_no["PartNo_A"] = df_part_no["PartNo_A"].map(normalize_no)
-    df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
+    df_part_no["PartNo_A"] = df_part_no["PartNo_A"].map(normalize_no).fillna("")
+    df_part_no['Norm_B']   = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
 
-    # Map by type
+    # Map by Type
     map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # Normalizuojam BOM
+    # BOM
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = (
         df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
     )
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # Panaikinam kablelius / formatuojam BOM No.
-    df_bom["No."] = df_bom["No."].map(normalize_no)
+    # Normalizuojam BOM No.
+    df_bom["No."] = df_bom["No."].map(normalize_no).fillna("")
 
-    # Išsaugom kiekį prieš merge
+    # Backup Quantity
     qty_backup = df_bom.get("Quantity", None)
 
-    # Merge su Part_no – abu raktai jau stringai
+    # --- Svarbiausia: prieš merge abu key paverčiam į string ---
+    df_bom["No."]       = df_bom["No."].astype(str)
+    df_part_no["PartNo_A"] = df_part_no["PartNo_A"].astype(str)
+
+    # Merge
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
     )
 
+    # Tvarkymas
     df_bom = df_bom.drop(columns=['Norm_Type','Norm_B','PartNo_A'])
     df_bom = df_bom.rename(columns={
         'Desc_C': 'Description',
