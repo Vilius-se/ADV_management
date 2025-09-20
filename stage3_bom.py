@@ -455,8 +455,6 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 
     return df_out
 
-
-
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
