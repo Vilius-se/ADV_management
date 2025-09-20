@@ -845,7 +845,29 @@ def render():
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
+            # DEBUG: parodyti BOM ir Kaunas stock numerius
+            try:
+                st.subheader("🔎 Debug: BOM vs Kaunas Stock (No.)")
+                st.write("👉 BOM unikalūs No.:")
+                st.dataframe(df_bom[["No."]].drop_duplicates().head(20))
+            
+                df_stock_preview = files["ks"].copy()
+                df_stock_preview = df_stock_preview.rename(columns=lambda c: str(c).strip())
+                # C stulpelis = No., B = Bin Code, D = Quantity
+                df_stock_preview = df_stock_preview[[df_stock_preview.columns[1],
+                                                     df_stock_preview.columns[0],
+                                                     df_stock_preview.columns[3]]]
+                df_stock_preview.columns = ["No.", "Bin Code", "Quantity"]
+                df_stock_preview["No."] = df_stock_preview["No."].apply(normalize_no)
+            
+                st.write("👉 Kaunas Stock unikalūs No.:")
+                st.dataframe(df_stock_preview[["No."]].drop_duplicates().head(20))
+            except Exception as e:
+                st.error(f"❌ Debug nepavyko: {e}")
 
+
+
+        
         # --- Missing NAV numbers lentelės ---
         missing_bom   = pipeline_4_4_missing_nav(df_bom, "BOM")
         missing_cubic = pipeline_4_4_missing_nav(df_cubic, "CUBIC")
