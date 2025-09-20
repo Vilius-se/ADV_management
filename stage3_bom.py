@@ -69,7 +69,7 @@ def pipeline_2_1_user_inputs():
     )
 
     grounding   = st.selectbox("Grounding type", ["TT", "TN-S", "TN-C-S"])
-    main_switch = st.selectbox("Main switch", ["Switch A", "Switch B", "Switch C"])
+    main_switch = st.selectbox("Main switch", ["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"])
 
     swing_frame = st.checkbox("Swing frame?")
     ups         = st.checkbox("UPS?")
