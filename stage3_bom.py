@@ -395,15 +395,19 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
     - Jei nėra stock → prie Document No. prideda '/NERA'
     - Job Task No. = 1144
     - Location Code = KAUNAS
+    - Prideda Description stulpelį gale
     """
     st.info("📑 Creating Job Journal table...")
 
-    cols = ["Type","No.","Document No.","Job No.","Job Task No.","Quantity","Location Code","Bin Code"]
+    cols = [
+        "Type", "No.", "Document No.", "Job No.", "Job Task No.",
+        "Quantity", "Location Code", "Bin Code", "Description"
+    ]
     df_out = pd.DataFrame(columns=cols)
 
     for _, row in df_alloc.iterrows():
         doc_no = str(project_number)
-        if str(row.get("Bin Code","")) in ("", "67-01-01-01"):
+        if str(row.get("Bin Code", "")) in ("", "67-01-01-01"):
             doc_no += "/NERA"
 
         df_out = pd.concat([df_out, pd.DataFrame([{
@@ -412,12 +416,14 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
             "Document No.": doc_no,
             "Job No.": project_number,
             "Job Task No.": 1144,
-            "Quantity": row.get("Quantity",0),
+            "Quantity": row.get("Quantity", 0),
             "Location Code": "KAUNAS",
-            "Bin Code": row.get("Bin Code","")
+            "Bin Code": row.get("Bin Code", ""),
+            "Description": row.get("Description", "")  # <- naujas stulpelis
         }])], ignore_index=True)
 
     return df_out
+
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     """
