@@ -250,6 +250,7 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     """
     Prideda accessories pagal DATA.xlsx → Accessories lapą.
     Logika: jei BOM’e yra pagrindinis komponentas, įtraukiami jo accessories.
+    Accessories įrašomi į 'Type', kad gautų NAV numerius vėliau.
     """
     st.info("➕ Adding accessories...")
 
@@ -262,24 +263,29 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
     for _, row in df_bom.iterrows():
         main_item = str(row["Type"]).strip()
-        matches = df_accessories[df_accessories.iloc[:,0].astype(str).str.strip() == main_item]
+        matches = df_accessories[df_accessories.iloc[:, 0].astype(str).str.strip() == main_item]
+
         for _, acc_row in matches.iterrows():
-            acc_values = acc_row.values[1:]
+            acc_values = acc_row.values[1:]  # viskas po pirmo stulpelio
             for i in range(0, len(acc_values), 3):
-                if i+2 >= len(acc_values) or pd.isna(acc_values[i]):
+                if i + 2 >= len(acc_values) or pd.isna(acc_values[i]):
                     break
-                acc_item = str(acc_values[i]).strip()
+
+                acc_item = str(acc_values[i]).strip()  # accessory pavadinimas
                 try:
-                    acc_qty = float(str(acc_values[i+1]).replace(",","."))
+                    acc_qty = float(str(acc_values[i + 1]).replace(",", "."))
                 except:
                     acc_qty = 1
-                acc_manuf = str(acc_values[i+2]).strip()
+                acc_manuf = str(acc_values[i + 2]).strip()
+
+                # accessories įrašom į Type
                 df_out = pd.concat([df_out, pd.DataFrame([{
-                    "Type": "item",
-                    "Cross-Reference No.": acc_item,
+                    "Type": acc_item,
                     "Quantity": acc_qty,
-                    "Manufacturer": acc_manuf
+                    "Manufacturer": acc_manuf,
+                    "Source": "Accessory"  # žyma identifikacijai
                 }])], ignore_index=True)
+
                 added.append(acc_item)
 
     st.success(f"✅ Added {len(added)} accessories")
