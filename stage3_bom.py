@@ -487,11 +487,12 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     parts_cost = (qty_bom * unit_bom).sum() if not df_bom.empty else 0
 
     if df_cubic is not None and not df_cubic.empty:
-        qty_cubic  = pd.to_numeric(df_cubic.get("Quantity", 0), errors="coerce").fillna(0)
-        unit_cubic = pd.to_numeric(df_cubic.get("Unit Cost", 0), errors="coerce").fillna(0)
-        cubic_cost = (qty_cubic * unit_cubic).sum()
+        qty_cubic = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0) if "Quantity" in df_cubic.columns else 0
+        unit_cubic = pd.to_numeric(df_cubic["Unit Cost"], errors="coerce").fillna(0) if "Unit Cost" in df_cubic.columns else 0
+        cubic_cost = (qty_cubic * unit_cubic).sum() if isinstance(qty_cubic, pd.Series) else 0
     else:
-        cubic_cost = 0
+    cubic_cost = 0
+
 
     # Hours
     hours_cost = 0
