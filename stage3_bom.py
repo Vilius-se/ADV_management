@@ -127,25 +127,26 @@ def pipeline_2_2_file_uploads(rittal=False):
                 st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
         # --- BOM ---
-        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-        bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
-        if bom:
-            try:
-                df_bom = read_excel_any(bom)
-
-                # pasiruošiam pirmus du stulpelius kaip Original
-                if df_bom.shape[1] >= 2:
-                    colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                    colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-                    df_bom["Original Article"] = colA
-                    df_bom["Original Type"]    = colB.where(colB != "", colA)
-                else:
-                    df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                    df_bom["Original Type"]    = df_bom["Original Article"]
-
-                dfs["bom"] = df_bom
-            except Exception as e:
-                st.error(f"⚠️ Cannot open BOM: {e}")
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
+    bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
+    if bom:
+        try:
+            df_bom = read_excel_any(bom)
+    
+            # 1) unikalus indeksas
+            df_bom["_OrigIdx"] = range(len(df_bom))
+    
+            # 2) išsaugom originalius pavadinimus
+            if df_bom.shape[1] >= 2:
+                df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+                df_bom["Original Type"]    = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+            else:
+                df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+                df_bom["Original Type"]    = df_bom["Original Article"]
+    
+            dfs["bom"] = df_bom
+        except Exception as e:
+            st.error(f"⚠️ Cannot open BOM: {e}")
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
@@ -220,7 +221,7 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
     df_bom["Norm_Type"] = df_bom["Type"].astype(str).str.upper().str.replace(" ", "")
 
     # Filtravimas
-    filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
+    filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].copy()
 
     st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
                f"(removed {len(df_bom) - len(filtered)} items with comments)")
@@ -675,19 +676,11 @@ def render():
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
         
-            # --- parodyti ORIGINALIAS BOM eilutes pagal indeksus ---
-            st.write("🔎 Original BOM rows for missing NAV numbers:")
-            st.dataframe(files["bom"].iloc[missing_nav.index], use_container_width=True)
+            missing_table = missing_nav[["_OrigIdx","Original Article","Original Type","Quantity","No."]].rename(
+                columns={"No.":"NAV No."}
+            )
         
-            # --- santraukos lentelė ---
-            missing_table = pd.DataFrame({
-                "Original Article (from BOM)": missing_nav.get("Original Article", ""),
-                "Original Type (from BOM)": missing_nav.get("Original Type", ""),
-                "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
-                "NAV No.": missing_nav["No."]
-            })
-
-        st.dataframe(missing_table, use_container_width=True)
+            st.dataframe(missing_table, use_container_width=True)
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
