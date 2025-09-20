@@ -133,12 +133,21 @@ def pipeline_2_2_file_uploads(rittal: bool):
     if data_file:
         dfs["data"] = pd.read_excel(data_file, sheet_name=None, engine="openpyxl")  # visi lapai
 
-    # Kaunas Stock
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
-    ks_file = st.file_uploader("", type=allowed_types, key="ks")
-    if ks_file:
-        dfs["ks"] = validate_excel(ks_file, ["Manufacturer", "Qty"], "Kaunas Stock")
-
+     Kaunas Stock
+st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
+ks_file = st.file_uploader("", type=allowed_types, key="ks")
+if ks_file:
+    try:
+        df_ks = pd.read_excel(ks_file, engine="openpyxl", skiprows=2)  # nes nuo D3
+        # Užtikrinam, kad yra bent Qty ir Component stulpeliai
+        required_cols = ["Quantity", "Component"]
+        missing = [c for c in required_cols if c not in df_ks.columns]
+        if missing:
+            st.error(f"⚠️ Kaunas Stock missing required columns: {missing}")
+        else:
+            dfs["ks"] = df_ks
+    except Exception as e:
+        st.error(f"⚠️ Cannot open Kaunas Stock: {e}")
     return dfs if dfs else None
 
 # =====================================================
