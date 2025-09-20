@@ -478,6 +478,7 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
 
     return df_out
 
+
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     st.info("🛒 Creating NAV order table...")
 
