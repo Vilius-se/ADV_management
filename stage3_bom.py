@@ -129,22 +129,14 @@ def pipeline_2_2_file_uploads(rittal=False):
             # --- BOM ---
         st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
         bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
-        if bom:
-            try:
-                df_bom = read_excel_any(bom)
-        
-                # pasiruošiam pirmus du stulpelius
-                if df_bom.shape[1] >= 2:
-                    colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                    colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-                    # jei B tuščias → imti A
-                    df_bom["Original Type"] = colB.where(colB != "", colA)
-                else:
-                    df_bom["Original Type"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-        
-                dfs["bom"] = df_bom
-            except Exception as e:
-                st.error(f"⚠️ Cannot open BOM: {e}")
+        if df_bom.shape[1] >= 2:
+    colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+    colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+    df_bom["Original Article"] = colA
+    df_bom["Original Type"]    = colB.where(colB != "", colA)
+        else:
+            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]    = df_bom["Original Article"]
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
