@@ -126,13 +126,13 @@ def pipeline_2_2_file_uploads(rittal=False):
             except Exception as e:
                 st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
-            # --- BOM ---
+        # --- BOM ---
         st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
         bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
         if bom:
             try:
                 df_bom = read_excel_any(bom)
-        
+
                 # pasiruošiam pirmus du stulpelius kaip Original
                 if df_bom.shape[1] >= 2:
                     colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
@@ -142,11 +142,19 @@ def pipeline_2_2_file_uploads(rittal=False):
                 else:
                     df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
                     df_bom["Original Type"]    = df_bom["Original Article"]
-        
+
                 dfs["bom"] = df_bom
             except Exception as e:
                 st.error(f"⚠️ Cannot open BOM: {e}")
 
+    # --- DATA ---
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
+    data_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="data")
+    if data_file:
+        try:
+            dfs["data"] = pd.read_excel(data_file, sheet_name=None)  # <-- VISI LAPAI
+        except Exception as e:
+            st.error(f"⚠️ Cannot open DATA: {e}")
 
     # --- Kaunas Stock ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
