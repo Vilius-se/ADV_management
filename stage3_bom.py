@@ -355,51 +355,63 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
     return df_out
 
 
-def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no_raw: pd.DataFrame) -> pd.DataFrame:
+def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
+                             panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
     """
-    Sukuria NAV užsakymo lentelę:
-    - Type, No., Quantity, Supplier, Profit, Discount
-    - Profit = 17, Danfoss → 10
-    - Discount = 0
+    Sukuria sąmatos lentelę:
+    - Parts cost, CUBIC cost, Hours cost, Smart supply, Wire set, Extra
+    - Total, Total+5%, Total+35%
     """
+    st.info("💰 Creating Calculation table...")
 
-    st.info("🛒 Creating NAV order table...")
+    # Užtikrinam, kad skaičiai būtų float
+    qty_bom = pd.to_numeric(df_bom.get("Quantity", 0), errors="coerce").fillna(0)
+    unit_bom = pd.to_numeric(df_bom.get("Unit Cost", 0), errors="coerce").fillna(0)
+    parts_cost = (qty_bom * unit_bom).sum() if not df_bom.empty else 0
 
-    # Jei reikia – pervadinam stulpelius
-    df_part_no = df_part_no_raw.copy()
-    cols_up = [c.upper().strip() for c in df_part_no.columns]
+    if df_cubic is not None and not df_cubic.empty:
+        qty_cubic = pd.to_numeric(df_cubic.get("Quantity", 0), errors="coerce").fillna(0)
+        unit_cubic = pd.to_numeric(df_cubic.get("Unit Cost", 0), errors="coerce").fillna(0)
+        cubic_cost = (qty_cubic * unit_cubic).sum()
+    else:
+        cubic_cost = 0
 
-    if "ITEM NO." in cols_up and "TYPE NO." in cols_up:
-        df_part_no.columns = [
-            'PartNo_A',       # "Item no."
-            'PartName_B',     # "Type no."
-            'Desc_C',         # "Description"
-            'Manufacturer_D', # "Supplier"
-            'SupplierNo_E',   # "Supplier No."
-            'UnitPrice_F'     # "Cost price / Unit cost DKK"
-        ]
+    # Hours pagal projektą
+    hours_cost = 0
+    if df_hours is not None and not df_hours.empty:
+        hourly_rate = pd.to_numeric(df_hours.iloc[1, 4], errors="coerce") if df_hours.shape[1] > 4 else 0
+        row_match = df_hours[df_hours.iloc[:, 0].astype(str).str.upper() == str(panel_type).upper()]
+        hours_value = 0
+        if not row_match.empty:
+            if grounding == "TT":
+                hours_value = pd.to_numeric(row_match.iloc[0, 1], errors="coerce")
+            elif grounding == "TN-S":
+                hours_value = pd.to_numeric(row_match.iloc[0, 2], errors="coerce")
+            elif grounding == "TN-C-S":
+                hours_value = pd.to_numeric(row_match.iloc[0, 3], errors="coerce")
+        hours_cost = (hours_value if pd.notna(hours_value) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
 
-    cols = ["Type","No.","Quantity","Supplier","Profit","Discount"]
-    df_out = pd.DataFrame(columns=cols)
+    smart_supply_cost = 9750.0
+    wire_set_cost     = 2500.0
 
-    supplier_map = dict(zip(df_part_no["PartNo_A"], df_part_no["SupplierNo_E"]))
-    manuf_map    = dict(zip(df_part_no["PartNo_A"], df_part_no["Manufacturer_D"]))
+    total = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
+    total_plus_5  = total * 1.05
+    total_plus_35 = total * 1.35
 
-    for _, row in df_alloc.iterrows():
-        part_no = row.get("No.")
-        manuf   = manuf_map.get(part_no,"")
-        profit  = 10 if "DANFOSS" in str(manuf).upper() else 17
+    df_calc = pd.DataFrame([
+        {"Label": "Parts", "Value": parts_cost},
+        {"Label": "Cubic", "Value": cubic_cost},
+        {"Label": "Hours cost", "Value": hours_cost},
+        {"Label": "Smart supply", "Value": smart_supply_cost},
+        {"Label": "Wire set", "Value": wire_set_cost},
+        {"Label": "Extra", "Value": 0},
+        {"Label": "Total", "Value": total},
+        {"Label": "Total+5%", "Value": total_plus_5},
+        {"Label": "Total+35%", "Value": total_plus_35},
+    ])
 
-        df_out = pd.concat([df_out, pd.DataFrame([{
-            "Type": "Item",
-            "No.": part_no,
-            "Quantity": row.get("Quantity",0),
-            "Supplier": supplier_map.get(part_no, 30093),
-            "Profit": profit,
-            "Discount": 0
-        }])], ignore_index=True)
+    return df_calc
 
-    return df_out
 
 
 
