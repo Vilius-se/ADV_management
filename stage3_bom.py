@@ -430,60 +430,21 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     else:
         df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
 
+    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
+
+    # C = No., B = Bin, D = Quantity  (tinkamas poslinkis)
+    df_stock = df_stock[[df_stock.columns[3], df_stock.columns[2], df_stock.columns[4]]]
+    df_stock.columns = ["No.", "Bin Code", "Quantity"]
+
     # Normalizacija
-    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-    df_stock = df_stock[[df_stock.columns[2], df_stock.columns[1], df_stock.columns[3]]]  # C, B, D
-    df_stock.columns = ["No.", "Bin Code", "Quantity"]
-
-    df_stock["No."] = df_stock["No."].map(normalize_no)
-    df_out["No."]   = df_out["No."].map(normalize_no)
-
-    # --- DEBUG: parodyti pirmus raktus ---
-    st.subheader("🔎 Debug: BOM vs Kaunas Stock keys")
-    st.write("👉 BOM No. pavyzdžiai:")
-    st.dataframe(df_out[["No."]].drop_duplicates().head(20))
-    st.write("👉 Kaunas Stock No. pavyzdžiai:")
-    st.dataframe(df_stock[["No."]].drop_duplicates().head(20))
-
-    # Sukuriam grupes
-    stock_groups = {k: v for k, v in df_stock.groupby("No.")}
-    df_out["Stock Rows"] = df_out["No."].map(stock_groups)
- 
-    return df_out
-
-
-
-def normalize_no(x):
-    try:
-        return str(int(float(str(x).replace(",",".").strip())))
-    except:
-        return str(x).strip()
-
-def pipeline_3_4_check_stock(df_bom, ks_file):
-    df_out = df_bom.copy()
-
-    # Įsikeliam Kaunas Stock
-    if isinstance(ks_file, pd.DataFrame):
-        df_stock = ks_file.copy()
-    else:
-        df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
-
-    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-    df_stock = df_stock[[df_stock.columns[1], df_stock.columns[0], df_stock.columns[3]]]  # C, B, D
-    df_stock.columns = ["No.", "Bin Code", "Quantity"]
-
-    # Normalizuojam No.
     df_stock["No."] = df_stock["No."].apply(normalize_no)
-
-    df_out["No."] = df_out["No."].apply(normalize_no)
+    df_out["No."]   = df_out["No."].apply(normalize_no)
 
     # Sukuriam map: No. -> visos eilutės
     stock_groups = {k: v for k, v in df_stock.groupby("No.")}
-
     df_out["Stock Rows"] = df_out["No."].map(stock_groups)
 
     return df_out
-
 
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
