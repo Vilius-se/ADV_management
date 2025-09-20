@@ -260,18 +260,13 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
-        # Kitaip tai UploadedFile
-        try:
-            content = ks_file.getvalue()
-            df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-        except Exception:
-            content = ks_file.getvalue()
-            df_kaunas = pd.read_excel(io.BytesIO(content), engine=None)
+        import io, pandas as pd
+        content = ks_file.getvalue()
+        df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    # Normalizuojam stulpelių pavadinimus
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pervadinam į standartą
+    # Pervadinimas
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
@@ -283,27 +278,41 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    # Jei trūksta laukų, tiesiog paliekam tuščius
+    # Užtikrinam, kad yra stulpeliai
     for req in ["Component", "Bin Code", "Quantity"]:
         if req not in df_kaunas.columns:
             df_kaunas[req] = ""
 
-    # Žemėlapis komponento -> bin
+    # Sukuriam lookup žemėlapį
     stock_map = dict(zip(
         df_kaunas["Component"].astype(str),
         df_kaunas["Bin Code"].astype(str)
     ))
 
-    # Pridedam Bin Code į BOM
-    df_out["Bin Code"] = df_out["No."].map(lambda x: stock_map.get(str(x), ""))
+    # Pasirenkam raktą BOM'e
+    if "No." in df_out.columns:
+        key_col = "No."
+    elif "Item No." in df_out.columns:
+        key_col = "Item No."
+    elif "Type" in df_out.columns:
+        key_col = "Type"
+    else:
+        raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
-    # Jei nėra → pridedam /NERA
+    # Pridedam Bin Code
+    df_out["Bin Code"] = df_out[key_col].astype(str).map(lambda x: stock_map.get(x, ""))
+
+    # Jei nėra Bin Code → pažymim /NERA
+    if "Document No." not in df_out.columns:
+        df_out["Document No."] = ""
+
     df_out.loc[
         (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"),
         "Document No."
-    ] = df_out["No."].astype(str) + "/NERA"
+    ] = df_out[key_col].astype(str) + "/NERA"
 
     return df_out
+
 
 
 # =====================================================
