@@ -300,8 +300,9 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
     # Pridedam Bin Code
-    df_out["Bin Code"] = df_out[key_col].astype(str).map(lambda x: stock_map.get(x, ""))
-
+    df_out["Bin Code"] = df_out[key_col].astype(str).apply(
+        lambda x: stock_map.get(x, "")
+    )
     # Jei nėra Bin Code → pažymim /NERA
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
