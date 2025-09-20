@@ -656,7 +656,7 @@ def render():
                       # --- Missing NAV numbers lentelė ---
         missing_nav = df_bom[df_bom["No."].isna()]
 
-        iif not missing_nav.empty:
+        if not missing_nav.empty:
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
 
