@@ -214,6 +214,8 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     """
     Prideda NAV numerius į BOM pagal Part_no lapą iš DATA.xlsx.
+    Rezultatas: grąžina BOM su NAV informacija.
+    Originalus Part_no lapas saugomas st.session_state["part_no"].
     """
     # --- Pervadinam stulpelius pagal realų failo turinį ---
     df_part_no = df_part_no_raw.copy()
@@ -251,8 +253,10 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F': 'Unit Cost'
     })
 
-    return df_bom, df_part_no
+    # --- Išsaugom Part_no lentelę į session ---
+    st.session_state["part_no"] = df_part_no
 
+    return df_bom
 
 def pipeline_3_4_check_stock(df_bom: pd.DataFrame, df_kaunas: pd.DataFrame) -> pd.DataFrame:
     """
@@ -420,7 +424,7 @@ def render():
     if st.button("🚀 Run BOM Processing"):
         df_bom = pipeline_3_1_filtering(files["bom"], files["data"]["Stock"])
         df_bom = pipeline_3_2_add_accessories(df_bom, files["data"]["Accessories"])
-        df_bom, df_part_no = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"]
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"])
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
