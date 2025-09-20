@@ -43,6 +43,12 @@ def pipeline_1_3_safe_filename(s):
     s = re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
 
+def normalize_key(val):
+    """Vienodinimui: didžiosios, be tarpų, be \xa0"""
+    if pd.isna(val):
+        return ""
+    return str(val).upper().replace(" ", "").replace("\xa0", "")
+
 # =====================================================
 # Pipeline 2.x – vartotojo įvestis ir failai
 # =====================================================
@@ -293,14 +299,13 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
-    # --- Išsaugom originalų BOM pavadinimą ---
-    if "Original Type" not in df_bom.columns:
+    # Užtikrinam originalius stulpelius
+    if "Original Type" not in df_bom.columns and "Type" in df_bom.columns:
         df_bom["Original Type"] = df_bom["Type"]
-
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # --- Pervadinam stulpelius pagal realų failo turinį ---
+    # Paruošiam Part_no
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A',       # "Item no."
@@ -311,24 +316,24 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F'     # "Cost price / Unit cost DKK"
     ]
 
-    # Sukuriam abu map’us
-    df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
+    # Normalizuojam raktus
+    df_part_no['Norm_B'] = df_part_no['PartName_B'].map(normalize_key)
     map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
-    map_by_article = dict(zip(df_part_no['PartNo_A'], df_part_no['PartNo_A']))  # savęs mapping
 
-    # Normalizuojam BOM Type
     df_bom = df_bom.copy()
-    df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
+    df_bom['Norm_Type'] = df_bom['Type'].map(normalize_key)
 
-    # Pirmas bandymas: jungiam pagal Type
+    # Pirmas bandymas pagal Type
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # Jei dar vis NaN, bandymas jungti pagal Article No.
+    # Antras bandymas pagal Article (jei dar nėra No.)
     if "Article No." in df_bom.columns:
         mask_missing = df_bom['No.'].isna()
-        df_bom.loc[mask_missing, 'No.'] = df_bom.loc[mask_missing, 'Article No.'].map(map_by_article)
+        df_bom.loc[mask_missing, 'No.'] = df_bom.loc[mask_missing, 'Article No.'].map(
+            lambda x: str(x) if str(x) in df_part_no['PartNo_A'].astype(str).values else None
+        )
 
-    # Merge papildomos informacijos
+    # Merge papildomos info
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
@@ -344,6 +349,7 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     st.session_state["part_no"] = df_part_no
     return df_bom
+
 
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
