@@ -442,16 +442,15 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
 
     df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-
-    # C = No., B = Bin, D = Quantity  (tinkamas poslinkis)
+    # Teisinga tvarka: C (No.), B (Bin Code), D (Quantity)
     df_stock = df_stock[[df_stock.columns[2], df_stock.columns[1], df_stock.columns[3]]]
     df_stock.columns = ["No.", "Bin Code", "Quantity"]
 
-    # Normalizacija
+    # Normalizuojam numerius
     df_stock["No."] = df_stock["No."].apply(normalize_no)
     df_out["No."]   = df_out["No."].apply(normalize_no)
 
-    # Sukuriam map: No. -> visos eilutės
+    # Sukuriam grupes pagal No.
     stock_groups = {k: v for k, v in df_stock.groupby("No.")}
     df_out["Stock Rows"] = df_out["No."].map(stock_groups)
 
