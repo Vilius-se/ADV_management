@@ -98,6 +98,18 @@ def get_sheet_safe(data_dict, names):
 
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 
+def normalize_no(x):
+    """
+    Normalizuoja NAV numerius: pašalina kablelius, taškus,
+    palieka tik sveiką skaičių kaip string.
+    Pvz. '2169732.0' -> '2169732'
+    """
+    try:
+        return str(int(float(str(x).replace(",", ".").strip())))
+    except:
+        return str(x).strip()
+
+
 def allocate_from_stock(no, qty_needed, stock_rows):
     allocations = []
     remaining = qty_needed
