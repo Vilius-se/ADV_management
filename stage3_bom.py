@@ -644,11 +644,14 @@ def render():
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
-        # --- vykdom pipelines ---
+        # --- BOM processing ---
         df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
-        # --- Išsaugom originalų BOM pavadinimą iš karto ---
-        if "Original Type" not in files["bom"].columns:
-            files["bom"]["Original Type"] = files["bom"].iloc[:,1]  # antras stulpelis iš BOM (B)
+
+        # Išsaugom originalius BOM pavadinimus
+        if "Original Type" not in files["bom"].columns and files["bom"].shape[1] >= 2:
+            files["bom"]["Original Type"] = files["bom"].iloc[:, 1]
+        if "Original Article" not in files["bom"].columns and files["bom"].shape[1] >= 1:
+            files["bom"]["Original Article"] = files["bom"].iloc[:, 0]
 
         # jei yra Part_code → pakeičiam pavadinimus
         if df_part_code is not None and not df_part_code.empty:
@@ -662,7 +665,7 @@ def render():
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
-                      # --- Missing NAV numbers lentelė ---
+        # --- Missing NAV numbers lentelė ---
         missing_nav = df_bom[df_bom["No."].isna()]
 
         if not missing_nav.empty:
@@ -670,45 +673,41 @@ def render():
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
 
             missing_table = pd.DataFrame({
-                "Original Type (from BOM)": missing_nav["Original Type"].fillna(
-                    missing_nav.get("Type", missing_nav.get("Article No.", "NEŽINOMAS"))
-                ),
+                "Original Type (from BOM)": missing_nav.get("Original Type", ""),
                 "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
                 "NAV No.": missing_nav["No."]
             })
-
             st.dataframe(missing_table, use_container_width=True)
 
-            
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
 
-# --- galutinės lentelės ---
-job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
-job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"], source="CUBIC")
+        # --- galutinės lentelės ---
+        job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
+        job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"])
 
-# NAV ir Calculation paliekam kaip buvo
-nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
-calc_table  = pipeline_4_3_calculation(
-    df_bom,
-    files.get("cubic_bom"),
-    df_hours,
-    inputs["panel_type"],
-    inputs["grounding"],
-    inputs["project_number"]
-)
+        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
+        calc_table  = pipeline_4_3_calculation(
+            df_bom,
+            files.get("cubic_bom"),
+            df_hours,
+            inputs["panel_type"],
+            inputs["grounding"],
+            inputs["project_number"]
+        )
 
-# --- išvedimas ---
-st.success("✅ BOM processing complete!")
+        # --- išvedimas ---
+        st.success("✅ BOM processing complete!")
 
-st.subheader("📑 Job Journal (BOM)")
-st.dataframe(job_journal_bom, use_container_width=True)
+        st.subheader("📑 Job Journal (BOM)")
+        st.dataframe(job_journal_bom, use_container_width=True)
 
-st.subheader("📑 Job Journal (CUBIC)")
-st.dataframe(job_journal_cubic, use_container_width=True)
+        st.subheader("📑 Job Journal (CUBIC)")
+        st.dataframe(job_journal_cubic, use_container_width=True)
 
-st.subheader("🛒 NAV Table")
-st.dataframe(nav_table, use_container_width=True)
+        st.subheader("🛒 NAV Table")
+        st.dataframe(nav_table, use_container_width=True)
 
-st.subheader("💰 Calculation")
-st.dataframe(calc_table, use_container_width=True)
+        st.subheader("💰 Calculation")
+        st.dataframe(calc_table, use_container_width=True)
+
