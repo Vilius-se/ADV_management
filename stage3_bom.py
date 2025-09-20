@@ -98,66 +98,6 @@ def get_sheet_safe(data_dict, names):
 
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 
-def debug_check_bom_vs_stock(df_bom, df_stock):
-    """
-    BOM 'No.' tikrinamas prieš Kaunas Stock 'Item No.'.
-    Rodo BOM Quantity, Stock Quantity (sumuotas), Bin Code.
-    """
-
-    df_stock = df_stock.copy()
-    df_stock.columns = [str(c).strip() for c in df_stock.columns]
-
-    # Bandome atpažinti pagrindinius stulpelius
-    rename_map = {}
-    for col in df_stock.columns:
-        col_up = col.strip().upper()
-        if "NO" in col_up:       # Item No. stulpelis
-            rename_map[col] = "Item No."
-        elif "BIN" in col_up:    # Bin Code stulpelis
-            rename_map[col] = "Bin Code"
-        elif "QTY" in col_up:    # Quantity stulpelis
-            rename_map[col] = "Quantity"
-
-    df_stock = df_stock.rename(columns=rename_map)
-
-    required = ["Item No.", "Bin Code", "Quantity"]
-    for r in required:
-        if r not in df_stock.columns:
-            st.error(f"❌ Stock sheet missing '{r}' column. Available: {list(df_stock.columns)}")
-            return df_stock.head(20)
-
-    df_stock["Item No."] = df_stock["Item No."].astype(str).str.strip()
-    df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
-
-    # Grupavimas pagal Item No.: sumuojam visas lokacijas, išskyrus 67-01-01-01
-    stock_grouped = (
-        df_stock[df_stock["Bin Code"] != "67-01-01-01"]
-        .groupby("Item No.")
-        .agg({"Quantity": "sum"})
-        .reset_index()
-    )
-
-    # BOM pusė
-    bom_check = df_bom[["No.", "Quantity", "Description", "Original Type"]].copy()
-    bom_check["No."] = bom_check["No."].astype(str)
-
-    # Join BOM ↔ Stock
-    merged = bom_check.merge(
-        stock_grouped,
-        left_on="No.", right_on="Item No.",
-        how="left"
-    )
-
-    merged = merged.rename(columns={
-        "Quantity_x": "BOM Quantity",
-        "Quantity_y": "Stock Quantity"
-    })
-
-    return merged[["No.", "Original Type", "Description", "BOM Quantity", "Stock Quantity"]]
-
-
-
-
 def read_excel_any(file, **kwargs):
     try:
         return pd.read_excel(file, engine="openpyxl", **kwargs)
@@ -867,11 +807,6 @@ def render():
         df_bom   = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom   = pipeline_3_4_check_stock(df_bom, files["ks"])
 
-        st.subheader("🔍 BOM vs Kaunas Stock check")
-        debug_table = debug_check_bom_vs_stock(df_bom, files["ks"])
-        st.dataframe(debug_table, use_container_width=True)
-
-        
         # --- CUBIC BOM processing ---
         df_cubic = files.get("cubic_bom", pd.DataFrame())
         if not df_cubic.empty:
