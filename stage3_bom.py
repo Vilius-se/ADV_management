@@ -258,30 +258,42 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     return df_bom
 
-def pipeline_3_4_check_stock(df_bom: pd.DataFrame, df_kaunas: pd.DataFrame) -> pd.DataFrame:
+def pipeline_3_4_check_stock(df_bom, df_kaunas_raw):
     """
-    Tikrina Kaunas Stock.
-    - Jei randa sandėlyje → priskiria Bin Code
-    - Jei nėra → prie Document No. prideda '/NERA'
+    Tikrina ar komponentai yra Kauno sandėlyje.
+    Failas gali turėti stulpelius bet kokiais pavadinimais – pervadinam.
     """
-    st.info("📦 Checking Kaunas stock...")
-
-    if df_kaunas is None or df_kaunas.empty:
-        st.error("❌ Kaunas Stock not found")
-        return df_bom
-
     df_out = df_bom.copy()
-    df_out["Bin Code"] = ""
-    df_out["Document No."] = df_out.get("Document No.", "")
 
-    stock_map = dict(zip(df_kaunas["Component"], df_kaunas["Bin Code"]))
+    # Normalizuojam Kaunas Stock struktūrą
+    df_kaunas = df_kaunas_raw.copy()
+    df_kaunas.columns = [c.strip() for c in df_kaunas.columns]
 
-    for idx, row in df_out.iterrows():
-        comp = str(row["Type"]).strip()
-        if comp in stock_map and str(stock_map[comp]) not in ("", "67-01-01-01"):
-            df_out.at[idx,"Bin Code"] = stock_map[comp]
-        else:
-            df_out.at[idx,"Document No."] = str(df_out.at[idx,"Document No."]) + "/NERA"
+    # Pervadinam į standartą
+    rename_map = {}
+    for col in df_kaunas.columns:
+        col_up = col.strip().upper()
+        if "COMP" in col_up:
+            rename_map[col] = "Component"
+        elif "BIN" in col_up:
+            rename_map[col] = "Bin Code"
+        elif "QTY" in col_up or "QUANTITY" in col_up:
+            rename_map[col] = "Quantity"
+    df_kaunas = df_kaunas.rename(columns=rename_map)
+
+    required_cols = ["Component", "Bin Code", "Quantity"]
+    missing = [c for c in required_cols if c not in df_kaunas.columns]
+    if missing:
+        raise ValueError(f"⚠️ Kaunas Stock missing required columns: {missing}")
+
+    # Sudarom žemėlapį komponento -> sandėlio lokacija
+    stock_map = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"].astype(str)))
+
+    # Pridedam Bin Code į BOM
+    df_out["Bin Code"] = df_out["Type"].map(lambda x: stock_map.get(str(x), ""))
+
+    # Jei Bin Code tuščias arba "67-01-01-01", žymim kaip NĖRA
+    df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
 # =====================================================
