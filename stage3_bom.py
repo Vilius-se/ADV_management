@@ -669,7 +669,7 @@ def render():
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         # --- Missing NAV numbers lentelė ---
-      missing_nav = df_bom[df_bom["No."].isna()]
+        missing_nav = df_bom[df_bom["No."].isna()]
 
         if not missing_nav.empty:
             st.subheader("📋 Missing NAV numbers")
