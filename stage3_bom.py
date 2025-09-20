@@ -253,23 +253,28 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     return df_bom
 
+import pandas as pd
+import io
+
 def pipeline_3_4_check_stock(df_bom, ks_file):
-    """
-    Tikrina ar komponentai yra Kauno sandėlyje (.xlsx arba .xlsm failas).
-    """
     df_out = df_bom.copy()
-
-    # Bandome nuskaityti failą
     try:
-        content = ks_file.getvalue()  # ⬅️ NE .read(), o .getvalue()
-        df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        content = ks_file.getvalue()
+        # bandome su openpyxl
+        try:
+            df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        except:
+            # jeigu openpyxl netinka, bandome xlrd
+            df_kaunas = pd.read_excel(io.BytesIO(content), engine="xlrd")
     except Exception as e:
-        raise ValueError(f"⚠️ Cannot open Kaunas Stock: {e}")
+        # čia vietoje ValueError išmesim tikrą exceptioną
+        raise e
 
-    # Normalizuojam stulpelių pavadinimus
+    # parodyti stulpelius debug
+    print("📊 Kaunas Stock columns:", df_kaunas.columns.tolist())
+
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pervadinam į standartą
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
@@ -281,27 +286,8 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    required_cols = ["Component", "Bin Code", "Quantity"]
-    missing = [c for c in required_cols if c not in df_kaunas.columns]
-    if missing:
-        raise ValueError(f"⚠️ Kaunas Stock missing required columns: {missing}")
-
-    # Sudarom žemėlapį komponento -> sandėlio lokacija
-    stock_map = dict(zip(
-        df_kaunas["Component"].astype(str),
-        df_kaunas["Bin Code"].astype(str)
-    ))
-
-    # Pridedam Bin Code į BOM
-    df_out["Bin Code"] = df_out["Type"].map(lambda x: stock_map.get(str(x), ""))
-
-    # Jei Bin Code tuščias arba "67-01-01-01", žymim kaip NĖRA
-    df_out.loc[
-        (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"),
-        "Document No."
-    ] = df_out["No."].astype(str) + "/NERA"
-
     return df_out
+
 
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
