@@ -364,6 +364,56 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
 
     return df_out
 
+def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sukuria NAV užsakymo lentelę iš df_alloc (turi turėti 'No.' ir 'Quantity'):
+      - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount
+      - Supplier paimamas iš Part_no (Supplier No.) pagal PartNo_A
+      - Profit = 17, o jei gamintojas DANFOSS -> 10
+      - Discount = 0
+    """
+    st.info("🛒 Creating NAV order table...")
+
+    # Užtikrinam reikiamus Part_no stulpelius (jie buvo suvienodinti pipeline_3_3_add_nav_numbers)
+    needed = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
+    for col in needed:
+        if col not in df_part_no.columns:
+            st.error(f"❌ Part_no sheet missing required column: {col}")
+            return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount"])
+
+    # Map'ai iš Part_no
+    supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
+    manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
+
+    # Paruošiam įvestį
+    tmp = df_alloc.copy()
+    if "No." not in tmp.columns:
+        st.error("❌ NAV table source must contain 'No.' column")
+        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount"])
+
+    tmp["No."] = tmp["No."].astype(str)
+    tmp["Quantity"] = pd.to_numeric(tmp.get("Quantity", 0), errors="coerce").fillna(0)
+
+    rows = []
+    for _, r in tmp.iterrows():
+        part_no = str(r["No."])
+        qty = float(r.get("Quantity", 0) or 0)
+        manuf = manuf_map.get(part_no, "")
+        profit = 10 if "DANFOSS" in manuf.upper() else 17
+        supplier = supplier_map.get(part_no, 30093)
+
+        rows.append({
+            "Type": "Item",
+            "No.": part_no,
+            "Quantity": qty,
+            "Supplier": supplier,
+            "Profit": profit,
+            "Discount": 0
+        })
+
+    return pd.DataFrame(rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount"])
+
+
 
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
                              panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
