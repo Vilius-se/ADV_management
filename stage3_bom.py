@@ -374,7 +374,6 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
 
-    # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
@@ -382,32 +381,29 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
-
-    # Tikimės, kad B = Bin Code, C = NAV No., D = Stock Quantity
-    # Pasivadinkim aiškiai
-    col_bin   = df_kaunas.columns[1]  # B
-    col_no    = df_kaunas.columns[2]  # C
-    col_qty   = df_kaunas.columns[3]  # D
-
+    # Pervadinam pagal poziciją (o ne vardus)
     df_kaunas = df_kaunas.rename(columns={
-        col_bin: "Bin Code",
-        col_no: "No.",
-        col_qty: "Stock Quantity"
+        df_kaunas.columns[1]: "Bin Code",
+        df_kaunas.columns[2]: "Item No.",
+        df_kaunas.columns[4]: "Quantity"
     })
 
-    # Sukuriam žemėlapius
-    bin_map   = dict(zip(df_kaunas["No."].astype(str), df_kaunas["Bin Code"].astype(str)))
-    stock_map = dict(zip(df_kaunas["No."].astype(str), df_kaunas["Stock Quantity"]))
+    # Paimam tik reikiamus stulpelius
+    df_kaunas = df_kaunas[["Bin Code", "Item No.", "Quantity"]]
+    df_kaunas["Item No."] = df_kaunas["Item No."].astype(str).str.strip()
+    df_kaunas["Quantity"] = pd.to_numeric(df_kaunas["Quantity"], errors="coerce").fillna(0)
 
-    # Jungiam pagal No.
+    stock_map_bin  = dict(zip(df_kaunas["Item No."], df_kaunas["Bin Code"]))
+    stock_map_qty  = dict(zip(df_kaunas["Item No."], df_kaunas["Quantity"]))
+
+    # Priskiriam pagal BOM → No.
     if "No." not in df_out.columns:
-        raise ValueError("❌ BOM file has no 'No.' column after NAV matching")
+        raise ValueError("❌ BOM must have 'No.' column before stock check")
 
-    df_out["Bin Code"] = df_out["No."].astype(str).map(bin_map).fillna("")
-    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map).fillna(0)
+    df_out["Bin Code"] = df_out["No."].astype(str).map(stock_map_bin).fillna("")
+    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map_qty).fillna(0)
 
-    # Document No. papildymas jei stock nėra
+    # Document No. = Project/NERA jei sandėlyje tuščia arba nėra
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
 
@@ -415,8 +411,6 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out.loc[mask_no_stock, "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
-
-
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     """
