@@ -464,20 +464,14 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
     - Jei nėra stock → prie Document No. prideda '/NERA'
     - Job Task No. = 1144
     - Location Code = KAUNAS
-    - Prideda Description ir Original Type gale
+    - Prideda Description, Original Type ir Stock Quantity gale
     """
     st.info(f"📑 Creating Job Journal table from {source}...")
 
-    if df_alloc is None or df_alloc.empty:
-        return pd.DataFrame()
-
-    # Filtrai – tik su No. ir Quantity > 0
-    df_alloc = df_alloc[df_alloc["No."].notna()]
-    df_alloc = df_alloc[df_alloc["Quantity"] > 0]
-
     cols = [
         "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Location Code", "Bin Code", "Description", "Original Type"
+        "Quantity", "Stock Quantity", "Location Code", "Bin Code",
+        "Description", "Original Type"
     ]
     df_out = pd.DataFrame(columns=cols)
 
@@ -493,6 +487,7 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
             "Job No.": project_number,
             "Job Task No.": 1144,
             "Quantity": row.get("Quantity", 0),
+            "Stock Quantity": row.get("Stock Quantity", 0),   # 👈 pridėjau
             "Location Code": "KAUNAS",
             "Bin Code": row.get("Bin Code", ""),
             "Description": row.get("Description", ""),
@@ -500,6 +495,7 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
         }])], ignore_index=True)
 
     return df_out
+
 
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
