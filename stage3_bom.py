@@ -377,7 +377,7 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 def pipeline_3_4_check_stock(df_bom, ks_file):
     """
     Tikrina Kaunas Stock:
-    - Match pagal 'No.' (BOM) = 'Item No.' (Stock, C stulpelis).
+    - Match pagal 'No.' (BOM) = 'No.' (Stock, C stulpelis).
     - Sumuojamas Quantity, ignoruojant '67-01-01-01'.
     - Surenkami visi Bin Code į vieną lauką.
     - Prideda stulpelius 'Bin Code' ir 'Stock Quantity' į BOM.
@@ -394,31 +394,16 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    df_stock.columns = [str(c).strip() for c in df_stock.columns]
+    # Pasirenkam stulpelius pagal pozicijas: B=1, C=2, D=3
+    df_stock = df_stock.iloc[:, [1, 2, 3]]
+    df_stock.columns = ["Bin Code", "Item No.", "Quantity"]
 
-    # Identifikuojam stulpelius
-    rename_map = {}
-    for col in df_stock.columns:
-        col_up = col.upper()
-        if col_up.startswith("B"):   # Bin Code
-            rename_map[col] = "Bin Code"
-        elif col_up.startswith("C"): # Item No.
-            rename_map[col] = "Item No."
-        elif col_up.startswith("D"): # Quantity
-            rename_map[col] = "Quantity"
-
-    df_stock = df_stock.rename(columns=rename_map)
-
-    # Saugikliai
-    for req in ["Item No.", "Bin Code", "Quantity"]:
-        if req not in df_stock.columns:
-            raise ValueError(f"❌ Stock sheet must have '{req}' column. Available: {list(df_stock.columns)}")
-
+    # Valom duomenis
     df_stock["Item No."] = df_stock["Item No."].astype(str).str.strip()
     df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
     df_stock["Bin Code"] = df_stock["Bin Code"].astype(str).str.strip()
 
-    # Grupavimas: kiekiai + visos lokacijos
+    # Grupavimas: sumuojam kiekius ir surenkam visas lokacijas
     stock_grouped = (
         df_stock[df_stock["Bin Code"] != "67-01-01-01"]
         .groupby("Item No.")
@@ -429,7 +414,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         .reset_index()
     )
 
-    # Sujungiam su BOM
+    # Sujungiam su BOM pagal NAV numerį
     df_out["No."] = df_out["No."].astype(str).str.strip()
     df_out = df_out.merge(
         stock_grouped,
@@ -437,16 +422,16 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         how="left"
     )
 
-    # Pervadinam
-    df_out = df_out.rename(columns={
-        "Quantity": "Stock Quantity"
-    })
+    # Sutvarkom stulpelius
+    df_out = df_out.drop(columns=["Item No."])
+    df_out = df_out.rename(columns={"Quantity": "Stock Quantity"})
 
-    # Jei nerasta → tuščia
+    # Užpildom tuščius
     df_out["Bin Code"] = df_out["Bin Code"].fillna("")
     df_out["Stock Quantity"] = df_out["Stock Quantity"].fillna(0).astype(int)
 
     return df_out
+
 
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
