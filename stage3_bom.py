@@ -102,49 +102,37 @@ def allocate_from_stock(no, qty_needed, stock_rows):
     allocations = []
     remaining = qty_needed
 
-    # Jei stock_rows tuščias → viskas kaip trūkumas
-    if stock_rows.empty:
-        return [{
-            "No.": no,
-            "Bin Code": "",
-            "Allocated Qty": int(remaining),
-            "Status": "NERA"
-        }]
-
     for _, srow in stock_rows.iterrows():
-        bin_code = str(srow["Bin Code"]).strip()
-        if bin_code == "67-01-01-01":  
-            # Šitą lokaciją ignoruojam
+        bin_code = str(srow.get("Bin Code", "")).strip()
+        stock_qty = float(srow.get("Stock Quantity", 0) or 0)
+
+        if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
             continue
-
-        available = int(srow["Quantity"]) if pd.notna(srow["Quantity"]) else 0
-
-        if available <= 0:
-            continue
-
-        take = min(remaining, available)
-        if take > 0:
-            allocations.append({
-                "No.": no,
-                "Bin Code": bin_code,
-                "Allocated Qty": take,
-                "Status": "OK"
-            })
-            remaining -= take
 
         if remaining <= 0:
             break
 
-    # Jei trūksta – papildom įrašą su statusu "NERA"
+        take = min(stock_qty, remaining)
+        remaining -= take
+
+        allocations.append({
+            "No.": no,
+            "Bin Code": bin_code,
+            "Allocated Qty": int(take),
+            "Remaining": int(max(remaining, 0))
+        })
+
+    # jeigu dar liko neišpildytas kiekis – pridedam eilutę su NERA
     if remaining > 0:
         allocations.append({
             "No.": no,
-            "Bin Code": "",
-            "Allocated Qty": int(remaining),
-            "Status": "NERA"
+            "Bin Code": "NERA",
+            "Allocated Qty": 0,
+            "Remaining": int(remaining)
         })
 
     return allocations
+
 
 
 def read_excel_any(file, **kwargs):
