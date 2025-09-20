@@ -116,7 +116,9 @@ def allocate_from_stock(no, qty_needed, stock_rows):
 
     for _, srow in stock_rows.iterrows():
         bin_code = str(srow.get("Bin Code", "")).strip()
-        stock_qty = float(srow.get("Quantity", 0) or 0)
+        stock_qty = pd.to_numeric(srow.get("Quantity", 0), errors="coerce")
+        if pd.isna(stock_qty):
+            stock_qty = 0.0
 
         if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
             continue
@@ -129,7 +131,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         allocations.append({
             "No.": no,
             "Bin Code": bin_code,
-            "Allocated Qty": int(take)
+            "Allocated Qty": int(round(take))
         })
 
     # jeigu dar liko neišpildytas kiekis – pridedam eilutę su NERA
@@ -138,18 +140,6 @@ def allocate_from_stock(no, qty_needed, stock_rows):
             "No.": no,
             "Bin Code": "NERA",
             "Allocated Qty": 0
-        })
-
-    return allocations
-
-
-    # jeigu dar liko neišpildytas kiekis – pridedam eilutę su NERA
-    if remaining > 0:
-        allocations.append({
-            "No.": no,
-            "Bin Code": "NERA",
-            "Allocated Qty": 0,
-            "Remaining": int(remaining)
         })
 
     return allocations
