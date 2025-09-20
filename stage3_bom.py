@@ -481,20 +481,28 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     """
     st.info("💰 Creating Calculation table...")
 
-    # Užtikrinam, kad skaičiai būtų float
-    qty_bom  = pd.to_numeric(df_bom.get("Quantity", 0), errors="coerce").fillna(0)
-    unit_bom = pd.to_numeric(df_bom.get("Unit Cost", 0), errors="coerce").fillna(0)
-    parts_cost = (qty_bom * unit_bom).sum() if not df_bom.empty else 0
-
-    if df_cubic is not None and not df_cubic.empty:
-        qty_cubic = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0) if "Quantity" in df_cubic.columns else 0
-        unit_cubic = pd.to_numeric(df_cubic["Unit Cost"], errors="coerce").fillna(0) if "Unit Cost" in df_cubic.columns else 0
-        cubic_cost = (qty_cubic * unit_cubic).sum() if isinstance(qty_cubic, pd.Series) else 0
+    # --- Parts cost ---
+    if not df_bom.empty:
+        qty_bom = pd.to_numeric(df_bom["Quantity"], errors="coerce").fillna(0) if "Quantity" in df_bom.columns else 0
+        unit_bom = pd.to_numeric(df_bom["Unit Cost"], errors="coerce").fillna(0) if "Unit Cost" in df_bom.columns else 0
+        parts_cost = (qty_bom * unit_bom).sum() if isinstance(qty_bom, pd.Series) else 0
     else:
-    cubic_cost = 0
+        parts_cost = 0
 
+    # --- CUBIC cost ---
+    if df_cubic is not None and not df_cubic.empty:
+        if "Unit Cost" in df_cubic.columns and "Quantity" in df_cubic.columns:
+            qty_cubic = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
+            unit_cubic = pd.to_numeric(df_cubic["Unit Cost"], errors="coerce").fillna(0)
+            cubic_cost = (qty_cubic * unit_cubic).sum()
+        elif "Total" in df_cubic.columns:  # jei failas turi tik Total sumą
+            cubic_cost = pd.to_numeric(df_cubic["Total"], errors="coerce").fillna(0).sum()
+        else:
+            cubic_cost = 0
+    else:
+        cubic_cost = 0
 
-    # Hours
+    # --- Hours cost ---
     hours_cost = 0
     if df_hours is not None and not df_hours.empty:
         hourly_rate = pd.to_numeric(df_hours.iloc[1, 4], errors="coerce") if df_hours.shape[1] > 4 else 0
@@ -509,12 +517,14 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
                 hours_value = pd.to_numeric(row_match.iloc[0, 3], errors="coerce")
         hours_cost = (hours_value if pd.notna(hours_value) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
 
+    # --- Fixed costs ---
     smart_supply_cost = 9750.0
     wire_set_cost     = 2500.0
 
-    total        = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
-    total_plus_5 = total * 1.05
-    total_plus_35= total * 1.35
+    # --- Totals ---
+    total = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
+    total_plus_5  = total * 1.05
+    total_plus_35 = total * 1.35
 
     df_calc = pd.DataFrame([
         {"Label": "Parts", "Value": parts_cost},
@@ -529,6 +539,7 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     ])
 
     return df_calc
+
 
 # =====================================================
 # Main render for Stage 3
