@@ -418,33 +418,25 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     return df_out
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
-    """
-    Sutvarko CUBIC BOM stulpelius:
-    - 'Item Id' → 'Type'
-    - 'Quantity' → 'Quantity'
-    - Saugom originalius stulpelius
-    """
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
 
+    # Normalizuojam stulpelius
     df_out = df_cubic.copy()
-    cols = {c: str(c).strip() for c in df_out.columns}
-    df_out = df_out.rename(columns=cols)
+    df_out = df_out.rename(columns=lambda x: str(x).strip())
 
-    # Originalūs pavadinimai
-    if "Item Id" in df_out.columns:
-        df_out["Type"] = df_out["Item Id"].astype(str).str.strip()
-        df_out["Original Type"] = df_out["Type"]
-        df_out["Original Article"] = df_out["Type"]
+    # Saugom svarbius stulpelius pagal indeksą (B = Type, G = Quantity)
+    if df_out.shape[1] >= 7:   # bent jau iki G
+        df_out = df_out.iloc[:, [1, 6]]   # B = 1, G = 6 (0-based)
+        df_out.columns = ["Type", "Quantity"]
 
-    # Kiekiai
-    if "Quantity" in df_out.columns:
-        df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
-    else:
-        df_out["Quantity"] = 0
+    # Sutvarkom kiekį
+    df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
+
+    # Original Type
+    df_out["Original Type"] = df_out["Type"]
 
     return df_out
-
 
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
