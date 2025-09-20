@@ -296,7 +296,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         df_kaunas["Bin Code"].astype(str)
     ))
 
-    # Pasirenkam raktą BOM'e
+        # Pasirenkam raktą BOM'e
     if "No." in df_out.columns:
         key_col = "No."
     elif "Item No." in df_out.columns:
@@ -306,8 +306,16 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     else:
         raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
+    # Paimam Series, o ne DataFrame
+    try:
+        key_series = df_out[key_col]
+        if isinstance(key_series, pd.DataFrame):  # jeigu dėl merge gavosi keli stulpeliai
+            key_series = key_series.iloc[:, 0]
+    except Exception as e:
+        raise ValueError(f"❌ Could not extract key column '{key_col}': {e}")
+
     # Saugi eilutė: pirma fillna, tada astype, tada tolist
-    keys = df_out[key_col].fillna("").astype(str).tolist()
+    keys = key_series.fillna("").astype(str).tolist()
 
     # Pridedam Bin Code pagal stock_map
     df_out["Bin Code"] = [stock_map.get(k, "") for k in keys]
