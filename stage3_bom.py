@@ -166,15 +166,27 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
     """
     st.info("🚦 Filtering BOM according to DATA.xlsx Stock (Comment)...")
 
-    if "Component" not in df_stock.columns or "Comment" not in df_stock.columns:
-        st.error("❌ Stock sheet must have 'Component' and 'Comment' columns")
+    # Tvarkom stulpelių pavadinimus
+    df_stock = df_stock.copy()
+    df_stock.columns = [str(c).strip() for c in df_stock.columns]
+
+    if "Comment" not in df_stock.columns:
+        st.error("❌ Stock sheet must have a 'Comment' column")
         return df_bom
 
-    exclude = df_stock[df_stock["Comment"].notna()]["Component"].unique()
-    filtered = df_bom[~df_bom["Type"].isin(exclude)].reset_index(drop=True)
+    # Paimam visus elementus, kurių komentaras neužpildytas → leistini
+    # Komentarai užpildyti → tokie turi būti pašalinti
+    if "Component" in df_stock.columns:
+        exclude = df_stock[df_stock["Comment"].notna()]["Component"].astype(str).str.strip().unique()
+        filtered = df_bom[~df_bom["Type"].astype(str).isin(exclude)].reset_index(drop=True)
+    else:
+        # Jei nėra Component, tiesiog šalinam pagal visus kurie turi Comment
+        exclude = df_stock[df_stock["Comment"].notna()].index.astype(str).tolist()
+        filtered = df_bom[~df_bom["Type"].astype(str).isin(exclude)].reset_index(drop=True)
 
-    st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows")
+    st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows (removed {len(df_bom)-len(filtered)})")
     return filtered
+
 
 
 def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFrame) -> pd.DataFrame:
