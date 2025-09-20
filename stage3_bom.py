@@ -735,7 +735,15 @@ def render():
     if missing:
         st.warning(f"⚠️ Missing required files: {missing}")
         return
+        
+    st.subheader("🔎 Kaunas Stock preview")
+    try:
+        df_stock_preview = files["ks"].copy()
+        st.dataframe(df_stock_preview.head(20), use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ Cannot preview stock: {e}")
 
+    
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         # --- pasiimam reikalingus sheetus iš DATA ---
