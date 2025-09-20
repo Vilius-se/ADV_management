@@ -126,17 +126,20 @@ def pipeline_2_2_file_uploads(rittal=False):
             except Exception as e:
                 st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
-        # --- BOM ---
+            # --- BOM ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
     bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
     if bom:
         try:
             df_bom = read_excel_any(bom)
-            if "Original Type" not in df_bom.columns:
-                colA = df_bom.iloc[:,0].astype(str)
-                colB = df_bom.iloc[:,1].astype(str)
-                # jei B tuščias → imti A
-                df_bom["Original Type"] = colB.where(colB.str.strip()!="", colA)
+
+            # Pasiruošiam stulpelius A ir B
+            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+
+            # jei B tuščias → imti A
+            df_bom["Original Type"] = colB.where(colB != "", colA)
+
             dfs["bom"] = df_bom
         except Exception as e:
             st.error(f"⚠️ Cannot open BOM: {e}")
