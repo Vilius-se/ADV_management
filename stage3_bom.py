@@ -660,7 +660,7 @@ def render():
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
 
-           missing_table = pd.DataFrame({
+        missing_table = pd.DataFrame({
             # Jei yra „Original Type“ – rodom jį, jei ne – fallback į „Type“ arba „Article No.“
             "Original Type (from BOM)": missing_nav["Original Type"].fillna(missing_nav.get("Type", missing_nav.get("Article No.", "NEŽINOMAS"))),
             "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
