@@ -395,13 +395,13 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
     - Jei nėra stock → prie Document No. prideda '/NERA'
     - Job Task No. = 1144
     - Location Code = KAUNAS
-    - Prideda Description stulpelį gale
+    - Prideda Description ir Original Type stulpelius gale
     """
     st.info("📑 Creating Job Journal table...")
 
     cols = [
         "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Location Code", "Bin Code", "Description"
+        "Quantity", "Location Code", "Bin Code", "Description", "Original Type"
     ]
     df_out = pd.DataFrame(columns=cols)
 
@@ -419,7 +419,8 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
             "Quantity": row.get("Quantity", 0),
             "Location Code": "KAUNAS",
             "Bin Code": row.get("Bin Code", ""),
-            "Description": row.get("Description", "")  # <- naujas stulpelis
+            "Description": row.get("Description", ""),       # <- iš Part_no
+            "Original Type": row.get("Original Type", "")    # <- iš BOM prieš rename
         }])], ignore_index=True)
 
     return df_out
