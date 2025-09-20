@@ -432,7 +432,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 
     # Normalizacija
     df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-    df_stock = df_stock[[df_stock.columns[1], df_stock.columns[0], df_stock.columns[3]]]  # C, B, D
+    df_stock = df_stock[[df_stock.columns[2], df_stock.columns[1], df_stock.columns[3]]]  # C, B, D
     df_stock.columns = ["No.", "Bin Code", "Quantity"]
 
     df_stock["No."] = df_stock["No."].map(normalize_no)
