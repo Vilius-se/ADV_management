@@ -377,7 +377,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # --- Kaunas stock failo nuskaitymas ---
+    # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
@@ -387,53 +387,37 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # --- Pervadinam pagrindinius stulpelius ---
+    # Perkeliame pavadinimus pagal NAV stulpelius
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
         if "BIN" in col_up:
             rename_map[col] = "Bin Code"
-        elif "ITEM" in col_up:
-            rename_map[col] = "Item No."
+        elif "NO" in col_up or "NAV" in col_up:
+            rename_map[col] = "No."
         elif "QTY" in col_up or "QUANTITY" in col_up:
             rename_map[col] = "Stock Quantity"
+
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    # --- Užtikrinam kad visi reikiami yra ---
-    for req in ["Item No.", "Bin Code", "Stock Quantity"]:
+    for req in ["No.", "Bin Code", "Stock Quantity"]:
         if req not in df_kaunas.columns:
             df_kaunas[req] = ""
 
-    # --- Normalizacija: numerius → int → str ---
-    df_kaunas["Item No."] = (
-        pd.to_numeric(df_kaunas["Item No."], errors="coerce")
-        .fillna(0)
-        .astype(int)
-        .astype(str)
-    )
+    # Sukuriam žemėlapius pagal NAV numerius
+    bin_map   = dict(zip(df_kaunas["No."].astype(str), df_kaunas["Bin Code"].astype(str)))
+    stock_map = dict(zip(df_kaunas["No."].astype(str), pd.to_numeric(df_kaunas["Stock Quantity"], errors="coerce").fillna(0)))
 
-    if "No." in df_out.columns:
-        df_out["No."] = (
-            pd.to_numeric(df_out["No."], errors="coerce")
-            .fillna(0)
-            .astype(int)
-            .astype(str)
-        )
-        key_col = "No."
-    else:
-        raise ValueError("❌ BOM file has no valid key column (expected 'No.')")
+    # Pritaikom prie BOM/CUBIC
+    df_out["Bin Code"] = df_out["No."].astype(str).map(bin_map).fillna("")
+    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map).fillna(0)
 
-    # --- Joininam ---
-    df_out = df_out.merge(
-        df_kaunas[["Item No.", "Bin Code", "Stock Quantity"]],
-        left_on=key_col, right_on="Item No.",
-        how="left"
-    )
+    # Jei nėra bin location → pažymim kaip NERA
+    if "Document No." not in df_out.columns:
+        df_out["Document No."] = ""
 
-    # --- Valom ---
-    df_out = df_out.drop(columns=["Item No."])
-    df_out["Bin Code"] = df_out["Bin Code"].fillna("")
-    df_out["Stock Quantity"] = pd.to_numeric(df_out["Stock Quantity"], errors="coerce").fillna(0).astype(int)
+    mask_no_stock = (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01")
+    df_out.loc[mask_no_stock, "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
 
