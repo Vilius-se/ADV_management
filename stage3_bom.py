@@ -97,25 +97,14 @@ def read_excel_any(file, **kwargs):
     except Exception:
         return pd.read_excel(file, engine="xlrd", **kwargs)
 
-# ---- Helper: validacija ----
-def validate_excel(uploaded_file, required_columns, label, skiprows=0, usecols=None):
+# Universal Excel reader (.xls / .xlsx / .xlsm)
+def read_excel_any(file, **kwargs):
     try:
-        df = read_excel_any(uploaded_file, skiprows=skiprows, usecols=usecols)
-    except Exception as e:
-        st.error(f"⚠️ Cannot open {label}: {e}")
-        return None
+        return pd.read_excel(file, engine="openpyxl", **kwargs)
+    except Exception:
+        return pd.read_excel(file, engine="xlrd", **kwargs)
 
-    df.columns = [str(c).strip() for c in df.columns]
-
-    if required_columns:  # tikrinam tik jei reikia
-        missing = [col for col in required_columns if col not in df.columns]
-        if missing:
-            st.error(f"⚠️ {label} missing required columns: {missing}")
-            return None
-
-    return df
-
-# ---- Pipeline 2.2: File uploads ----
+# ---- Pipeline 2.2: File uploads (be stulpelių validacijos) ----
 def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("📂 Upload Required Files")
 
@@ -124,48 +113,41 @@ def pipeline_2_2_file_uploads(rittal=False):
     # --- CUBIC BOM (tik jei ne Rittal) ---
     if not rittal:
         st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-        cubic_bom = st.file_uploader("", type=["xls", "xlsx"], key="cubic_bom")
+        cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
         if cubic_bom:
-            dfs["cubic_bom"] = validate_excel(
-                cubic_bom,
-                ["Item Id", "Description", "Quantity", "Price", "Total"],
-                "CUBIC BOM",
-                skiprows=13,   # prasideda nuo 14 eilutės
-                usecols="B:F"  # nuo B stulpelio
-            )
+            try:
+                dfs["cubic_bom"] = read_excel_any(cubic_bom, skiprows=13, usecols="B:F")
+            except Exception as e:
+                st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
     # --- BOM ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=["xls", "xlsx"], key="bom")
+    bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
     if bom:
-        dfs["bom"] = validate_excel(
-            bom,
-            ["Article No.", "Type", "Quantity", "FABRIKAT", "DESCRIPT"],
-            "BOM"
-        )
+        try:
+            dfs["bom"] = read_excel_any(bom)
+        except Exception as e:
+            st.error(f"⚠️ Cannot open BOM: {e}")
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
-    data_file = st.file_uploader("", type=["xls", "xlsx"], key="data")
+    data_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="data")
     if data_file:
-        dfs["data"] = validate_excel(
-            data_file,
-            None,   # netikrinam stulpelių
-            "DATA"
-        )
+        try:
+            dfs["data"] = read_excel_any(data_file)
+        except Exception as e:
+            st.error(f"⚠️ Cannot open DATA: {e}")
 
     # --- Kaunas Stock ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
-    ks_file = st.file_uploader("", type=["xls", "xlsx"], key="ks")
+    ks_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="ks")
     if ks_file:
-        dfs["ks"] = validate_excel(
-            ks_file,
-            None,   # netikrinam stulpelių
-            "Kaunas Stock"
-        )
+        try:
+            dfs["ks"] = read_excel_any(ks_file)
+        except Exception as e:
+            st.error(f"⚠️ Cannot open Kaunas Stock: {e}")
 
     return dfs
-
 
 # =====================================================
 # Pipeline 3.x – Duomenų apdorojimas
