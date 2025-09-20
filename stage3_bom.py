@@ -661,31 +661,27 @@ def render():
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         # --- pasiimam reikalingus sheetus iš DATA ---
-        df_stock       = get_sheet_safe(files["data"], ["Stock"])
-        df_accessories = get_sheet_safe(files["data"], ["Accessories"])
-        df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-        df_hours       = get_sheet_safe(files["data"], ["Hours"])
-        df_part_code   = get_sheet_safe(files["data"], ["Part_code", "Part code"])
+        df_stock        = get_sheet_safe(files["data"], ["Stock"])
+        df_accessories  = get_sheet_safe(files["data"], ["Accessories"])
+        df_part_no      = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_part_no_cub  = get_sheet_safe(files["data"], ["Part_no_cubic", "Cubic_no"])
+        df_hours        = get_sheet_safe(files["data"], ["Hours"])
+        df_part_code    = get_sheet_safe(files["data"], ["Part_code", "Part code"])
 
         if df_stock is None or df_part_no is None:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
         # --- BOM processing ---
-        df_bom = files["bom"].copy()
+        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
 
-        # pridėdam _OrigIdx, Original Article, Original Type
-        df_bom["_OrigIdx"] = df_bom.index
-        if df_bom.shape[1] >= 2:
-            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            df_bom["Original Type"]    = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-        else:
-            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            df_bom["Original Type"]    = df_bom["Original Article"]
+        # Išsaugom originalius BOM pavadinimus
+        if "Original Type" not in files["bom"].columns and files["bom"].shape[1] >= 2:
+            files["bom"]["Original Type"] = files["bom"].iloc[:, 1]
+        if "Original Article" not in files["bom"].columns and files["bom"].shape[1] >= 1:
+            files["bom"]["Original Article"] = files["bom"].iloc[:, 0]
 
-        # Filtrai ir transformacijos
-        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
-
+        # jei yra Part_code → pakeičiam pavadinimus
         if df_part_code is not None and not df_part_code.empty:
             rename_map = dict(zip(
                 df_part_code.iloc[:,0].astype(str).str.strip(),
@@ -703,10 +699,12 @@ def render():
             st.subheader("📋 Missing NAV numbers")
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
 
-            missing_table = missing_nav[["_OrigIdx","Original Article","Original Type"]].copy()
-            missing_table["Quantity"] = pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int)
-            missing_table["NAV No."]  = missing_nav["No."]
-
+            missing_table = pd.DataFrame({
+                "Original Article (from BOM)": missing_nav.get("Original Article", ""),
+                "Original Type (from BOM)": missing_nav.get("Original Type", ""),
+                "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
+                "NAV No.": missing_nav["No."]
+            })
             st.dataframe(missing_table, use_container_width=True)
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
@@ -716,7 +714,9 @@ def render():
         job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
         job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"], source="CUBIC")
 
-        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
+        nav_table_bom = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
+        nav_table_cub = pipeline_4_2_nav_table(files.get("cubic_bom", pd.DataFrame()), df_part_no_cub) if df_part_no_cub is not None else pd.DataFrame()
+
         calc_table  = pipeline_4_3_calculation(
             df_bom,
             files.get("cubic_bom"),
@@ -735,9 +735,11 @@ def render():
         st.subheader("📑 Job Journal (CUBIC)")
         st.dataframe(job_journal_cubic, use_container_width=True)
 
-        st.subheader("🛒 NAV Table")
-        st.dataframe(nav_table, use_container_width=True)
+        st.subheader("🛒 NAV Table (BOM)")
+        st.dataframe(nav_table_bom, use_container_width=True)
+
+        st.subheader("🛒 NAV Table (CUBIC)")
+        st.dataframe(nav_table_cub, use_container_width=True)
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
-
