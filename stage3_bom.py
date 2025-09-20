@@ -211,24 +211,47 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     return df_out
 
 
-def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
+def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     """
-    Prideda NAV numerius iš DATA.xlsx → Part_no.
-    Mapping: PartName_B → PartNo_A.
+    Prideda NAV numerius į BOM pagal Part_no lapą iš DATA.xlsx.
     """
-    st.info("🔢 Adding NAV numbers...")
+    # --- Pervadinam stulpelius pagal realų failo turinį ---
+    df_part_no = df_part_no_raw.copy()
+    df_part_no.columns = [
+        'PartNo_A',       # "Item no."
+        'PartName_B',     # "Type no."
+        'Desc_C',         # "Description"
+        'Manufacturer_D', # "Supplier"
+        'SupplierNo_E',   # "Supplier No."
+        'UnitPrice_F'     # "Cost price / Unit cost DKK"
+    ]
 
-    if df_part_no is None or df_part_no.empty:
-        st.error("❌ Part_no sheet not found")
-        return df_bom
+    # Normalizuojam Type (PartName_B) kad būtų galima jungti
+    df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
+    part_map = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    mapping = dict(zip(
-        df_part_no["PartName_B"].astype(str).str.upper(),
-        df_part_no["PartNo_A"]
-    ))
+    # --- Pridedam NAV numerius į BOM ---
+    df_bom = df_bom.copy()
+    df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
+    df_bom['No.'] = df_bom['Norm_Type'].map(part_map)
 
-    df_bom["No."] = df_bom["Type"].astype(str).str.upper().map(mapping)
-    return df_bom
+    # Prijungiam papildomą informaciją iš Part_no lentelės
+    df_bom = df_bom.merge(
+        df_part_no[['PartNo_A', 'Desc_C', 'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F', 'Norm_B']],
+        left_on='Norm_Type', right_on='Norm_B', how='left'
+    )
+
+    # Sutvarkom galutinį formatą
+    df_bom = df_bom.drop(columns=['Norm_Type', 'Norm_B'])
+    df_bom = df_bom.rename(columns={
+        'PartNo_A': 'No.',
+        'Desc_C': 'Description',
+        'Manufacturer_D': 'Supplier',
+        'SupplierNo_E': 'Supplier No.',
+        'UnitPrice_F': 'Unit Cost'
+    })
+
+    return df_bom, df_part_no
 
 
 def pipeline_3_4_check_stock(df_bom: pd.DataFrame, df_kaunas: pd.DataFrame) -> pd.DataFrame:
