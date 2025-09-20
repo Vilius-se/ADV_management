@@ -372,6 +372,12 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     return df_bom
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
+    """
+    Pririša BOM/CUBIC eilučių NAV numerius prie Kaunas Stock:
+    - Bin Code (B stulpelis nuo B4)
+    - Component = NAV numeris (C stulpelis)
+    - Quantity = sandėlio kiekis (D stulpelis)
+    """
     df_out = df_bom.copy()
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
@@ -386,17 +392,22 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     # Paimam tik nuo 4 eilutės
     df_kaunas = df_kaunas.iloc[3:, :]  
 
-    # Perkraustom stulpelius pagal struktūrą B4-D
-    df_kaunas = df_kaunas.iloc[:, [1,2,3]]  # B, C, D
+    # Pasiimam B, C, D stulpelius
+    df_kaunas = df_kaunas.iloc[:, [1, 2, 3]]  
     df_kaunas.columns = ["Bin Code", "Component", "Quantity"]
 
-    # Map pagal NAV numerį (Component = C stulpelis)
+    # Sukuriam map pagal NAV numerį (Component = C stulpelis)
     stock_map_bin = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"]))
     stock_map_qty = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Quantity"]))
 
-    # Užpildom pagal BOM "No."
+    # Pildom BOM pagal "No." (NAV numerį)
+    if "No." not in df_out.columns:
+        df_out["No."] = ""
+
     df_out["Bin Code"] = df_out["No."].astype(str).map(stock_map_bin).fillna("")
-    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map_qty).fillna(0)
+    df_out["Stock Quantity"] = pd.to_numeric(
+        df_out["No."].astype(str).map(stock_map_qty), errors="coerce"
+    ).fillna(0).astype(int)
 
     # Dokumento numerio logika
     if "Document No." not in df_out.columns:
@@ -406,6 +417,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out.loc[mask_no_stock, "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
+
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     """
