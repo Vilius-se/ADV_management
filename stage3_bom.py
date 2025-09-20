@@ -258,18 +258,16 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     return df_bom
 
-import pandas as pd
-
 def pipeline_3_4_check_stock(df_bom, ks_file):
     """
-    Tikrina ar komponentai yra Kauno sandėlyje.
-    Palaiko ir .xlsx, ir .xlsm failus.
+    Tikrina ar komponentai yra Kauno sandėlyje (.xlsx arba .xlsm failas).
     """
     df_out = df_bom.copy()
 
-    # Bandome atidaryti su openpyxl (veikia ir su xlsm, ir su xlsx)
+    # Bandome nuskaityti failą
     try:
-        df_kaunas = pd.read_excel(ks_file, engine="openpyxl")
+        content = ks_file.read()  # perskaitom į bytes
+        df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
     except Exception as e:
         raise ValueError(f"⚠️ Cannot open Kaunas Stock: {e}")
 
@@ -300,9 +298,12 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out["Bin Code"] = df_out["Type"].map(lambda x: stock_map.get(str(x), ""))
 
     # Jei Bin Code tuščias arba "67-01-01-01", žymim kaip NĖRA
-    df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = df_out["No."].astype(str) + "/NERA"
+    df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = (
+        df_out["No."].astype(str) + "/NERA"
+    )
 
     return df_out
+
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
