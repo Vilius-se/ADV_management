@@ -131,9 +131,14 @@ def pipeline_2_2_file_uploads(rittal=False):
     bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
     if bom:
         try:
-            dfs["bom"] = read_excel_any(bom)
+            df_bom = read_excel_any(bom)
+            # išsaugom iškart antrą stulpelį kaip Original Type
+            if "Original Type" not in df_bom.columns:
+                df_bom["Original Type"] = df_bom.iloc[:, 1]  
+            dfs["bom"] = df_bom
         except Exception as e:
             st.error(f"⚠️ Cannot open BOM: {e}")
+
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
@@ -640,10 +645,10 @@ def render():
 
             # Čia pasiimam Original Type + Quantity iš BOM
             missing_table = pd.DataFrame({
-                "Original Type (from BOM)": missing_nav["Original Type"],
-                "Quantity": missing_nav.get("Quantity", 0),
-                "NAV No.": missing_nav["No."]
-            })
+                        "Original Type (from BOM)": missing_nav["Original Type"].astype(str),
+                        "Quantity": missing_nav.get("Quantity", 0),
+                        "NAV No.": missing_nav["No."]
+                    })
 
 
             st.dataframe(missing_table, use_container_width=True)
