@@ -826,9 +826,9 @@ def render():
                 df_stock_preview = files["ks"].copy()
                 df_stock_preview = df_stock_preview.rename(columns=lambda c: str(c).strip())
                 # C stulpelis = No., B = Bin Code, D = Quantity
-                df_stock_preview = df_stock_preview[[df_stock_preview.columns[1],
-                                                     df_stock_preview.columns[0],
-                                                     df_stock_preview.columns[3]]]
+                df_stock_preview = df_stock_preview[[df_stock_preview.columns[2],
+                                                     df_stock_preview.columns[1],
+                                                     df_stock_preview.columns[4]]]
                 df_stock_preview.columns = ["No.", "Bin Code", "Quantity"]
                 df_stock_preview["No."] = df_stock_preview["No."].apply(normalize_no)
             
