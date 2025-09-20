@@ -116,15 +116,33 @@ def pipeline_2_2_file_uploads(rittal=False):
 
     dfs = {}
 
-    # --- CUBIC BOM (tik jei ne Rittal) ---
-    if not rittal:
-        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-        cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
-        if cubic_bom:
-            try:
-                dfs["cubic_bom"] = read_excel_any(cubic_bom, skiprows=13, usecols="B:F")
-            except Exception as e:
-                st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
+    # --- CUBIC BOM ---
+    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
+    cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
+    if cubic_bom:
+        try:
+            # Nuskaitom B ir G stulpelius nuo 14 eilutės (header = 14 eilutė, duomenys nuo 15)
+            df_cubic = pd.read_excel(
+                cubic_bom,
+                skiprows=13,        # praleidžiam pirmas 13 eilučių, 14-oje header
+                usecols="B,G",      # tik B ir G stulpeliai
+                engine="openpyxl"
+            )
+    
+            # Pervadinam į mūsų standartinius pavadinimus
+            df_cubic = df_cubic.rename(columns={
+                "Item Id": "Type",
+                "Quantity": "Quantity"
+            })
+    
+            # Išsaugom originalius stulpelius
+            df_cubic["Original Type"] = df_cubic["Type"]
+            df_cubic["Original Article"] = df_cubic["Type"]  # jei reikia atitikmens kaip BOM
+    
+            dfs["cubic_bom"] = df_cubic
+    
+        except Exception as e:
+            st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
         # --- BOM ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
