@@ -58,7 +58,16 @@ def pipeline_2_1_user_inputs():
         st.error("⚠️ Invalid format (must be 1234-567)")
         return None
 
-    panel_type  = st.selectbox("Panel type", ["Type A", "Type B", "Type C"])
+    panel_type = st.selectbox(
+        "Panel type", 
+        options=[
+            'A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8',
+            'F','F1','F2','F3','F4','F4.1','F5','F6','F7',
+            'G','G1','G2','G3','G4','G5','G6','G7',
+            'Custom'
+        ]
+    )
+
     grounding   = st.selectbox("Grounding type", ["TT", "TN-S", "TN-C-S"])
     main_switch = st.selectbox("Main switch", ["Switch A", "Switch B", "Switch C"])
 
@@ -75,6 +84,7 @@ def pipeline_2_1_user_inputs():
         "ups": ups,
         "rittal": rittal,
     }
+
 
 
 def pipeline_2_2_file_uploads(rittal: bool):
