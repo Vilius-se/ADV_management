@@ -368,59 +368,48 @@ def normalize_key(x):
     """Normalizuoja raktus palyginimams (No., Type, PartNo)."""
     return str(x).upper().replace(" ", "").replace("\xa0", "").strip()
 
-def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
-    if df_bom is None or df_bom.empty:
-        return pd.DataFrame()
+def normalize_no(x):
+    """Sutvarko NAV numerį (No.) palyginimui"""
+    try:
+        return str(int(float(str(x).strip())))
+    except:
+        return str(x).strip()
 
-    # Išsaugom originalius
-    if "Original Type" not in df_bom.columns:
-        df_bom["Original Type"] = df_bom["Type"]
-    if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
-        df_bom["Original Article"] = df_bom["Article No."]
+def pipeline_3_4_check_stock(df_bom, ks_file):
+    df_out = df_bom.copy()
 
-    # Pasiruošiam Part_no
-    df_part_no = df_part_no_raw.copy()
-    df_part_no.columns = [
-        'PartNo_A', 'PartName_B', 'Desc_C',
-        'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
-    ]
-    df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
-    map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
+    # Jei failas jau DataFrame
+    if isinstance(ks_file, pd.DataFrame):
+        df_stock = ks_file.copy()
+    else:
+        import io
+        content = ks_file.getvalue()
+        df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    # Normalizuojam BOM
-    df_bom = df_bom.copy()
-    df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
+    # Pervadinam svarbiausius stulpelius
+    df_stock.columns = [str(c).strip() for c in df_stock.columns]
+    if "Item No." not in df_stock.columns or "Bin Code" not in df_stock.columns or "Quantity" not in df_stock.columns:
+        raise ValueError(f"❌ Stock sheet missing required columns. Available: {list(df_stock.columns)}")
 
-    # Priskiriam NAV numerius
-    df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
+    # Normalizacija
+    df_stock["Item No."] = df_stock["Item No."].map(normalize_no)
+    df_out["No."] = df_out["No."].map(normalize_no)
 
-    # --- išsaugom Quantity prieš merge ---
-    qty_backup = df_bom.get("Quantity", None)
-
-    # Merge
-    df_bom = df_bom.merge(
-        df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
-        left_on='No.', right_on='PartNo_A', how='left'
+    # Susumuojam kiekius pagal No. ir Bin Code, išmetam 67-01-01-01
+    stock_grouped = (
+        df_stock[df_stock["Bin Code"].astype(str) != "67-01-01-01"]
+        .groupby(["Item No.","Bin Code"], as_index=False)["Quantity"].sum()
     )
 
-    df_bom = df_bom.drop(columns=['Norm_Type','Norm_B','PartNo_A'])
-    df_bom = df_bom.rename(columns={
-        'Desc_C': 'Description',
-        'Manufacturer_D': 'Supplier',
-        'SupplierNo_E': 'Supplier No.',
-        'UnitPrice_F': 'Unit Cost'
-    })
+    # Pridedam stock info prie df_out
+    stock_map = stock_grouped.groupby("Item No.")["Quantity"].sum().to_dict()
+    df_out["Stock Quantity"] = df_out["No."].map(stock_map).fillna(0).astype(int)
 
-    # Jei Quantity prapuolė per merge – gražinam iš backup
-    if "Quantity" not in df_bom.columns and qty_backup is not None:
-        df_bom["Quantity"] = qty_backup
+    # Kad Job Journal gautų visas lokacijas – pasaugom pilną sublentelę
+    stock_rows_map = {k: v for k, v in stock_grouped.groupby("Item No.")}
+    df_out["Stock Rows"] = df_out["No."].map(stock_rows_map)
 
-    # --- Filtrai: išmetam tuščius NAV numerius ir 0 kiekius ---
-    df_bom = df_bom[df_bom["No."].notna()]
-    df_bom = df_bom[df_bom["Quantity"] > 0]
-
-    st.session_state["part_no"] = df_part_no
-    return df_bom
+    return df_out
 
 
 def normalize_no(x):
