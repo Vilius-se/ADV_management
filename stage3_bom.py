@@ -735,19 +735,23 @@ def render():
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
-            # Missing NAV numbers (CUBIC)
-            missing_nav_cubic = df_cubic[df_cubic["No."].isna()]
-            if not missing_nav_cubic.empty:
-                st.subheader("📋 Missing NAV numbers (CUBIC)")
-                st.warning(f"{len(missing_nav_cubic)} CUBIC components could not be matched with NAV numbers")
-
-                missing_table_cubic = pd.DataFrame({
-                    "Original Article (from CUBIC)": missing_nav_cubic.get("Original Article", ""),
-                    "Original Type (from CUBIC)": missing_nav_cubic.get("Original Type", ""),
-                    "Quantity": pd.to_numeric(missing_nav_cubic.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
-                    "NAV No.": missing_nav_cubic["No."]
-                })
-                st.dataframe(missing_table_cubic, use_container_width=True)
+            # --- Missing NAV numbers BOM ---
+        missing_bom = pipeline_4_4_missing_nav(df_bom_bin, "BOM")
+        if not missing_bom.empty:
+            st.subheader("📋 Missing NAV numbers (BOM)")
+            st.dataframe(missing_bom, use_container_width=True)
+        
+        # --- Missing NAV numbers CUBIC ---
+        missing_cub = pipeline_4_4_missing_nav(df_cubic_bin, "CUBIC")
+        if not missing_cub.empty:
+            st.subheader("📋 Missing NAV numbers (CUBIC)")
+            st.dataframe(missing_cub, use_container_width=True)
+        
+        # --- Sujungti (jei reikia bendros lentelės)
+        missing_all = pd.concat([missing_bom, missing_cub], ignore_index=True)
+        if not missing_all.empty:
+            st.subheader("📋 All Missing NAV numbers")
+            st.dataframe(missing_all, use_container_width=True)
 
         # =====================================================
         # --- Final tables ---
