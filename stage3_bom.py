@@ -85,11 +85,6 @@ def pipeline_2_1_user_inputs():
         "rittal": rittal,
     }
 
-
-
-import pandas as pd
-import streamlit as st
-
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 def read_excel_any(file, **kwargs):
     try:
@@ -266,7 +261,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 
     # Bandome nuskaityti failą
     try:
-        content = ks_file.read()  # perskaitom į bytes
+        content = ks_file.getvalue()  # ⬅️ NE .read(), o .getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
     except Exception as e:
         raise ValueError(f"⚠️ Cannot open Kaunas Stock: {e}")
@@ -292,15 +287,19 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         raise ValueError(f"⚠️ Kaunas Stock missing required columns: {missing}")
 
     # Sudarom žemėlapį komponento -> sandėlio lokacija
-    stock_map = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"].astype(str)))
+    stock_map = dict(zip(
+        df_kaunas["Component"].astype(str),
+        df_kaunas["Bin Code"].astype(str)
+    ))
 
     # Pridedam Bin Code į BOM
     df_out["Bin Code"] = df_out["Type"].map(lambda x: stock_map.get(str(x), ""))
 
     # Jei Bin Code tuščias arba "67-01-01-01", žymim kaip NĖRA
-    df_out.loc[(df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"), "Document No."] = (
-        df_out["No."].astype(str) + "/NERA"
-    )
+    df_out.loc[
+        (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"),
+        "Document No."
+    ] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
 
