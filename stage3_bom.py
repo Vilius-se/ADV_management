@@ -42,7 +42,7 @@ def pipeline_1_3_safe_filename(s):
     s = '' if s is None else str(s).strip()
     s = re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
-    
+
 # =====================================================
 # Pipeline 2.x – vartotojo įvestis ir failai
 # =====================================================
