@@ -127,22 +127,24 @@ def pipeline_2_2_file_uploads(rittal=False):
                 st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
             # --- BOM ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
-    if bom:
-        try:
-            df_bom = read_excel_any(bom)
-
-            # Pasiruošiam stulpelius A ir B
-            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-
-            # jei B tuščias → imti A
-            df_bom["Original Type"] = colB.where(colB != "", colA)
-
-            dfs["bom"] = df_bom
-        except Exception as e:
-            st.error(f"⚠️ Cannot open BOM: {e}")
+        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
+        bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
+        if bom:
+            try:
+                df_bom = read_excel_any(bom)
+        
+                # pasiruošiam pirmus du stulpelius
+                if df_bom.shape[1] >= 2:
+                    colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+                    colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+                    # jei B tuščias → imti A
+                    df_bom["Original Type"] = colB.where(colB != "", colA)
+                else:
+                    df_bom["Original Type"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+        
+                dfs["bom"] = df_bom
+            except Exception as e:
+                st.error(f"⚠️ Cannot open BOM: {e}")
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
@@ -264,21 +266,11 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
-    # --- Išsaugom originalų BOM pavadinimą ---
-    if "Original Type" not in df_bom.columns:
-        df_bom["Original Type"] = df_bom["Type"]
-
-    # --- Pervadinam stulpelius pagal realų failo turinį ---
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
-        'PartNo_A',       # "Item no."
-        'PartName_B',     # "Type no."
-        'Desc_C',         # "Description"
-        'Manufacturer_D', # "Supplier"
-        'SupplierNo_E',   # "Supplier No."
-        'UnitPrice_F'     # "Cost price / Unit cost DKK"
+        'PartNo_A', 'PartName_B', 'Desc_C',
+        'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
     ]
-
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
     part_map = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
@@ -287,24 +279,17 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     df_bom['No.'] = df_bom['Norm_Type'].map(part_map)
 
     df_bom = df_bom.merge(
-        df_part_no[['PartNo_A', 'Desc_C', 'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F', 'Norm_B']],
+        df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='Norm_Type', right_on='Norm_B', how='left'
     )
-
-    df_bom = df_bom.drop(columns=['Norm_Type', 'Norm_B'])
+    df_bom = df_bom.drop(columns=['Norm_Type','Norm_B'])
     df_bom = df_bom.rename(columns={
-        'PartNo_A': 'No.',
-        'Desc_C': 'Description',
-        'Manufacturer_D': 'Supplier',
-        'SupplierNo_E': 'Supplier No.',
-        'UnitPrice_F': 'Unit Cost'
+        'PartNo_A':'No.','Desc_C':'Description','Manufacturer_D':'Supplier',
+        'SupplierNo_E':'Supplier No.','UnitPrice_F':'Unit Cost'
     })
 
     st.session_state["part_no"] = df_part_no
-
     return df_bom
-
-
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
