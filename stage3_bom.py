@@ -232,7 +232,7 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     """
     Prideda NAV numerius į BOM pagal Part_no lapą iš DATA.xlsx.
-    Jei nepavyko priskirti – No. = 'NERASTA'.
+    Jei nepavyko priskirti – No. = originalus Type, NAV_No = NERASTA.
     """
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
@@ -251,10 +251,7 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     # BOM papildymas
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
-    df_bom['No.'] = df_bom['Norm_Type'].map(part_map)
-
-    # Kur nerasta → pažymim
-    df_bom['No.'] = df_bom['No.'].fillna("NERASTA")
+    df_bom['NAV_No'] = df_bom['Norm_Type'].map(part_map)
 
     # Merge papildomos info
     df_bom = df_bom.merge(
@@ -264,22 +261,23 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     df_bom = df_bom.drop(columns=['Norm_Type', 'Norm_B'])
     df_bom = df_bom.rename(columns={
-        'PartNo_A': 'NAV_No',
+        'PartNo_A': 'PartNo_ref',
         'Desc_C': 'Description',
         'Manufacturer_D': 'Supplier',
         'SupplierNo_E': 'Supplier No.',
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # Įrašom originalų Type, jei nerasta
-    df_bom.loc[df_bom['No.'] == "NERASTA", 'No.'] = df_bom['Type']
+    # Lentelė su nerastais
+    missing_df = df_bom[df_bom['NAV_No'].isna()][['Type', 'Description']].copy()
+    missing_df['Status'] = "NERASTA"
 
-    # Sąrašas kas nerasta
-    missing = df_bom[df_bom['NAV_No'].isna()]['Type'].unique().tolist()
-    if missing:
-        st.warning(f"⚠️ Nerasti NAV numeriai šiems komponentams: {missing}")
+    # Įrašom originalų Type į No., jei nerasta
+    df_bom['No.'] = df_bom['NAV_No'].fillna(df_bom['Type'])
 
     st.session_state["part_no"] = df_part_no
+    st.session_state["missing_parts"] = missing_df
+
     return df_bom
 
 
@@ -619,14 +617,20 @@ def render():
             inputs["project_number"]
         )
 
-        # --- išvedimas ---
+       # --- išvedimas ---
         st.success("✅ BOM processing complete!")
-
+        
         st.subheader("📑 Job Journal")
         st.dataframe(job_journal, use_container_width=True)
-
+        
         st.subheader("🛒 NAV Table")
         st.dataframe(nav_table, use_container_width=True)
-
+        
+        # Nauja dalis: Nerasti NAV numeriai
+        missing_parts = st.session_state.get("missing_parts", pd.DataFrame())
+        if not missing_parts.empty:
+            st.subheader("⚠️ Nerasti NAV numeriai")
+            st.dataframe(missing_parts, use_container_width=True)
+        
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
