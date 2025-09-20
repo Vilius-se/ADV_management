@@ -97,6 +97,61 @@ def get_sheet_safe(data_dict, names):
     return None
 
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
+
+def debug_check_bom_vs_stock(df_bom, df_stock):
+    """
+    Sukuria lentelę, kurioje galima matyti ar BOM 'No.' atitinka Kaunas Stock 'Component'.
+    Parodo Bin Code ir Stock Quantity.
+    """
+    # Pasiruošiam stock duomenis
+    df_stock = df_stock.copy()
+    df_stock.columns = [str(c).strip() for c in df_stock.columns]
+
+    # Pervadinam stulpelius
+    rename_map = {}
+    for col in df_stock.columns:
+        col_up = col.strip().upper()
+        if "COMP" in col_up or "NO." in col_up:
+            rename_map[col] = "Component"
+        elif "BIN" in col_up:
+            rename_map[col] = "Bin Code"
+        elif "QTY" in col_up or "QUANTITY" in col_up:
+            rename_map[col] = "Quantity"
+    df_stock = df_stock.rename(columns=rename_map)
+
+    df_stock["Component"] = df_stock["Component"].astype(str).str.strip()
+    df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
+
+    # Grupavimas
+    stock_grouped = (
+        df_stock[df_stock["Bin Code"] != "67-01-01-01"]
+        .groupby("Component")
+        .agg({
+            "Quantity": "sum",
+            "Bin Code": "first"
+        })
+        .reset_index()
+    )
+
+    # BOM su NAV numeriais
+    bom_check = df_bom[["No.", "Quantity"]].copy()
+    bom_check["No."] = bom_check["No."].astype(str)
+
+    # Join BOM ↔ Stock
+    merged = bom_check.merge(
+        stock_grouped,
+        left_on="No.", right_on="Component",
+        how="left"
+    )
+
+    merged = merged.rename(columns={
+        "Quantity_x": "BOM Quantity",
+        "Quantity_y": "Stock Quantity"
+    })
+
+    return merged[["No.", "BOM Quantity", "Stock Quantity", "Bin Code"]]
+
+
 def read_excel_any(file, **kwargs):
     try:
         return pd.read_excel(file, engine="openpyxl", **kwargs)
@@ -806,6 +861,11 @@ def render():
         df_bom   = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom   = pipeline_3_4_check_stock(df_bom, files["ks"])
 
+        st.subheader("🔍 BOM vs Kaunas Stock check")
+        debug_table = debug_check_bom_vs_stock(df_bom, files["ks"])
+        st.dataframe(debug_table, use_container_width=True)
+
+        
         # --- CUBIC BOM processing ---
         df_cubic = files.get("cubic_bom", pd.DataFrame())
         if not df_cubic.empty:
