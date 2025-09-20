@@ -472,9 +472,6 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
 
     return df_calc
 
-
-
-
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
                              panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
     """
@@ -521,8 +518,16 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     df_calc = pd.DataFrame([
         {"Label": "Parts", "Value": parts_cost},
         {"Label": "Cubic", "Value": cubic_cost},
-        {"Label": "
+        {"Label": "Hours cost", "Value": hours_cost},
+        {"Label": "Smart supply", "Value": smart_supply_cost},
+        {"Label": "Wire set", "Value": wire_set_cost},
+        {"Label": "Extra", "Value": 0},
+        {"Label": "Total", "Value": total},
+        {"Label": "Total+5%", "Value": total_plus_5},
+        {"Label": "Total+35%", "Value": total_plus_35},
+    ])
 
+    return df_calc
 
 # =====================================================
 # Main render for Stage 3
