@@ -255,12 +255,10 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     return df_bom
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
-    """
-    Papildo BOM lentelę Kauno sandėlio informacija:
-    - Prideda 'Bin Code' pagal Kaunas Stock failą
-    - Jei Bin Code tuščias arba '67-01-01-01' → prie Document No. pridedamas '/NERA'
-    """
     df_out = df_bom.copy()
+
+    # Pašalinam dublikatus stulpelių pavadinimuose
+    df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
     # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
@@ -270,10 +268,9 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    # Sutvarkom stulpelių pavadinimus
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pervadinam pagal turinį
+    # Pervadinimas
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
@@ -285,18 +282,15 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    # Užtikrinam, kad yra reikiami stulpeliai
     for req in ["Component", "Bin Code", "Quantity"]:
         if req not in df_kaunas.columns:
             df_kaunas[req] = ""
 
-    # Sukuriam lookup žemėlapį
     stock_map = dict(zip(
         df_kaunas["Component"].astype(str),
         df_kaunas["Bin Code"].astype(str)
     ))
 
-        # Pasirenkam raktą BOM'e
     if "No." in df_out.columns:
         key_col = "No."
     elif "Item No." in df_out.columns:
@@ -306,30 +300,22 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     else:
         raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
-    # Paimam Series, o ne DataFrame
-    try:
-        key_series = df_out[key_col]
-        if isinstance(key_series, pd.DataFrame):  # jeigu dėl merge gavosi keli stulpeliai
-            key_series = key_series.iloc[:, 0]
-    except Exception as e:
-        raise ValueError(f"❌ Could not extract key column '{key_col}': {e}")
+    key_series = df_out[key_col]
+    if isinstance(key_series, pd.DataFrame):
+        key_series = key_series.iloc[:, 0]
 
-    # Saugi eilutė: pirma fillna, tada astype, tada tolist
     keys = key_series.fillna("").astype(str).tolist()
 
-    # Pridedam Bin Code pagal stock_map
     df_out["Bin Code"] = [stock_map.get(k, "") for k in keys]
 
-    # Jei nėra Bin Code → pažymim /NERA
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
 
-    df_out.loc[
-        (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"),
-        "Document No."
-    ] = df_out[key_col].astype(str) + "/NERA"
+    mask_no_stock = (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01")
+    df_out.loc[mask_no_stock, "Document No."] = key_series.astype(str) + "/NERA"
 
     return df_out
+
 
 
 
