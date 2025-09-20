@@ -253,28 +253,25 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     return df_bom
 
-import pandas as pd
-import io
-
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
-    try:
-        content = ks_file.getvalue()
-        # bandome su openpyxl
+
+    # Jei failas jau DataFrame
+    if isinstance(ks_file, pd.DataFrame):
+        df_kaunas = ks_file.copy()
+    else:
+        # Kitaip tai UploadedFile
         try:
+            content = ks_file.getvalue()
             df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
-        except:
-            # jeigu openpyxl netinka, bandome xlrd
-            df_kaunas = pd.read_excel(io.BytesIO(content), engine="xlrd")
-    except Exception as e:
-        # čia vietoje ValueError išmesim tikrą exceptioną
-        raise e
+        except Exception:
+            content = ks_file.getvalue()
+            df_kaunas = pd.read_excel(io.BytesIO(content), engine=None)
 
-    # parodyti stulpelius debug
-    print("📊 Kaunas Stock columns:", df_kaunas.columns.tolist())
-
+    # Normalizuojam stulpelių pavadinimus
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
+    # Pervadinam į standartą
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
@@ -285,6 +282,26 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         elif "QTY" in col_up or "QUANTITY" in col_up:
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
+
+    # Jei trūksta laukų, tiesiog paliekam tuščius
+    for req in ["Component", "Bin Code", "Quantity"]:
+        if req not in df_kaunas.columns:
+            df_kaunas[req] = ""
+
+    # Žemėlapis komponento -> bin
+    stock_map = dict(zip(
+        df_kaunas["Component"].astype(str),
+        df_kaunas["Bin Code"].astype(str)
+    ))
+
+    # Pridedam Bin Code į BOM
+    df_out["Bin Code"] = df_out["No."].map(lambda x: stock_map.get(str(x), ""))
+
+    # Jei nėra → pridedam /NERA
+    df_out.loc[
+        (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01"),
+        "Document No."
+    ] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
 
