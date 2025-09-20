@@ -473,34 +473,37 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
+    """
+    Sukuria Job Journal lentelę NAV formatui iš BOM arba CUBIC:
+    - Jei nėra stock → prie Document No. prideda '/NERA'
+    - Job Task No. = 1144
+    - Location Code = KAUNAS
+    - Prideda Description ir Original Type gale
+    source: 'BOM' arba 'CUBIC' (naudojama tik atvaizdinti)
+    """
+    if df_alloc is None or df_alloc.empty:
+        return pd.DataFrame()
+
     st.info(f"📑 Creating Job Journal table from {source}...")
 
-    cols = [
-        "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Location Code", "Bin Code", "Description", "Original Type"
-    ]
-    df_out = pd.DataFrame(columns=cols)
+    df_out = pd.DataFrame({
+        "Type": "Item",
+        "No.": df_alloc.get("No.", ""),
+        "Document No.": project_number,
+        "Job No.": project_number,
+        "Job Task No.": 1144,
+        "Quantity": df_alloc.get("Quantity", 0),
+        "Location Code": "KAUNAS",
+        "Bin Code": df_alloc.get("Bin Code", ""),
+        "Description": df_alloc.get("Description", ""),
+        "Original Type": df_alloc.get("Original Type", "")
+    })
 
-    for _, row in df_alloc.iterrows():
-        doc_no = str(project_number)
-        if str(row.get("Bin Code", "")) in ("", "67-01-01-01"):
-            doc_no += "/NERA"
-
-        df_out = pd.concat([df_out, pd.DataFrame([{
-            "Type": "Item",
-            "No.": row.get("No."),
-            "Document No.": doc_no,
-            "Job No.": project_number,
-            "Job Task No.": 1144,
-            "Quantity": row.get("Quantity", 0),
-            "Location Code": "KAUNAS",
-            "Bin Code": row.get("Bin Code", ""),
-            "Description": row.get("Description", ""),
-            "Original Type": row.get("Original Type", "")
-        }])], ignore_index=True)
+    # jei nėra Bin Code arba jis tuščias → pridedam /NERA
+    mask_no_stock = df_out["Bin Code"].isin(["", "67-01-01-01"])
+    df_out.loc[mask_no_stock, "Document No."] = df_out["Document No."].astype(str) + "/NERA"
 
     return df_out
-
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     st.info("🛒 Creating NAV order table...")
