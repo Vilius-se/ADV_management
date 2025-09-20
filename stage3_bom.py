@@ -450,9 +450,11 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
+    st.info(f"📑 Creating Job Journal table from {source}...")
+
     cols = [
         "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Location Code", "Bin Code", "Stock Quantity", "Description", "Original Type"
+        "Quantity", "Location Code", "Bin Code", "Description", "Original Type"
     ]
     df_out = pd.DataFrame(columns=cols)
 
@@ -470,7 +472,6 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
             "Quantity": row.get("Quantity", 0),
             "Location Code": "KAUNAS",
             "Bin Code": row.get("Bin Code", ""),
-            "Stock Quantity": row.get("Stock Quantity", 0),
             "Description": row.get("Description", ""),
             "Original Type": row.get("Original Type", "")
         }])], ignore_index=True)
