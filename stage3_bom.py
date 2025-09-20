@@ -87,69 +87,85 @@ def pipeline_2_1_user_inputs():
 
 
 
-def validate_excel(uploaded_file, required_columns, name=""):
-    """
-    Patikrina ar įkeltas failas yra Excel ir ar turi reikiamus stulpelius.
-    """
+import pandas as pd
+import streamlit as st
+
+# ---- Helper: universalus Excel reader (.xls + .xlsx) ----
+def read_excel_any(file, **kwargs):
     try:
-        df = pd.read_excel(uploaded_file, engine="openpyxl")
+        return pd.read_excel(file, engine="openpyxl", **kwargs)
+    except Exception:
+        return pd.read_excel(file, engine="xlrd", **kwargs)
+
+# ---- Helper: validacija ----
+def validate_excel(uploaded_file, required_columns, label, skiprows=0, usecols=None):
+    try:
+        df = read_excel_any(uploaded_file, skiprows=skiprows, usecols=usecols)
     except Exception as e:
-        st.error(f"⚠️ Cannot open {name}: {e}")
+        st.error(f"⚠️ Cannot open {label}: {e}")
         return None
 
-    missing = [col for col in required_columns if col not in df.columns]
-    if missing:
-        st.error(f"⚠️ {name} missing required columns: {missing}")
-        return None
+    df.columns = [str(c).strip() for c in df.columns]
+
+    if required_columns:  # tikrinam tik jei reikia
+        missing = [col for col in required_columns if col not in df.columns]
+        if missing:
+            st.error(f"⚠️ {label} missing required columns: {missing}")
+            return None
+
     return df
 
-
-def pipeline_2_2_file_uploads(rittal: bool):
-    """
-    Įkelia visus reikiamus failus (CUBIC BOM – tik jei ne Rittal).
-    Leidžiami formatai: xls, xlsx, xlsm.
-    """
+# ---- Pipeline 2.2: File uploads ----
+def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("📂 Upload Required Files")
-    allowed_types = ["xls", "xlsx", "xlsm"]
 
     dfs = {}
 
-    # CUBIC BOM (tik jei nėra Rittal)
+    # --- CUBIC BOM (tik jei ne Rittal) ---
     if not rittal:
         st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-        cubic_bom = st.file_uploader("", type=allowed_types, key="cubic_bom")
+        cubic_bom = st.file_uploader("", type=["xls", "xlsx"], key="cubic_bom")
         if cubic_bom:
-            dfs["cubic_bom"] = validate_excel(cubic_bom, ["Item No."], "CUBIC BOM")
+            dfs["cubic_bom"] = validate_excel(
+                cubic_bom,
+                ["Item Id", "Description", "Quantity", "Price", "Total"],
+                "CUBIC BOM",
+                skiprows=13,   # prasideda nuo 14 eilutės
+                usecols="B:F"  # nuo B stulpelio
+            )
 
-    # BOM
+    # --- BOM ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=allowed_types, key="bom")
+    bom = st.file_uploader("", type=["xls", "xlsx"], key="bom")
     if bom:
-        dfs["bom"] = validate_excel(bom, ["Part No."], "BOM")
+        dfs["bom"] = validate_excel(
+            bom,
+            ["Article No.", "Type", "Quantity", "FABRIKAT", "DESCRIPT"],
+            "BOM"
+        )
 
-    # DATA
+    # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
-    data_file = st.file_uploader("", type=allowed_types, key="data")
+    data_file = st.file_uploader("", type=["xls", "xlsx"], key="data")
     if data_file:
-        dfs["data"] = pd.read_excel(data_file, sheet_name=None, engine="openpyxl")  # visi lapai
+        dfs["data"] = validate_excel(
+            data_file,
+            None,   # netikrinam stulpelių
+            "DATA"
+        )
 
-    # Kaunas Stock
+    # --- Kaunas Stock ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
-    ks_file = st.file_uploader("", type=allowed_types, key="ks")
+    ks_file = st.file_uploader("", type=["xls", "xlsx"], key="ks")
     if ks_file:
-        try:
-            df_ks = pd.read_excel(ks_file, engine="openpyxl", skiprows=2)  # nes nuo D3
-            # Užtikrinam, kad yra bent Qty ir Component stulpeliai
-            required_cols = ["Quantity", "Component"]
-            missing = [c for c in required_cols if c not in df_ks.columns]
-            if missing:
-                st.error(f"⚠️ Kaunas Stock missing required columns: {missing}")
-            else:
-                dfs["ks"] = df_ks
-        except Exception as e:
-            st.error(f"⚠️ Cannot open Kaunas Stock: {e}")
+        dfs["ks"] = validate_excel(
+            ks_file,
+            None,   # netikrinam stulpelių
+            "Kaunas Stock"
+        )
 
-    return dfs if dfs else None
+    return dfs
+
 
 # =====================================================
 # Pipeline 3.x – Duomenų apdorojimas
