@@ -613,27 +613,34 @@ def render():
         df_stock       = get_sheet_safe(files["data"], ["Stock"])
         df_accessories = get_sheet_safe(files["data"], ["Accessories"])
         df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-        df_part_code   = get_sheet_safe(files["data"], ["Part_code"])
         df_hours       = get_sheet_safe(files["data"], ["Hours"])
+        df_part_code   = get_sheet_safe(files["data"], ["Part_code", "Part code"])
 
         if df_stock is None or df_part_no is None:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
-        # --- 0. Pervadinam BOM stulpelius pagal Part_code ---
-        df_bom = pipeline_3_0_rename_columns(files["bom"], df_part_code)
+        # --- vykdom pipelines ---
+        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
 
-        # --- 1. Filtravimas pagal Stock ---
-        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
+        # jei yra Part_code → pakeičiam pavadinimus
+        if df_part_code is not None and not df_part_code.empty:
+            rename_map = dict(zip(
+                df_part_code.iloc[:,0].astype(str).str.strip(),
+                df_part_code.iloc[:,1].astype(str).str.strip()
+            ))
+            df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
 
-        # --- 2. Accessories ---
         df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
-
-        # --- 3. NAV numeriai ---
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
-
-        # --- 4. Sandėlio patikra ---
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
+
+        # --- Lentelė su nerastais numeriais ---
+        missing_nav = df_bom[df_bom["No."].isna() | (df_bom["No."] == "")]
+        if not missing_nav.empty:
+            st.warning(f"⚠️ {len(missing_nav)} components could not be matched with NAV numbers")
+            st.subheader("📋 Missing NAV numbers")
+            st.dataframe(missing_nav[["Type", "Description"]], use_container_width=True)
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
