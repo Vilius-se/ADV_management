@@ -122,12 +122,28 @@ def pipeline_2_2_file_uploads(rittal=False):
         cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
         if cubic_bom:
             try:
-                # Nuskaitom tik B (Item Id) ir G (Quantity) stulpelius, nuo 14 eilutės
-                df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,G")
-                df_cubic = df_cubic.rename(columns={
-                    "Item Id": "Type",
-                    "Quantity": "Quantity"
-                })
+                # Skaitom platesnį bloką (B:G), nes Quantity gali būti E/F/G
+                df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,E:F,G")
+                df_cubic = df_cubic.rename(columns=lambda c: str(c).strip())
+
+                # Sukuriam Quantity kaip pirmą nenulinę reikšmę tarp E,F,G
+                if {"E", "F", "G"}.issubset(df_cubic.columns):
+                    df_cubic["Quantity"] = (
+                        df_cubic[["E", "F", "G"]]
+                        .bfill(axis=1)  # užpildo iš kairės
+                        .iloc[:, 0]     # pasiima pirmą reikšmę
+                    )
+                elif "Quantity" not in df_cubic.columns:
+                    df_cubic["Quantity"] = 0
+
+                # Normalizacija
+                df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
+                df_cubic = df_cubic.rename(columns={"Item Id": "Type"})
+                df_cubic["Original Type"] = df_cubic["Type"]
+
+                # Sukuriam No.
+                df_cubic["No."] = df_cubic["Type"]
+
                 dfs["cubic_bom"] = df_cubic
             except Exception as e:
                 st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
