@@ -687,7 +687,7 @@ def render():
                 "NAV No.": missing_nav["No."]
             })
 
-    st.dataframe(missing_table, use_container_width=True)
+        st.dataframe(missing_table, use_container_width=True)
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
