@@ -535,7 +535,7 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
 
         for alloc in allocations:
             doc_no = project_number
-            if alloc["Status"] == "NERA":
+            if alloc["Bin Code"] == "NERA":
                 doc_no += "/NERA"
 
             rows.append({
