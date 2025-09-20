@@ -99,12 +99,16 @@ def get_sheet_safe(data_dict, names):
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 
 def allocate_from_stock(no, qty_needed, stock_rows):
-    """
-    Paskirsto kiekį iš stock_rows (DataFrame su Bin Code ir Quantity).
-    Grąžina sąrašą dict su 'No.', 'Bin Code', 'Allocated Qty'.
-    """
     allocations = []
     remaining = qty_needed
+
+    # Jei tuščias stock_rows → viskas eina į /NERA
+    if stock_rows.empty:
+        return [{
+            "No.": no,
+            "Bin Code": "67-01-01-01",
+            "Allocated Qty": int(remaining)
+        }]
 
     for _, srow in stock_rows.iterrows():
         bin_code = str(srow["Bin Code"])
@@ -125,15 +129,15 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         if remaining <= 0:
             break
 
-    # Jei dar liko neuždengta → sukuriam NERA eilutę
     if remaining > 0:
         allocations.append({
             "No.": no,
-            "Bin Code": "67-01-01-01",  # NERA
-            "Allocated Qty": remaining
+            "Bin Code": "67-01-01-01",
+            "Allocated Qty": int(remaining)
         })
 
     return allocations
+
 
 
 def read_excel_any(file, **kwargs):
@@ -472,7 +476,7 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
 
-def pipeline_4_1_job_journal(df_alloc, project_number, source="BOM"):
+def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
     st.info(f"📑 Creating Job Journal table from {source}...")
 
     rows = []
@@ -481,8 +485,11 @@ def pipeline_4_1_job_journal(df_alloc, project_number, source="BOM"):
         no = row.get("No.")
         qty_needed = float(row.get("Quantity", 0))
 
-        # Iš stock map paimam visus Bin + Qty
-        stock_rows = row.get("Stock Rows", pd.DataFrame())
+        # Jeigu Stock Rows neegzistuoja, sukuriam tuščią DataFrame
+        stock_rows = row.get("Stock Rows")
+        if not isinstance(stock_rows, pd.DataFrame):
+            stock_rows = pd.DataFrame(columns=["Bin Code", "Quantity"])
+
         allocations = allocate_from_stock(no, qty_needed, stock_rows)
 
         for alloc in allocations:
