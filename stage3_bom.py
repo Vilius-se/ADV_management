@@ -635,25 +635,24 @@ def render():
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
-        # --- Lentelė su nerastais numeriais ---
+                # --- Lentelė su nerastais numeriais ---
         missing_nav = df_bom[df_bom["No."].isna() | (df_bom["No."] == "")]
         if not missing_nav.empty:
             st.warning(f"⚠️ {len(missing_nav)} components could not be matched with NAV numbers")
             st.subheader("📋 Missing NAV numbers")
 
-            # Rodom originalų BOM pavadinimą (Type)
-            # ir NAV numerį (bus tuščias / None)
-            missing_display = missing_nav[["Type"]].copy()
+            # paimam visą Type stulpelį iš BOM
+            missing_display = missing_nav.copy()
+
+            # jei reikia tik Type + NAV No.
+            missing_display = missing_display[["Type"]].copy()
             missing_display["NAV No."] = None
 
+            # atvaizduojam visus, be drop_duplicates
             st.dataframe(
-                missing_display.drop_duplicates().reset_index(drop=True),
+                missing_display.reset_index(drop=True),
                 use_container_width=True
             )
-
-
-            st.dataframe(missing_display.drop_duplicates().reset_index(drop=True),
-                         use_container_width=True)
 
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
