@@ -377,16 +377,15 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 def pipeline_3_4_check_stock(df_bom, ks_file):
     """
     Tikrina Kaunas Stock:
-    - Match pagal 'No.' (BOM) = 'No.' (Stock, C stulpelis).
+    - Match pagal 'No.' (BOM) = 'Item No.' (Stock, C stulpelis).
     - Sumuojamas Quantity, ignoruojant '67-01-01-01'.
     - Surenkami visi Bin Code į vieną lauką.
     - Prideda stulpelius 'Bin Code' ir 'Stock Quantity' į BOM.
     """
-
     df_out = df_bom.copy()
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # Skaitymas
+    # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
         df_stock = ks_file.copy()
     else:
@@ -394,16 +393,24 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    # Pasirenkam stulpelius pagal pozicijas: B=1, C=2, D=3
-    df_stock = df_stock.iloc[:, [1, 2, 3]]
+    # Imame stulpelius pagal poziciją (B=1, C=2, D=3)
+    try:
+        df_stock = df_stock.iloc[:, [1, 2, 3]].copy()
+    except Exception as e:
+        raise ValueError(f"❌ Stock file has netinkamą struktūrą: {e}")
+
     df_stock.columns = ["Bin Code", "Item No.", "Quantity"]
+
+    # Debug – parodyk pirmas 10 eilučių
+    st.subheader("🔍 Kaunas Stock (debug, pirmos 10 eilučių)")
+    st.dataframe(df_stock.head(10))
 
     # Valom duomenis
     df_stock["Item No."] = df_stock["Item No."].astype(str).str.strip()
     df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
     df_stock["Bin Code"] = df_stock["Bin Code"].astype(str).str.strip()
 
-    # Grupavimas: sumuojam kiekius ir surenkam visas lokacijas
+    # Grupavimas (ignoruojant 67-01-01-01)
     stock_grouped = (
         df_stock[df_stock["Bin Code"] != "67-01-01-01"]
         .groupby("Item No.")
@@ -414,7 +421,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         .reset_index()
     )
 
-    # Sujungiam su BOM pagal NAV numerį
+    # Merge
     df_out["No."] = df_out["No."].astype(str).str.strip()
     df_out = df_out.merge(
         stock_grouped,
@@ -422,15 +429,22 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         how="left"
     )
 
-    # Sutvarkom stulpelius
-    df_out = df_out.drop(columns=["Item No."])
-    df_out = df_out.rename(columns={"Quantity": "Stock Quantity"})
+    # Tvarkom stulpelius
+    if "Item No." in df_out.columns:
+        df_out = df_out.drop(columns=["Item No."])
+    if "Quantity" in df_out.columns:
+        df_out = df_out.rename(columns={"Quantity": "Stock Quantity"})
 
-    # Užpildom tuščius
-    df_out["Bin Code"] = df_out["Bin Code"].fillna("")
-    df_out["Stock Quantity"] = df_out["Stock Quantity"].fillna(0).astype(int)
+    # Jei vis tiek nėra – sukuriam tuščią
+    if "Stock Quantity" not in df_out.columns:
+        df_out["Stock Quantity"] = 0
+    if "Bin Code" not in df_out.columns:
+        df_out["Bin Code"] = ""
+
+    df_out["Stock Quantity"] = pd.to_numeric(df_out["Stock Quantity"], errors="coerce").fillna(0).astype(int)
 
     return df_out
+
 
 
 
