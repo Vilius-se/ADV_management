@@ -328,3 +328,42 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
 
     return df_calc
 
+# =====================================================
+# Main render for Stage 3
+# =====================================================
+def render():
+    st.header("Stage 3: BOM Management")
+
+    # 1. Inputs
+    inputs = pipeline_2_1_user_inputs()
+    if not inputs:
+        return
+
+    # 2. File uploads
+    files = pipeline_2_2_file_uploads(inputs["rittal"])
+    if not files:
+        return
+
+    # 3. Run processing
+    if st.button("🚀 Run BOM Processing"):
+        df_bom = pipeline_3_1_filtering(files["bom"], files["data"]["Stock"])
+        df_bom = pipeline_3_2_add_accessories(df_bom, files["data"]["Accessories"])
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"])
+        df_bom = pipeline_3_4_check_stock(df_bom, files["kaunas"])
+
+        job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
+        nav_table   = pipeline_4_2_nav_table(df_bom, files["data"]["Part_no"])
+        calc_table  = pipeline_4_3_calculation(
+            df_bom, files.get("cubic"), files["data"].get("Hours"),
+            inputs["panel_type"], inputs["grounding"], inputs["project_number"]
+        )
+
+        st.success("✅ BOM processing complete!")
+        st.subheader("📑 Job Journal")
+        st.dataframe(job_journal, use_container_width=True)
+
+        st.subheader("🛒 NAV Table")
+        st.dataframe(nav_table, use_container_width=True)
+
+        st.subheader("💰 Calculation")
+        st.dataframe(calc_table, use_container_width=True)
