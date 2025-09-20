@@ -213,19 +213,38 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
         return df_bom
 
     # Atrenkam komponentus su komentarais
-    excluded_components = df_stock[df_stock["Comment"].notna()]["Component"].dropna().astype(str)
+    excluded_components = (
+        df_stock[df_stock["Comment"].notna()]["Component"]
+        .dropna()
+        .astype(str)
+    )
 
     # Normalizuojam pavadinimus
-    excluded_norm = excluded_components.str.upper().str.replace(" ", "").unique()
+    excluded_norm = (
+        excluded_components.str.upper()
+        .str.replace(" ", "")
+        .str.strip()
+        .unique()
+    )
+
     df_bom = df_bom.copy()
-    df_bom["Norm_Type"] = df_bom["Type"].astype(str).str.upper().str.replace(" ", "")
+    df_bom["Norm_Type"] = (
+        df_bom["Type"].astype(str)
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
+    )
 
-    # Filtravimas
-    filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].copy()
+    # Filtravimas: išmetam VISUS, kurie yra excluded
+    filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
 
-    st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
-               f"(removed {len(df_bom) - len(filtered)} items with comments)")
+    st.success(
+        f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
+        f"(removed {len(df_bom) - len(filtered)} items with comments)"
+    )
+
     return filtered.drop(columns=["Norm_Type"])
+
 
 def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFrame) -> pd.DataFrame:
     """
