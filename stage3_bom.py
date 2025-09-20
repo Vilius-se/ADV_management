@@ -261,7 +261,6 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
-        import io, pandas as pd
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
@@ -313,8 +312,6 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     ] = df_out[key_col].astype(str) + "/NERA"
 
     return df_out
-
-
 
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
