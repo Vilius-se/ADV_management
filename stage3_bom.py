@@ -648,11 +648,13 @@ def render():
         # --- BOM processing ---
         df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
 
-        # Išsaugom originalius BOM pavadinimus
-        if "Original Type" not in files["bom"].columns and files["bom"].shape[1] >= 2:
-            files["bom"]["Original Type"] = files["bom"].iloc[:, 1]
-        if "Original Article" not in files["bom"].columns and files["bom"].shape[1] >= 1:
-            files["bom"]["Original Article"] = files["bom"].iloc[:, 0]
+        # ✅ Išsaugom originalius BOM pavadinimus iš pirmo failo (A ir B stulpeliai)
+        if files["bom"].shape[1] >= 2:
+            df_bom["Original Article"] = files["bom"].iloc[:, 0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]    = files["bom"].iloc[:, 1].fillna("").astype(str).str.strip()
+        elif files["bom"].shape[1] == 1:
+            df_bom["Original Article"] = files["bom"].iloc[:, 0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]    = df_bom["Original Article"]
 
         # jei yra Part_code → pakeičiam pavadinimus
         if df_part_code is not None and not df_part_code.empty:
@@ -666,7 +668,7 @@ def render():
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
-                # --- Missing NAV numbers lentelė ---
+        # --- Missing NAV numbers lentelė ---
         missing_nav = df_bom[df_bom["No."].isna()]
 
         if not missing_nav.empty:
@@ -682,13 +684,12 @@ def render():
 
             st.dataframe(missing_table, use_container_width=True)
 
-
         # --- paimam jau paruoštą Part_no lentelę iš session ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
 
         # --- galutinės lentelės ---
-        job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
-        job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"])
+        job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
+        job_journal_cubic = pipeline_4_1_job_journal(files.get("cubic_bom", pd.DataFrame()), inputs["project_number"], source="CUBIC")
 
         nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
         calc_table  = pipeline_4_3_calculation(
@@ -714,4 +715,3 @@ def render():
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
-
