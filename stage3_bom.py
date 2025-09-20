@@ -523,10 +523,10 @@ def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> 
             "Stock Quantity": r.get("Stock Quantity", 0)
         })
 
-    return pd.DataFrame(rows, columns=[
-        "Type","No.","Quantity","Supplier","Profit","Discount","Description","Stock Quantity"
-    ])
-
+    # Stock Quantity pastumiam į galą
+    df_out = pd.DataFrame(rows)
+    cols = ["Type","No.","Quantity","Supplier","Profit","Discount","Description","Stock Quantity"]
+    return df_out[cols]
 
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
                              panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
