@@ -512,9 +512,12 @@ def render():
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
+        # --- paimam jau paruoštą Part_no lentelę iš session ---
+        df_part_no_ready = st.session_state.get("part_no", df_part_no)
+
         # --- galutinės lentelės ---
         job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
-        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no)
+        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
         calc_table  = pipeline_4_3_calculation(
             df_bom,
             files.get("cubic_bom"),
