@@ -116,62 +116,59 @@ def pipeline_2_2_file_uploads(rittal=False):
 
     dfs = {}
 
-    # --- CUBIC BOM ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-    cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
-    if cubic_bom:
-        try:
-            # Nuskaitom B ir G stulpelius nuo 14 eilutės (header = 14 eilutė, duomenys nuo 15)
-            df_cubic = pd.read_excel(
-                cubic_bom,
-                skiprows=13,        # praleidžiam pirmas 13 eilučių, 14-oje header
-                usecols="B,G",      # tik B ir G stulpeliai
-                engine="openpyxl"
-            )
-    
-            # Pervadinam į mūsų standartinius pavadinimus
-            df_cubic = df_cubic.rename(columns={
-                "Item Id": "Type",
-                "Quantity": "Quantity"
-            })
-    
-            # Išsaugom originalius stulpelius
-            df_cubic["Original Type"] = df_cubic["Type"]
-            df_cubic["Original Article"] = df_cubic["Type"]  # jei reikia atitikmens kaip BOM
-    
-            dfs["cubic_bom"] = df_cubic
-    
-        except Exception as e:
-            st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
+    # --- CUBIC BOM (tik jei ne Rittal) ---
+    if not rittal:
+        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
+        cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
+        if cubic_bom:
+            try:
+                # B ir G stulpeliai, header 14 eilutėje (skiprows=13)
+                df_cubic = pd.read_excel(
+                    cubic_bom,
+                    skiprows=13,
+                    usecols="B,G",
+                    engine="openpyxl"
+                )
+                df_cubic = df_cubic.rename(columns={
+                    "Item Id": "Type",
+                    "Quantity": "Quantity"
+                })
+
+                # Išsaugom originalą
+                df_cubic["Original Type"] = df_cubic["Type"]
+                df_cubic["Original Article"] = df_cubic["Type"]
+
+                dfs["cubic_bom"] = df_cubic
+            except Exception as e:
+                st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
 
         # --- BOM ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
-    if bom:
-        try:
-            df_bom = read_excel_any(bom)
-    
-            # 1) unikalus indeksas
-            df_bom["_OrigIdx"] = range(len(df_bom))
-    
-            # 2) išsaugom originalius pavadinimus
-            if df_bom.shape[1] >= 2:
-                df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                df_bom["Original Type"]    = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-            else:
-                df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                df_bom["Original Type"]    = df_bom["Original Article"]
-    
-            dfs["bom"] = df_bom
-        except Exception as e:
-            st.error(f"⚠️ Cannot open BOM: {e}")
+        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
+        bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
+        if bom:
+            try:
+                df_bom = read_excel_any(bom)
+
+                # pasiruošiam pirmus du stulpelius kaip originalus
+                if df_bom.shape[1] >= 2:
+                    colA = df_bom.iloc[:, 0].fillna("").astype(str).str.strip()
+                    colB = df_bom.iloc[:, 1].fillna("").astype(str).str.strip()
+                    df_bom["Original Article"] = colA
+                    df_bom["Original Type"] = colB.where(colB != "", colA)
+                else:
+                    df_bom["Original Article"] = df_bom.iloc[:, 0].fillna("").astype(str).str.strip()
+                    df_bom["Original Type"] = df_bom["Original Article"]
+
+                dfs["bom"] = df_bom
+            except Exception as e:
+                st.error(f"⚠️ Cannot open BOM: {e}")
 
     # --- DATA ---
     st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
     data_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="data")
     if data_file:
         try:
-            dfs["data"] = pd.read_excel(data_file, sheet_name=None)  # <-- VISI LAPAI
+            dfs["data"] = pd.read_excel(data_file, sheet_name=None)  # VISI lapai
         except Exception as e:
             st.error(f"⚠️ Cannot open DATA: {e}")
 
@@ -185,6 +182,7 @@ def pipeline_2_2_file_uploads(rittal=False):
             st.error(f"⚠️ Cannot open Kaunas Stock: {e}")
 
     return dfs
+
 
 # =====================================================
 # Pipeline 3.x – Duomenų apdorojimas
