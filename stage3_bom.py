@@ -162,25 +162,19 @@ def pipeline_2_2_file_uploads(rittal=False):
 def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
     """
     Pašalina iš BOM visus komponentus, kurie turi Comment reikšmę DATA.xlsx → Stock lape.
-    Pvz. Comment = Q1, No need, Wurth, GRM → tokie komponentai nepatenka į BOM.
+    Pagal nutylėjimą laikom: 
+      1-asis stulpelis = Component,
+      3-iasis stulpelis = Comment.
     """
-
     st.info("🚦 Filtering BOM according to DATA.xlsx Stock (Comment)...")
 
-    # Normalizuojam stulpelių pavadinimus
-    colmap = {}
-    for col in df_stock.columns:
-        name = str(col).strip().upper()
-        if "COMP" in name:
-            colmap[col] = "Component"
-        elif "COMM" in name:
-            colmap[col] = "Comment"
-
-    df_stock = df_stock.rename(columns=colmap)
-
-    # Tikrinam ar dabar turim reikiamus stulpelius
-    if "Component" not in df_stock.columns or "Comment" not in df_stock.columns:
-        st.error(f"❌ Stock sheet must have 'Component' and 'Comment' columns (got {list(df_stock.columns)})")
+    # Pervadinam pirmą ir trečią stulpelį
+    cols = list(df_stock.columns)
+    if len(cols) >= 3:
+        rename_map = {cols[0]: "Component", cols[2]: "Comment"}
+        df_stock = df_stock.rename(columns=rename_map)
+    else:
+        st.error("❌ Stock sheet must have bent 3 stulpelius (Component, ..., Comment)")
         return df_bom
 
     # Atrenkam komponentus su komentarais
@@ -197,10 +191,6 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
     st.success(f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
                f"(removed {len(df_bom) - len(filtered)} items with comments)")
     return filtered.drop(columns=["Norm_Type"])
-
-
-
-
 
 def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFrame) -> pd.DataFrame:
     """
