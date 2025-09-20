@@ -355,14 +355,29 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str) -> pd.
     return df_out
 
 
-def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
+def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Sukuria NAV užsakymo lentelę:
     - Type, No., Quantity, Supplier, Profit, Discount
     - Profit = 17, Danfoss → 10
     - Discount = 0
     """
+
     st.info("🛒 Creating NAV order table...")
+
+    # Jei reikia – pervadinam stulpelius
+    df_part_no = df_part_no_raw.copy()
+    cols_up = [c.upper().strip() for c in df_part_no.columns]
+
+    if "ITEM NO." in cols_up and "TYPE NO." in cols_up:
+        df_part_no.columns = [
+            'PartNo_A',       # "Item no."
+            'PartName_B',     # "Type no."
+            'Desc_C',         # "Description"
+            'Manufacturer_D', # "Supplier"
+            'SupplierNo_E',   # "Supplier No."
+            'UnitPrice_F'     # "Cost price / Unit cost DKK"
+        ]
 
     cols = ["Type","No.","Quantity","Supplier","Profit","Discount"]
     df_out = pd.DataFrame(columns=cols)
@@ -385,6 +400,7 @@ def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> 
         }])], ignore_index=True)
 
     return df_out
+
 
 
 def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
