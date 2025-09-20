@@ -42,13 +42,7 @@ def pipeline_1_3_safe_filename(s):
     s = '' if s is None else str(s).strip()
     s = re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
-
-def normalize_key(val):
-    """Vienodinimui: didžiosios, be tarpų, be \xa0"""
-    if pd.isna(val):
-        return ""
-    return str(val).upper().replace(" ", "").replace("\xa0", "")
-
+    
 # =====================================================
 # Pipeline 2.x – vartotojo įvestis ir failai
 # =====================================================
@@ -298,14 +292,18 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     return df_out
 
 
+def normalize_key(x):
+    """Normalizuoja raktus palyginimams (No., Type, PartNo)."""
+    return str(x).upper().replace(" ", "").replace("\xa0", "").strip()
+
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
-    # Užtikrinam originalius stulpelius
-    if "Original Type" not in df_bom.columns and "Type" in df_bom.columns:
-        df_bom["Original Type"] = df_bom["Type"]
+    # --- Išsaugom originalų BOM pavadinimą ---
+    if "Original Type" not in df_bom.columns:
+        df_bom["Original Type"] = df_bom.get("Type", "")
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # Paruošiam Part_no
+    # --- Pervadinam stulpelius pagal realų failo turinį ---
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A',       # "Item no."
@@ -316,29 +314,36 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F'     # "Cost price / Unit cost DKK"
     ]
 
-    # Normalizuojam raktus
-    df_part_no['Norm_B'] = df_part_no['PartName_B'].map(normalize_key)
-    map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
+    # Normalizuojam Part_no
+    df_part_no['Norm_B']   = df_part_no['PartName_B'].map(normalize_key)
+    df_part_no['PartNo_A'] = df_part_no['PartNo_A'].map(normalize_key)
 
+    # Sukuriam map’us
+    map_by_type    = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
+    map_by_article = dict(zip(df_part_no['PartNo_A'], df_part_no['PartNo_A']))  # savęs mapping
+
+    # --- Normalizuojam BOM ---
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].map(normalize_key)
 
-    # Pirmas bandymas pagal Type
+    # Pirmas bandymas: pagal Type
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # Antras bandymas pagal Article (jei dar nėra No.)
+    # Jei dar NaN — jungiam pagal Article No.
     if "Article No." in df_bom.columns:
         mask_missing = df_bom['No.'].isna()
-        df_bom.loc[mask_missing, 'No.'] = df_bom.loc[mask_missing, 'Article No.'].map(
-            lambda x: str(x) if str(x) in df_part_no['PartNo_A'].astype(str).values else None
+        df_bom.loc[mask_missing, 'No.'] = (
+            df_bom.loc[mask_missing, 'Article No.'].map(normalize_key).map(map_by_article)
         )
 
-    # Merge papildomos info
+    # --- Merge papildomos informacijos ---
+    df_bom['No.'] = df_bom['No.'].map(normalize_key)  # kad sutaptų su PartNo_A
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
     )
 
+    # Išmetam techninius stulpelius
     df_bom = df_bom.drop(columns=['Norm_Type','Norm_B','PartNo_A'])
     df_bom = df_bom.rename(columns={
         'Desc_C': 'Description',
