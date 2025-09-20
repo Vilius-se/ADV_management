@@ -364,22 +364,11 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     return df_out
 
 
-def normalize_key(x):
-    """Normalizuoja raktus palyginimams (No., Type, PartNo)."""
-    return str(x).upper().replace(" ", "").replace("\xa0", "").strip()
-
-def normalize_no(x):
-    """Sutvarko NAV numerį (No.) palyginimui"""
-    try:
-        return str(int(float(str(x).strip())))
-    except:
-        return str(x).strip()
-
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
-    # Išsaugom originalius
+    # Originalių laukų išsaugojimas
     if "Original Type" not in df_bom.columns:
         df_bom["Original Type"] = df_bom["Type"]
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
@@ -391,23 +380,34 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'PartNo_A', 'PartName_B', 'Desc_C',
         'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
     ]
+
+    # Normalizuoti NAV numerius
+    def normalize_no(x):
+        try:
+            return str(int(float(str(x).strip())))
+        except:
+            return str(x).strip()
+
+    df_part_no["PartNo_A"] = df_part_no["PartNo_A"].map(normalize_no)
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
+
+    # Map by type
     map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # Normalizuojam BOM Type
+    # Normalizuojam BOM
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = (
         df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
     )
-
-    # Priskiriam NAV numerius
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
 
-    # Panaikinam kablelius iš No.
+    # Panaikinam kablelius / formatuojam BOM No.
     df_bom["No."] = df_bom["No."].map(normalize_no)
 
-    # Merge su Part_no
+    # Išsaugom kiekį prieš merge
     qty_backup = df_bom.get("Quantity", None)
+
+    # Merge su Part_no – abu raktai jau stringai
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
         left_on='No.', right_on='PartNo_A', how='left'
@@ -426,6 +426,7 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
     st.session_state["part_no"] = df_part_no
     return df_bom
+
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
