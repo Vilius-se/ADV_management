@@ -484,39 +484,45 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     """
     st.info("💰 Creating Calculation table...")
 
-    parts_cost = (df_bom["Quantity"]*df_bom.get("Unit Cost",0)).sum() if not df_bom.empty else 0
-    cubic_cost = (df_cubic["Quantity"]*df_cubic.get("Unit Cost",0)).sum() if df_cubic is not None else 0
+    # Užtikrinam, kad skaičiai būtų float
+    qty_bom  = pd.to_numeric(df_bom.get("Quantity", 0), errors="coerce").fillna(0)
+    unit_bom = pd.to_numeric(df_bom.get("Unit Cost", 0), errors="coerce").fillna(0)
+    parts_cost = (qty_bom * unit_bom).sum() if not df_bom.empty else 0
 
-    # Hours pagal projektą
-    hourly_rate = float(df_hours.iloc[1,4]) if df_hours is not None else 0
-    row_match = df_hours[df_hours.iloc[:,0].astype(str).str.upper() == str(panel_type).upper()] if df_hours is not None else pd.DataFrame()
-    hours_value = 0
-    if not row_match.empty:
-        if grounding == "TT": hours_value = float(row_match.iloc[0,1])
-        elif grounding == "TN-S": hours_value = float(row_match.iloc[0,2])
-        elif grounding == "TN-C-S": hours_value = float(row_match.iloc[0,3])
-    hours_cost = hours_value * hourly_rate
+    if df_cubic is not None and not df_cubic.empty:
+        qty_cubic  = pd.to_numeric(df_cubic.get("Quantity", 0), errors="coerce").fillna(0)
+        unit_cubic = pd.to_numeric(df_cubic.get("Unit Cost", 0), errors="coerce").fillna(0)
+        cubic_cost = (qty_cubic * unit_cubic).sum()
+    else:
+        cubic_cost = 0
+
+    # Hours
+    hours_cost = 0
+    if df_hours is not None and not df_hours.empty:
+        hourly_rate = pd.to_numeric(df_hours.iloc[1, 4], errors="coerce") if df_hours.shape[1] > 4 else 0
+        row_match = df_hours[df_hours.iloc[:, 0].astype(str).str.upper() == str(panel_type).upper()]
+        hours_value = 0
+        if not row_match.empty:
+            if grounding == "TT":
+                hours_value = pd.to_numeric(row_match.iloc[0, 1], errors="coerce")
+            elif grounding == "TN-S":
+                hours_value = pd.to_numeric(row_match.iloc[0, 2], errors="coerce")
+            elif grounding == "TN-C-S":
+                hours_value = pd.to_numeric(row_match.iloc[0, 3], errors="coerce")
+        hours_cost = (hours_value if pd.notna(hours_value) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
 
     smart_supply_cost = 9750.0
     wire_set_cost     = 2500.0
 
-    total = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
-    total_plus_5  = total * 1.05
-    total_plus_35 = total * 1.35
+    total        = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
+    total_plus_5 = total * 1.05
+    total_plus_35= total * 1.35
 
     df_calc = pd.DataFrame([
-        {"Label":"Parts","Value":parts_cost},
-        {"Label":"Cubic","Value":cubic_cost},
-        {"Label":"Hours cost","Value":hours_cost},
-        {"Label":"Smart supply","Value":smart_supply_cost},
-        {"Label":"Wire set","Value":wire_set_cost},
-        {"Label":"Extra","Value":0},
-        {"Label":"Total","Value":total},
-        {"Label":"Total+5%","Value":total_plus_5},
-        {"Label":"Total+35%","Value":total_plus_35},
-    ])
+        {"Label": "Parts", "Value": parts_cost},
+        {"Label": "Cubic", "Value": cubic_cost},
+        {"Label": "
 
-    return df_calc
 
 # =====================================================
 # Main render for Stage 3
