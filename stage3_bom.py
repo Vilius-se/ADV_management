@@ -671,21 +671,21 @@ def render():
         # --- Missing NAV numbers lentelė ---
       missing_nav = df_bom[df_bom["No."].isna()]
 
-if not missing_nav.empty:
-    st.subheader("📋 Missing NAV numbers")
-    st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
-
-    # --- parodyti ORIGINALIAS BOM eilutes pagal indeksus ---
-    st.write("🔎 Original BOM rows for missing NAV numbers:")
-    st.dataframe(files["bom"].iloc[missing_nav.index], use_container_width=True)
-
-    # --- santraukos lentelė ---
-    missing_table = pd.DataFrame({
-        "Original Article (from BOM)": missing_nav.get("Original Article", ""),
-        "Original Type (from BOM)": missing_nav.get("Original Type", ""),
-        "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
-        "NAV No.": missing_nav["No."]
-    })
+        if not missing_nav.empty:
+            st.subheader("📋 Missing NAV numbers")
+            st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
+        
+            # --- parodyti ORIGINALIAS BOM eilutes pagal indeksus ---
+            st.write("🔎 Original BOM rows for missing NAV numbers:")
+            st.dataframe(files["bom"].iloc[missing_nav.index], use_container_width=True)
+        
+            # --- santraukos lentelė ---
+            missing_table = pd.DataFrame({
+                "Original Article (from BOM)": missing_nav.get("Original Article", ""),
+                "Original Type (from BOM)": missing_nav.get("Original Type", ""),
+                "Quantity": pd.to_numeric(missing_nav.get("Quantity", 0), errors="coerce").fillna(0).astype(int),
+                "NAV No.": missing_nav["No."]
+            })
 
     st.dataframe(missing_table, use_container_width=True)
 
