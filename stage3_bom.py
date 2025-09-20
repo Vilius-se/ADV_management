@@ -98,6 +98,44 @@ def get_sheet_safe(data_dict, names):
 
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 
+def allocate_from_stock(no, qty_needed, stock_rows):
+    """
+    Paskirsto kiekį iš stock_rows (DataFrame su Bin Code ir Quantity).
+    Grąžina sąrašą dict su 'No.', 'Bin Code', 'Allocated Qty'.
+    """
+    allocations = []
+    remaining = qty_needed
+
+    for _, srow in stock_rows.iterrows():
+        bin_code = str(srow["Bin Code"])
+        available = int(srow["Quantity"]) if pd.notna(srow["Quantity"]) else 0
+
+        if available <= 0:
+            continue
+
+        take = min(remaining, available)
+        if take > 0:
+            allocations.append({
+                "No.": no,
+                "Bin Code": bin_code,
+                "Allocated Qty": take
+            })
+            remaining -= take
+
+        if remaining <= 0:
+            break
+
+    # Jei dar liko neuždengta → sukuriam NERA eilutę
+    if remaining > 0:
+        allocations.append({
+            "No.": no,
+            "Bin Code": "67-01-01-01",  # NERA
+            "Allocated Qty": remaining
+        })
+
+    return allocations
+
+
 def read_excel_any(file, **kwargs):
     try:
         return pd.read_excel(file, engine="openpyxl", **kwargs)
@@ -383,33 +421,25 @@ def normalize_no(x):
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
 
+    # Įsikeliam Kaunas Stock
     if isinstance(ks_file, pd.DataFrame):
         df_stock = ks_file.copy()
     else:
-        content = ks_file.getvalue()
-        df_stock = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
 
-    # Reikalingi stulpeliai: Bin Code (B), Item No. (C), Quantity (D)
     df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-    stock_map = (
-        df_stock.groupby(df_stock.columns[1])  # C stulpelis = Item No.
-        .agg({
-            df_stock.columns[0]: lambda x: list(x),       # Bin codes
-            df_stock.columns[2]: "sum"                   # Sum quantity
-        })
-        .reset_index()
-    )
-    stock_map.columns = ["No.", "Bin Codes", "Stock Quantity"]
+    df_stock = df_stock[[df_stock.columns[1], df_stock.columns[0], df_stock.columns[3]]]  # C, B, D
+    df_stock.columns = ["No.", "Bin Code", "Quantity"]
 
     # Normalizuojam No.
-    stock_map["No."] = stock_map["No."].map(normalize_no)
-    df_out["No."] = df_out["No."].map(normalize_no)
+    df_stock["No."] = df_stock["No."].apply(normalize_no)
 
-    df_out = df_out.merge(stock_map, on="No.", how="left")
+    df_out["No."] = df_out["No."].apply(normalize_no)
 
-    # Jei nėra → paliekam tuščia
-    df_out["Bin Codes"] = df_out["Bin Codes"].apply(lambda x: x if isinstance(x,list) else [])
-    df_out["Stock Quantity"] = df_out["Stock Quantity"].fillna(0).astype(int)
+    # Sukuriam map: No. -> visos eilutės
+    stock_groups = {k: v for k, v in df_stock.groupby("No.")}
+
+    df_out["Stock Rows"] = df_out["No."].map(stock_groups)
 
     return df_out
 
@@ -442,44 +472,34 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # Pipeline 4.x – Galutinės lentelės
 # =====================================================
 
-def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
-    """
-    Sukuria Job Journal lentelę NAV formatui iš BOM arba CUBIC:
-    - Jei nėra stock → prie Document No. prideda '/NERA'
-    - Job Task No. = 1144
-    - Location Code = KAUNAS
-    - Prideda Description, Original Type ir Stock Quantity gale
-    """
+def pipeline_4_1_job_journal(df_alloc, project_number, source="BOM"):
     st.info(f"📑 Creating Job Journal table from {source}...")
 
-    cols = [
-        "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Stock Quantity", "Location Code", "Bin Code",
-        "Description", "Original Type"
-    ]
-    df_out = pd.DataFrame(columns=cols)
+    rows = []
 
     for _, row in df_alloc.iterrows():
-        doc_no = str(project_number)
-        if str(row.get("Bin Code", "")) in ("", "67-01-01-01"):
-            doc_no += "/NERA"
+        no = row.get("No.")
+        qty_needed = float(row.get("Quantity", 0))
 
-        df_out = pd.concat([df_out, pd.DataFrame([{
-            "Type": "Item",
-            "No.": row.get("No."),
-            "Document No.": doc_no,
-            "Job No.": project_number,
-            "Job Task No.": 1144,
-            "Quantity": row.get("Quantity", 0),
-            "Stock Quantity": row.get("Stock Quantity", 0),   # 👈 pridėjau
-            "Location Code": "KAUNAS",
-            "Bin Code": row.get("Bin Code", ""),
-            "Description": row.get("Description", ""),
-            "Original Type": row.get("Original Type", "")
-        }])], ignore_index=True)
+        # Iš stock map paimam visus Bin + Qty
+        stock_rows = row.get("Stock Rows", pd.DataFrame())
+        allocations = allocate_from_stock(no, qty_needed, stock_rows)
 
-    return df_out
+        for alloc in allocations:
+            rows.append({
+                "Type": "Item",
+                "No.": no,
+                "Document No.": project_number + ("/NERA" if alloc["Bin Code"] == "67-01-01-01" else ""),
+                "Job No.": project_number,
+                "Job Task No.": 1144,
+                "Quantity": alloc["Allocated Qty"],
+                "Location Code": "KAUNAS",
+                "Bin Code": alloc["Bin Code"],
+                "Description": row.get("Description", ""),
+                "Original Type": row.get("Original Type", "")
+            })
 
+    return pd.DataFrame(rows)
 
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
