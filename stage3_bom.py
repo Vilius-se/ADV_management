@@ -255,18 +255,25 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     return df_bom
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
+    """
+    Papildo BOM lentelę Kauno sandėlio informacija:
+    - Prideda 'Bin Code' pagal Kaunas Stock failą
+    - Jei Bin Code tuščias arba '67-01-01-01' → prie Document No. pridedamas '/NERA'
+    """
     df_out = df_bom.copy()
 
     # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
+        import io
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
+    # Sutvarkom stulpelių pavadinimus
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pervadinimas
+    # Pervadinam pagal turinį
     rename_map = {}
     for col in df_kaunas.columns:
         col_up = col.strip().upper()
@@ -278,7 +285,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    # Užtikrinam, kad yra stulpeliai
+    # Užtikrinam, kad yra reikiami stulpeliai
     for req in ["Component", "Bin Code", "Quantity"]:
         if req not in df_kaunas.columns:
             df_kaunas[req] = ""
@@ -299,10 +306,16 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     else:
         raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
-    # Saugiai konvertuojam raktą į string
-    keys = df_out[key_col].astype(str).fillna("")
+    # Saugiai paimam sąrašą raktų
+    keys = df_out[key_col].astype(str).fillna("").values.tolist()
+
+    # Užtikrinam kad ilgiai sutampa
+    if len(keys) != len(df_out):
+        raise ValueError(f"❌ Key column length mismatch: {len(keys)} vs {len(df_out)}")
+
+    # Pridedam Bin Code pagal stock_map
     df_out["Bin Code"] = [stock_map.get(k, "") for k in keys]
-    
+
     # Jei nėra Bin Code → pažymim /NERA
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
@@ -313,6 +326,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     ] = df_out[key_col].astype(str) + "/NERA"
 
     return df_out
+
 
 # =====================================================
 # Pipeline 4.x – Galutinės lentelės
