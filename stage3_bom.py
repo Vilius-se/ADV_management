@@ -420,7 +420,7 @@ def render():
     if st.button("🚀 Run BOM Processing"):
         df_bom = pipeline_3_1_filtering(files["bom"], files["data"]["Stock"])
         df_bom = pipeline_3_2_add_accessories(df_bom, files["data"]["Accessories"])
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"])
+        df_bom, df_part_no = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"]
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
