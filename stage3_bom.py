@@ -719,3 +719,8 @@ def render():
         # --- Original BOM preview ---
         st.subheader("📂 Original BOM (raw from file)")
         st.dataframe(files["bom"], use_container_width=True)
+        missing_indices = missing_nav.index
+        st.write("Original BOM rows for missing NAV numbers:")
+        st.dataframe(files["bom"].iloc[missing_indices], use_container_width=True)
+
+
