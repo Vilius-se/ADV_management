@@ -450,19 +450,9 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
-    """
-    Sukuria Job Journal lentelę NAV formatui iš BOM arba CUBIC:
-    - Jei nėra stock → prie Document No. prideda '/NERA'
-    - Job Task No. = 1144
-    - Location Code = KAUNAS
-    - Prideda Description, Original Type ir Stock Quantity gale
-    """
-    st.info(f"📑 Creating Job Journal table from {source}...")
-
     cols = [
         "Type", "No.", "Document No.", "Job No.", "Job Task No.",
-        "Quantity", "Location Code", "Bin Code", 
-        "Description", "Original Type", "Stock Quantity"
+        "Quantity", "Location Code", "Bin Code", "Stock Quantity", "Description", "Original Type"
     ]
     df_out = pd.DataFrame(columns=cols)
 
@@ -480,13 +470,12 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
             "Quantity": row.get("Quantity", 0),
             "Location Code": "KAUNAS",
             "Bin Code": row.get("Bin Code", ""),
+            "Stock Quantity": row.get("Stock Quantity", 0),
             "Description": row.get("Description", ""),
-            "Original Type": row.get("Original Type", ""),
-            "Stock Quantity": row.get("Stock Quantity", 0)  # naujas stulpelis
+            "Original Type": row.get("Original Type", "")
         }])], ignore_index=True)
 
     return df_out
-
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     """
