@@ -420,9 +420,10 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     """
     Sutvarko CUBIC BOM stulpelius:
-    - 'Item Id' (B) → 'Type'
-    - 'Quantity' (G) → 'Quantity'
-    - Saugom ir Original Type
+    - 'Item Id' → 'Type'
+    - 'Quantity' → 'Quantity'
+    - Saugom originalius pavadinimus
+    - Pridedam tuščią 'No.' kad check_stock nevežtų klaidos
     """
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
@@ -430,7 +431,7 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     df_out = df_cubic.copy()
     df_out.columns = [str(c).strip() for c in df_out.columns]
 
-    # Surandam stulpelį pagal pavadinimą arba vietą
+    # Surandam tinkamus stulpelius
     type_col = next((c for c in df_out.columns if "item" in c.lower()), df_out.columns[0])
     qty_col  = next((c for c in df_out.columns if "qty" in c.lower() or "quantity" in c.lower()), None)
 
@@ -438,20 +439,22 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
         st.error("❌ CUBIC BOM must contain a Quantity column (pvz. 'Quantity').")
         return pd.DataFrame()
 
-    # Renam'inam į standartą
     df_out = df_out.rename(columns={type_col: "Type", qty_col: "Quantity"})
-
-    # Tvarkom kiekius
     df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
 
     # Original Type
     df_out["Original Type"] = df_out["Type"]
 
-    # NAV numerių dar nėra, todėl pridedam placeholder'į
+    # Pridedam tuščią No. (kad check_stock nesprogtų)
     if "No." not in df_out.columns:
         df_out["No."] = None
 
+    # Pridedam Document No. (default)
+    if "Document No." not in df_out.columns:
+        df_out["Document No."] = ""
+
     return df_out
+
 
 
 # =====================================================
@@ -778,7 +781,7 @@ def render():
         if not df_cubic.empty:
             df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
-            df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
+            df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"]
 
 
         # --- Missing NAV numbers lentelės ---
