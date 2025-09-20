@@ -122,15 +122,13 @@ def pipeline_2_2_file_uploads(rittal=False):
         cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
         if cubic_bom:
             try:
-                # bandome openpyxl (xlsx/xlsm)
                 df_cubic = pd.read_excel(
                     cubic_bom,
-                    skiprows=13,
+                    skiprows=13,   # nuo 14 eilutės pavadinimai
                     usecols="B,G",
                     engine="openpyxl"
                 )
             except Exception:
-                # fallback į xlrd (senas .xls)
                 df_cubic = pd.read_excel(
                     cubic_bom,
                     skiprows=13,
@@ -138,12 +136,10 @@ def pipeline_2_2_file_uploads(rittal=False):
                     engine="xlrd"
                 )
         
-            df_cubic = df_cubic.rename(columns=lambda x: str(x).strip())
-            if "Item Id" in df_cubic.columns:
-                df_cubic = df_cubic.rename(columns={"Item Id": "Type"})
-            if "Quantity" in df_cubic.columns:
-                df_cubic = df_cubic.rename(columns={"Quantity": "Quantity"})
+            # priverstinai nustatom stulpelius
+            df_cubic.columns = ["Type", "Quantity"]
         
+            # išsaugom originalius pavadinimus
             df_cubic["Original Type"] = df_cubic["Type"]
             df_cubic["Original Article"] = df_cubic["Type"]
         
