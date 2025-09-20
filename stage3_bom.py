@@ -232,10 +232,8 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     """
     Prideda NAV numerius į BOM pagal Part_no lapą iš DATA.xlsx.
-    Rezultatas: grąžina BOM su NAV informacija.
-    Originalus Part_no lapas saugomas st.session_state["part_no"].
+    Jei nepavyko priskirti – No. = 'NERASTA'.
     """
-    # --- Pervadinam stulpelius pagal realų failo turinį ---
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A',       # "Item no."
@@ -246,35 +244,44 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F'     # "Cost price / Unit cost DKK"
     ]
 
-    # Normalizuojam Type (PartName_B) kad būtų galima jungti
+    # Normalizavimas
     df_part_no['Norm_B'] = df_part_no['PartName_B'].astype(str).str.upper().str.replace(" ", "")
     part_map = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
 
-    # --- Pridedam NAV numerius į BOM ---
+    # BOM papildymas
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
     df_bom['No.'] = df_bom['Norm_Type'].map(part_map)
 
-    # Prijungiam papildomą informaciją iš Part_no lentelės
+    # Kur nerasta → pažymim
+    df_bom['No.'] = df_bom['No.'].fillna("NERASTA")
+
+    # Merge papildomos info
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A', 'Desc_C', 'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F', 'Norm_B']],
         left_on='Norm_Type', right_on='Norm_B', how='left'
     )
 
-    # Sutvarkom galutinį formatą
     df_bom = df_bom.drop(columns=['Norm_Type', 'Norm_B'])
     df_bom = df_bom.rename(columns={
-        'PartNo_A': 'No.',
+        'PartNo_A': 'NAV_No',
         'Desc_C': 'Description',
         'Manufacturer_D': 'Supplier',
         'SupplierNo_E': 'Supplier No.',
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # --- Išsaugom Part_no lentelę į session ---
-    st.session_state["part_no"] = df_part_no
+    # Įrašom originalų Type, jei nerasta
+    df_bom.loc[df_bom['No.'] == "NERASTA", 'No.'] = df_bom['Type']
 
+    # Sąrašas kas nerasta
+    missing = df_bom[df_bom['NAV_No'].isna()]['Type'].unique().tolist()
+    if missing:
+        st.warning(f"⚠️ Nerasti NAV numeriai šiems komponentams: {missing}")
+
+    st.session_state["part_no"] = df_part_no
     return df_bom
+
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
