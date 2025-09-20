@@ -306,15 +306,15 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     else:
         raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
 
-    # Saugiai paimam sąrašą raktų
-    keys = df_out[key_col].astype(str).fillna("").values.tolist()
+    # Saugiai paimam sąrašą raktų kaip string'us
+    keys = df_out[key_col].astype(str).fillna("").tolist()
 
     # Užtikrinam kad ilgiai sutampa
     if len(keys) != len(df_out):
         raise ValueError(f"❌ Key column length mismatch: {len(keys)} vs {len(df_out)}")
 
-    # Pridedam Bin Code pagal stock_map
-    df_out["Bin Code"] = [stock_map.get(k, "") for k in keys]
+    # Pridedam Bin Code (visi k → str(k))
+    df_out["Bin Code"] = [stock_map.get(str(k), "") for k in keys]
 
     # Jei nėra Bin Code → pažymim /NERA
     if "Document No." not in df_out.columns:
@@ -326,6 +326,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     ] = df_out[key_col].astype(str) + "/NERA"
 
     return df_out
+
 
 
 # =====================================================
