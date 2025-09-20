@@ -853,22 +853,15 @@ def render():
             
                 df_stock_preview = files["ks"].copy()
                 df_stock_preview = df_stock_preview.rename(columns=lambda c: str(c).strip())
-                
-                # paimam C, D, E stulpelius
-                df_stock_preview = df_stock_preview[[df_stock_preview.columns[2],
-                                                     df_stock_preview.columns[3],
-                                                     df_stock_preview.columns[4]]]
-                df_stock_preview.columns = ["Bin Code", "No.", "Quantity"]
-                
-                # normalizuojam No.
+                # C stulpelis = No., B = Bin Code, D = Quantity
+                df_stock_preview = df_stock_preview[[df_stock_preview.columns[1],
+                                                     df_stock_preview.columns[0],
+                                                     df_stock_preview.columns[3]]]
+                df_stock_preview.columns = ["No.", "Bin Code", "Quantity"]
                 df_stock_preview["No."] = df_stock_preview["No."].apply(normalize_no)
-                
-                st.write("👉 BOM unikalūs No.:")
-                st.dataframe(df_bom[["No."]].drop_duplicates().head(20))
-                
+            
                 st.write("👉 Kaunas Stock unikalūs No.:")
                 st.dataframe(df_stock_preview[["No."]].drop_duplicates().head(20))
-
             except Exception as e:
                 st.error(f"❌ Debug nepavyko: {e}")
 
