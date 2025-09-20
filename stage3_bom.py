@@ -134,7 +134,7 @@ def pipeline_2_2_file_uploads(rittal=False):
     data_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="data")
     if data_file:
         try:
-            dfs["data"] = read_excel_any(data_file)
+            dfs["data"] = pd.read_excel(data_file, sheet_name=None)  # <-- VISI LAPAI
         except Exception as e:
             st.error(f"⚠️ Cannot open DATA: {e}")
 
@@ -390,7 +390,7 @@ def render():
 
     missing = [k for k in required_keys if k not in files]
     if missing:
-        st.warning(f"⚠️ Missing required files: {', '.join(missing)}")
+        st.warning(f"⚠️ Missing required files")
         return
 
     # 3. Jei viskas yra – rodom mygtuką
