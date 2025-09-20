@@ -375,7 +375,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # Load KS
+    # Load Kaunas Stock
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
@@ -383,53 +383,29 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
+    # Paimam tik nuo 4 eilutės
+    df_kaunas = df_kaunas.iloc[3:, :]  
 
-    # Rename
-    rename_map = {}
-    for col in df_kaunas.columns:
-        col_up = col.upper()
-        if "COMP" in col_up:
-            rename_map[col] = "Component"
-        elif "BIN" in col_up:
-            rename_map[col] = "Bin Code"
-        elif "QTY" in col_up:
-            rename_map[col] = "Quantity"
-    df_kaunas = df_kaunas.rename(columns=rename_map)
+    # Perkraustom stulpelius pagal struktūrą B4-D
+    df_kaunas = df_kaunas.iloc[:, [1,2,3]]  # B, C, D
+    df_kaunas.columns = ["Bin Code", "Component", "Quantity"]
 
-    for req in ["Component","Bin Code","Quantity"]:
-        if req not in df_kaunas.columns:
-            df_kaunas[req] = ""
+    # Map pagal NAV numerį (Component = C stulpelis)
+    stock_map_bin = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"]))
+    stock_map_qty = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Quantity"]))
 
-    # Normalizuojam
-    df_kaunas["Norm_Component"] = (
-        df_kaunas["Component"].astype(str).str.upper().str.replace(" ","").str.strip()
-    )
-    df_out["Norm_Type"] = (
-        df_out.get("Type", "").astype(str).str.upper().str.replace(" ","").str.strip()
-    )
-
-    stock_map = dict(zip(df_kaunas["Norm_Component"], df_kaunas["Bin Code"]))
-
-    # Pirmiausia bandome pagal Type
-    df_out["Bin Code"] = df_out["Norm_Type"].map(stock_map)
-
-    # Jei vis dar tuščia – pabandom pagal No. (jei sutampa)
-    stock_map_no = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"]))
-    df_out["Bin Code"] = df_out.apply(
-        lambda r: r["Bin Code"] if r["Bin Code"] not in ("", None)
-                  else stock_map_no.get(str(r.get("No.", "")),""),
-        axis=1
-    )
+    # Užpildom pagal BOM "No."
+    df_out["Bin Code"] = df_out["No."].astype(str).map(stock_map_bin).fillna("")
+    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map_qty).fillna(0)
 
     # Dokumento numerio logika
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
 
-    mask_no_stock = df_out["Bin Code"].isin(["", "67-01-01-01"])
-    df_out.loc[mask_no_stock, "Document No."] = df_out.get("No.", "").astype(str) + "/NERA"
+    mask_no_stock = (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01")
+    df_out.loc[mask_no_stock, "Document No."] = df_out["No."].astype(str) + "/NERA"
 
-    return df_out.drop(columns=["Norm_Type"])
+    return df_out
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     """
