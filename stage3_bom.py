@@ -643,6 +643,41 @@ def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_ho
     return df_calc
 
 
+def pipeline_4_4_missing_nav(df: pd.DataFrame, source: str) -> pd.DataFrame:
+    """
+    Grąžina lentelę su nerastais NAV numeriais.
+    Parodo Original Article, Original Type, Quantity ir 'NAV No.' = None.
+    source: "BOM" arba "CUBIC"
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    missing = df[df["No."].isna()].copy()
+    if missing.empty:
+        return pd.DataFrame()
+
+    # Užtikrinam, kad stulpeliai egzistuoja
+    if "Original Article" not in missing.columns and df.shape[1] >= 1:
+        missing["Original Article"] = df.iloc[:, 0]
+    if "Original Type" not in missing.columns and df.shape[1] >= 2:
+        missing["Original Type"] = df.iloc[:, 1]
+
+    # Quantity saugiklis
+    if "Quantity" in missing.columns:
+        qty = pd.to_numeric(missing["Quantity"], errors="coerce").fillna(0).astype(int)
+    else:
+        qty = 0
+
+    out = pd.DataFrame({
+        "Source": source,
+        "Original Article (from BOM)": missing.get("Original Article", ""),
+        "Original Type (from BOM)": missing.get("Original Type", ""),
+        "Quantity": qty,
+        "NAV No.": missing["No."]
+    })
+
+    return out
+
 # =====================================================
 # Main render for Stage 3
 # =====================================================
