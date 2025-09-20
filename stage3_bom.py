@@ -86,6 +86,16 @@ def pipeline_2_1_user_inputs():
         "rittal": rittal,
     }
 
+def get_sheet_safe(data_dict, names):
+    """
+    Grąžina pirmą sutampantį lapą iš data_dict pagal galimus pavadinimus.
+    names: sąrašas galimų variantų
+    """
+    for key in data_dict.keys():
+        if str(key).strip().upper().replace(" ", "_") in [n.upper().replace(" ", "_") for n in names]:
+            return data_dict[key]
+    return None
+
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 def read_excel_any(file, **kwargs):
     try:
@@ -481,24 +491,42 @@ def render():
 
     missing = [k for k in required_keys if k not in files]
     if missing:
-        st.warning(f"⚠️ Missing required files")
+        st.warning(f"⚠️ Missing required files: {missing}")
         return
 
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
-        df_bom = pipeline_3_1_filtering(files["bom"], files["data"]["Stock"])
-        df_bom = pipeline_3_2_add_accessories(df_bom, files["data"]["Accessories"])
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"])
+        # --- pasiimam reikalingus sheetus iš DATA ---
+        df_stock       = get_sheet_safe(files["data"], ["Stock"])
+        df_accessories = get_sheet_safe(files["data"], ["Accessories"])
+        df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_hours       = get_sheet_safe(files["data"], ["Hours"])
+
+        if df_stock is None or df_part_no is None:
+            st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
+            return
+
+        # --- vykdom pipelines ---
+        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
+        df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
+        # --- galutinės lentelės ---
         job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
-        nav_table   = pipeline_4_2_nav_table(df_bom, files["data"]["Part_no"])
+        nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no)
         calc_table  = pipeline_4_3_calculation(
-            df_bom, files.get("cubic_bom"), files["data"].get("Hours"),
-            inputs["panel_type"], inputs["grounding"], inputs["project_number"]
+            df_bom,
+            files.get("cubic_bom"),
+            df_hours,
+            inputs["panel_type"],
+            inputs["grounding"],
+            inputs["project_number"]
         )
 
+        # --- išvedimas ---
         st.success("✅ BOM processing complete!")
+
         st.subheader("📑 Job Journal")
         st.dataframe(job_journal, use_container_width=True)
 
