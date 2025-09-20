@@ -100,40 +100,45 @@ def get_sheet_safe(data_dict, names):
 
 def debug_check_bom_vs_stock(df_bom, df_stock):
     """
-    Sukuria lentelę, kurioje galima matyti ar BOM 'No.' atitinka Kaunas Stock 'Component'.
-    Parodo Bin Code ir Stock Quantity.
+    Sukuria lentelę, kur BOM 'No.' tikrinamas prieš Kaunas Stock.
+    Parodo BOM Quantity, Stock Quantity, Bin Code.
     """
-    # Pasiruošiam stock duomenis
+
     df_stock = df_stock.copy()
     df_stock.columns = [str(c).strip() for c in df_stock.columns]
 
-    # Pervadinam stulpelius
+    # Bandome automatiškai atpažinti
     rename_map = {}
     for col in df_stock.columns:
         col_up = col.strip().upper()
-        if "COMP" in col_up or "NO." in col_up:
+        if "COMP" in col_up or "NO" in col_up:
             rename_map[col] = "Component"
         elif "BIN" in col_up:
             rename_map[col] = "Bin Code"
         elif "QTY" in col_up or "QUANTITY" in col_up:
             rename_map[col] = "Quantity"
+
     df_stock = df_stock.rename(columns=rename_map)
+
+    # Jei vis tiek nėra reikiamų stulpelių – parodyti ką turim
+    required = ["Component", "Bin Code", "Quantity"]
+    for r in required:
+        if r not in df_stock.columns:
+            st.error(f"❌ Stock sheet missing '{r}' column. Available: {list(df_stock.columns)}")
+            return df_stock.head(20)  # parodyti preview, kad matytume kas negerai
 
     df_stock["Component"] = df_stock["Component"].astype(str).str.strip()
     df_stock["Quantity"] = pd.to_numeric(df_stock["Quantity"], errors="coerce").fillna(0)
 
-    # Grupavimas
+    # Grupavimas: sumuojam quantities, ignoruojam 67-01-01-01
     stock_grouped = (
         df_stock[df_stock["Bin Code"] != "67-01-01-01"]
         .groupby("Component")
-        .agg({
-            "Quantity": "sum",
-            "Bin Code": "first"
-        })
+        .agg({"Quantity": "sum", "Bin Code": "first"})
         .reset_index()
     )
 
-    # BOM su NAV numeriais
+    # BOM pusė
     bom_check = df_bom[["No.", "Quantity"]].copy()
     bom_check["No."] = bom_check["No."].astype(str)
 
@@ -150,6 +155,7 @@ def debug_check_bom_vs_stock(df_bom, df_stock):
     })
 
     return merged[["No.", "BOM Quantity", "Stock Quantity", "Bin Code"]]
+
 
 
 def read_excel_any(file, **kwargs):
