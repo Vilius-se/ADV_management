@@ -306,13 +306,16 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
-    # Išsaugom originalius
+    # Saugo Quantity prieš merge
+    qty_backup = df_bom.get("Quantity", None)
+
+    # Originalūs stulpeliai
     if "Original Type" not in df_bom.columns:
         df_bom["Original Type"] = df_bom["Type"]
     if "Original Article" not in df_bom.columns and "Article No." in df_bom.columns:
         df_bom["Original Article"] = df_bom["Article No."]
 
-    # Pasiruošiam Part_no
+    # Paruošiam Part_no
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
         'PartNo_A', 'PartName_B', 'Desc_C',
@@ -325,11 +328,8 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     df_bom = df_bom.copy()
     df_bom['Norm_Type'] = df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
 
-    # Priskiriam NAV numerius
+    # NAV numeriai
     df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
-
-    # --- išsaugom Quantity prieš merge ---
-    qty_backup = df_bom.get("Quantity", None)
 
     # Merge
     df_bom = df_bom.merge(
@@ -345,9 +345,9 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
         'UnitPrice_F': 'Unit Cost'
     })
 
-    # Jei Quantity prapuolė per merge – gražinam iš backup
-    if "Quantity" not in df_bom.columns and qty_backup is not None:
-        df_bom["Quantity"] = qty_backup
+    # Gražinam Quantity jei prapuolė
+    if qty_backup is not None:
+        df_bom["Quantity"] = pd.to_numeric(df_bom.get("Quantity", qty_backup), errors="coerce").fillna(0)
 
     st.session_state["part_no"] = df_part_no
     return df_bom
@@ -428,19 +428,19 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     cols = {c: str(c).strip() for c in df_out.columns}
     df_out = df_out.rename(columns=cols)
 
-    # Perkeliame svarbiausius laukus į standartinius pavadinimus
+    # Originalūs pavadinimai
     if "Item Id" in df_out.columns:
         df_out["Type"] = df_out["Item Id"].astype(str).str.strip()
         df_out["Original Type"] = df_out["Type"]
+        df_out["Original Article"] = df_out["Type"]
 
+    # Kiekiai
     if "Quantity" in df_out.columns:
         df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
     else:
         df_out["Quantity"] = 0
 
     return df_out
-
-
 
 
 # =====================================================
@@ -765,6 +765,7 @@ def render():
         # --- CUBIC BOM processing ---
         df_cubic = files.get("cubic_bom", pd.DataFrame())
         if not df_cubic.empty:
+            df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
@@ -816,4 +817,5 @@ def render():
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
+
 
