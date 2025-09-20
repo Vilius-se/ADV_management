@@ -615,6 +615,9 @@ def render():
 
         # --- vykdom pipelines ---
         df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
+        # --- Išsaugom originalų BOM pavadinimą iš karto ---
+        if "Original Type" not in files["bom"].columns:
+            files["bom"]["Original Type"] = files["bom"].iloc[:,1]  # antras stulpelis iš BOM (B)
 
         # jei yra Part_code → pakeičiam pavadinimus
         if df_part_code is not None and not df_part_code.empty:
@@ -637,10 +640,11 @@ def render():
 
             # Čia pasiimam Original Type + Quantity iš BOM
             missing_table = pd.DataFrame({
-                "Original Type (from BOM)": missing_nav.get("Original Type", missing_nav.get("Type")),
+                "Original Type (from BOM)": missing_nav["Original Type"],
                 "Quantity": missing_nav.get("Quantity", 0),
                 "NAV No.": missing_nav["No."]
             })
+
 
             st.dataframe(missing_table, use_container_width=True)
             
