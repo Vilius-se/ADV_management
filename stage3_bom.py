@@ -373,11 +373,9 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
-
-    # Pašalinam dublikatus stulpelių pavadinimuose
     df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # Jei failas jau DataFrame
+    # Load KS
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
@@ -387,51 +385,51 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
 
     df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pervadinimas
+    # Rename
     rename_map = {}
     for col in df_kaunas.columns:
-        col_up = col.strip().upper()
+        col_up = col.upper()
         if "COMP" in col_up:
             rename_map[col] = "Component"
         elif "BIN" in col_up:
             rename_map[col] = "Bin Code"
-        elif "QTY" in col_up or "QUANTITY" in col_up:
+        elif "QTY" in col_up:
             rename_map[col] = "Quantity"
     df_kaunas = df_kaunas.rename(columns=rename_map)
 
-    for req in ["Component", "Bin Code", "Quantity"]:
+    for req in ["Component","Bin Code","Quantity"]:
         if req not in df_kaunas.columns:
             df_kaunas[req] = ""
 
-    stock_map = dict(zip(
-        df_kaunas["Component"].astype(str),
-        df_kaunas["Bin Code"].astype(str)
-    ))
+    # Normalizuojam
+    df_kaunas["Norm_Component"] = (
+        df_kaunas["Component"].astype(str).str.upper().str.replace(" ","").str.strip()
+    )
+    df_out["Norm_Type"] = (
+        df_out.get("Type", "").astype(str).str.upper().str.replace(" ","").str.strip()
+    )
 
-    if "No." in df_out.columns:
-        key_col = "No."
-    elif "Item No." in df_out.columns:
-        key_col = "Item No."
-    elif "Type" in df_out.columns:
-        key_col = "Type"
-    else:
-        raise ValueError("❌ BOM file has no valid key column (expected 'No.' or 'Item No.')")
+    stock_map = dict(zip(df_kaunas["Norm_Component"], df_kaunas["Bin Code"]))
 
-    key_series = df_out[key_col]
-    if isinstance(key_series, pd.DataFrame):
-        key_series = key_series.iloc[:, 0]
+    # Pirmiausia bandome pagal Type
+    df_out["Bin Code"] = df_out["Norm_Type"].map(stock_map)
 
-    keys = key_series.fillna("").astype(str).tolist()
+    # Jei vis dar tuščia – pabandom pagal No. (jei sutampa)
+    stock_map_no = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"]))
+    df_out["Bin Code"] = df_out.apply(
+        lambda r: r["Bin Code"] if r["Bin Code"] not in ("", None)
+                  else stock_map_no.get(str(r.get("No.", "")),""),
+        axis=1
+    )
 
-    df_out["Bin Code"] = [stock_map.get(k, "") for k in keys]
-
+    # Dokumento numerio logika
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
 
-    mask_no_stock = (df_out["Bin Code"] == "") | (df_out["Bin Code"] == "67-01-01-01")
-    df_out.loc[mask_no_stock, "Document No."] = key_series.astype(str) + "/NERA"
+    mask_no_stock = df_out["Bin Code"].isin(["", "67-01-01-01"])
+    df_out.loc[mask_no_stock, "Document No."] = df_out.get("No.", "").astype(str) + "/NERA"
 
-    return df_out
+    return df_out.drop(columns=["Norm_Type"])
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
     """
