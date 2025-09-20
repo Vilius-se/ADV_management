@@ -115,9 +115,9 @@ def pipeline_2_2_file_uploads(rittal: bool):
         dfs["data"] = pd.read_excel(data, sheet_name=None)  # visi lapai
 
     st.markdown("<h4 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h4>", unsafe_allow_html=True)
-    ks = st.file_uploader("", type=["xls", "xlsx"], key="ks")
+    ks = st.file_uploader("", type=["xls", "xlsx", "xmls"], key="ks")
     if ks:
-        dfs["kaunas"] = pd.read_excel(ks)
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     return dfs if dfs else None
 # =====================================================
@@ -354,17 +354,27 @@ def render():
     if not files:
         return
 
-    # 3. Run processing
+    # Tikrinam ar visi failai yra
+    required_keys = ["bom", "data", "ks"]
+    if not inputs["rittal"]:  # jei Rittal nėra, dar reikia cubic_bom
+        required_keys.append("cubic_bom")
+
+    missing = [k for k in required_keys if k not in files]
+    if missing:
+        st.warning(f"⚠️ Missing required files: {', '.join(missing)}")
+        return
+
+    # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         df_bom = pipeline_3_1_filtering(files["bom"], files["data"]["Stock"])
         df_bom = pipeline_3_2_add_accessories(df_bom, files["data"]["Accessories"])
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, files["data"]["Part_no"])
-        df_bom = pipeline_3_4_check_stock(df_bom, files["kaunas"])
+        df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         job_journal = pipeline_4_1_job_journal(df_bom, inputs["project_number"])
         nav_table   = pipeline_4_2_nav_table(df_bom, files["data"]["Part_no"])
         calc_table  = pipeline_4_3_calculation(
-            df_bom, files.get("cubic"), files["data"].get("Hours"),
+            df_bom, files.get("cubic_bom"), files["data"].get("Hours"),
             inputs["panel_type"], inputs["grounding"], inputs["project_number"]
         )
 
