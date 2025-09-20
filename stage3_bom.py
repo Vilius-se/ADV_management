@@ -159,6 +159,28 @@ def pipeline_2_2_file_uploads(rittal=False):
 # Pipeline 3.x – Duomenų apdorojimas
 # =====================================================
 
+def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame) -> pd.DataFrame:
+    """
+    Pervadina BOM stulpelius pagal DATA.xlsx → Part_code.
+    1-asis stulpelis = senas pavadinimas, 2-asis = naujas pavadinimas.
+    """
+    st.info("🔄 Renaming BOM columns according to Part_code...")
+
+    if df_part_code is None or df_part_code.empty:
+        st.warning("⚠️ Part_code sheet not found, skipping rename")
+        return df_bom
+
+    rename_map = dict(zip(
+        df_part_code.iloc[:, 0].astype(str).str.strip(),
+        df_part_code.iloc[:, 1].astype(str).str.strip()
+    ))
+
+    df_bom = df_bom.rename(columns=rename_map)
+
+    st.success("✅ BOM columns renamed according to Part_code")
+    return df_bom
+
+
 def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
     """
     Pašalina iš BOM visus komponentus, kurie turi Comment reikšmę DATA.xlsx → Stock lape.
@@ -591,16 +613,26 @@ def render():
         df_stock       = get_sheet_safe(files["data"], ["Stock"])
         df_accessories = get_sheet_safe(files["data"], ["Accessories"])
         df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_part_code   = get_sheet_safe(files["data"], ["Part_code"])
         df_hours       = get_sheet_safe(files["data"], ["Hours"])
 
         if df_stock is None or df_part_no is None:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
-        # --- vykdom pipelines ---
-        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
+        # --- 0. Pervadinam BOM stulpelius pagal Part_code ---
+        df_bom = pipeline_3_0_rename_columns(files["bom"], df_part_code)
+
+        # --- 1. Filtravimas pagal Stock ---
+        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
+
+        # --- 2. Accessories ---
         df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
+
+        # --- 3. NAV numeriai ---
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
+
+        # --- 4. Sandėlio patikra ---
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         # --- paimam jau paruoštą Part_no lentelę iš session ---
@@ -618,20 +650,14 @@ def render():
             inputs["project_number"]
         )
 
-       # --- išvedimas ---
+        # --- išvedimas ---
         st.success("✅ BOM processing complete!")
-        
+
         st.subheader("📑 Job Journal")
         st.dataframe(job_journal, use_container_width=True)
-        
+
         st.subheader("🛒 NAV Table")
         st.dataframe(nav_table, use_container_width=True)
-        
-        # Nauja dalis: Nerasti NAV numeriai
-        missing_parts = st.session_state.get("missing_parts", pd.DataFrame())
-        if not missing_parts.empty:
-            st.subheader("⚠️ Nerasti NAV numeriai")
-            st.dataframe(missing_parts, use_container_width=True)
-        
+
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
