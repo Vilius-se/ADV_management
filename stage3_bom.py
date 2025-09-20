@@ -117,24 +117,21 @@ def pipeline_2_2_file_uploads(rittal=False):
     dfs = {}
 
     # --- CUBIC BOM (tik jei ne Rittal) ---
-    if not rittal:
-        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-        cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
-        if cubic_bom:
-            try:
-                df_cubic = pd.read_excel(
-                    cubic_bom,
-                    skiprows=13,   # nuo 14 eilutės pavadinimai
-                    usecols="B,G",
-                    engine="openpyxl"
-                )
-            except Exception:
-                df_cubic = pd.read_excel(
-                    cubic_bom,
-                    skiprows=13,
-                    usecols="B,G",
-                    engine="xlrd"
-                )
+        if not rittal:
+            st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
+            cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
+            if cubic_bom:
+                try:
+                    # Nuskaitom tik B (Item Id) ir G (Quantity) stulpelius, nuo 14 eilutės
+                    df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,G")
+                    df_cubic = df_cubic.rename(columns={
+                        "Item Id": "Type",
+                        "Quantity": "Quantity"
+                    })
+                    dfs["cubic_bom"] = df_cubic
+                except Exception as e:
+                    st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
+
         
             # priverstinai nustatom stulpelius
             df_cubic.columns = ["Type", "Quantity"]
