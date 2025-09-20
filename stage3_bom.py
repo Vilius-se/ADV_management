@@ -372,16 +372,9 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
     return df_bom
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
-    """
-    Pririša BOM/CUBIC eilučių NAV numerius prie Kaunas Stock:
-    - Bin Code (B stulpelis nuo B4)
-    - Component = NAV numeris (C stulpelis)
-    - Quantity = sandėlio kiekis (D stulpelis)
-    """
     df_out = df_bom.copy()
-    df_out = df_out.loc[:, ~df_out.columns.duplicated()].copy()
 
-    # Load Kaunas Stock
+    # Jei failas jau DataFrame
     if isinstance(ks_file, pd.DataFrame):
         df_kaunas = ks_file.copy()
     else:
@@ -389,27 +382,32 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
         content = ks_file.getvalue()
         df_kaunas = pd.read_excel(io.BytesIO(content), engine="openpyxl")
 
-    # Paimam tik nuo 4 eilutės
-    df_kaunas = df_kaunas.iloc[3:, :]  
+    df_kaunas.columns = [str(c).strip() for c in df_kaunas.columns]
 
-    # Pasiimam B, C, D stulpelius
-    df_kaunas = df_kaunas.iloc[:, [1, 2, 3]]  
-    df_kaunas.columns = ["Bin Code", "Component", "Quantity"]
+    # Tikimės, kad B = Bin Code, C = NAV No., D = Stock Quantity
+    # Pasivadinkim aiškiai
+    col_bin   = df_kaunas.columns[1]  # B
+    col_no    = df_kaunas.columns[2]  # C
+    col_qty   = df_kaunas.columns[3]  # D
 
-    # Sukuriam map pagal NAV numerį (Component = C stulpelis)
-    stock_map_bin = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Bin Code"]))
-    stock_map_qty = dict(zip(df_kaunas["Component"].astype(str), df_kaunas["Quantity"]))
+    df_kaunas = df_kaunas.rename(columns={
+        col_bin: "Bin Code",
+        col_no: "No.",
+        col_qty: "Stock Quantity"
+    })
 
-    # Pildom BOM pagal "No." (NAV numerį)
+    # Sukuriam žemėlapius
+    bin_map   = dict(zip(df_kaunas["No."].astype(str), df_kaunas["Bin Code"].astype(str)))
+    stock_map = dict(zip(df_kaunas["No."].astype(str), df_kaunas["Stock Quantity"]))
+
+    # Jungiam pagal No.
     if "No." not in df_out.columns:
-        df_out["No."] = ""
+        raise ValueError("❌ BOM file has no 'No.' column after NAV matching")
 
-    df_out["Bin Code"] = df_out["No."].astype(str).map(stock_map_bin).fillna("")
-    df_out["Stock Quantity"] = pd.to_numeric(
-        df_out["No."].astype(str).map(stock_map_qty), errors="coerce"
-    ).fillna(0).astype(int)
+    df_out["Bin Code"] = df_out["No."].astype(str).map(bin_map).fillna("")
+    df_out["Stock Quantity"] = df_out["No."].astype(str).map(stock_map).fillna(0)
 
-    # Dokumento numerio logika
+    # Document No. papildymas jei stock nėra
     if "Document No." not in df_out.columns:
         df_out["Document No."] = ""
 
@@ -417,6 +415,7 @@ def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out.loc[mask_no_stock, "Document No."] = df_out["No."].astype(str) + "/NERA"
 
     return df_out
+
 
 
 def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
