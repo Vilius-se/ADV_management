@@ -273,7 +273,11 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw):
             colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = colB.where(colB != "", colA)
         else:
-            df_bom["Original Type"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"] = colA
+
+        # jei ir colA tuščias – dedam fallback
+        df_bom["Original Type"] = df_bom["Original Type"].replace("", "(NEŽINOMAS)")
 
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
@@ -651,9 +655,10 @@ def render():
             st.warning(f"{len(missing_nav)} components could not be matched with NAV numbers")
         
             missing_table = pd.DataFrame({
-                "Original Type (from BOM)": missing_nav["Original Type"].fillna(""),
-                "NAV No.": missing_nav["No."]
+            "Original Type (from BOM)": missing_nav["Original Type"].fillna("(NEŽINOMAS)"),
+            "NAV No.": missing_nav["No."]
             })
+
         
             st.dataframe(missing_table, use_container_width=True)
 
