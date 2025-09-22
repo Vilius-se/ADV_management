@@ -788,36 +788,43 @@ def render():
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
-        # --- BOM processing ---
-        df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
-
-        # Išsaugom originalius BOM pavadinimus
-        if "Original Type" not in files["bom"].columns and files["bom"].shape[1] >= 2:
-            files["bom"]["Original Type"] = files["bom"].iloc[:, 1]
-        if "Original Article" not in files["bom"].columns and files["bom"].shape[1] >= 1:
-            files["bom"]["Original Article"] = files["bom"].iloc[:, 0]
-
-        # jei yra Part_code → pakeičiam pavadinimus
+       # --- BOM processing ---
+        df_bom = files["bom"].copy()
+        
+        # filtravimas pagal DATA Stock
+        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
+        
+        # pervadinimas pagal Part_code (tik BOM dalys)
         if df_part_code is not None and not df_part_code.empty:
-            rename_map = dict(zip(
+            rename_map_bom = dict(zip(
                 df_part_code.iloc[:,0].astype(str).str.strip(),
                 df_part_code.iloc[:,1].astype(str).str.strip()
             ))
-            df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
-
-        #df_bom   = pipeline_3_2_add_accessories(df_bom, df_accessories)
-        df_bom   = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
-        df_bom   = pipeline_3_4_check_stock(df_bom, files["ks"])
-
-        # --- CUBIC BOM processing ---
+            df_bom["Type"] = df_bom["Type"].map(lambda x: rename_map_bom.get(x, x))
+        
+        # accessories + NAV + stock
+        df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
+        df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
+        
+        
+        # --- CUBIC processing ---
         df_cubic = files.get("cubic_bom", pd.DataFrame())
         if not df_cubic.empty:
             df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
             df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
+        
+            # pervadinimas pagal Part_code (tik CUBIC dalys, jei reikia)
+            if df_part_code is not None and not df_part_code.empty:
+                rename_map_cubic = dict(zip(
+                    df_part_code.iloc[:,0].astype(str).str.strip(),
+                    df_part_code.iloc[:,1].astype(str).str.strip()
+                ))
+                df_cubic["Type"] = df_cubic["Type"].map(lambda x: rename_map_cubic.get(x, x))
+        
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
-
-            # DEBUG: parodyti BOM ir Kaunas stock numerius
+                    # DEBUG: parodyti BOM ir Kaunas stock numerius
             try:
                 st.subheader("🔎 Debug: BOM vs Kaunas Stock (No.)")
                 st.write("👉 BOM unikalūs No.:")
