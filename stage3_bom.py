@@ -7,7 +7,7 @@ import re
 # Pipeline 1.x – Helpers
 # =====================================================
 
-def pipeline_1_1_norm_name(x):
+hdef pipeline_1_1_norm_name(x):
     """
     Normalize name: make uppercase, remove spaces.
     Pvz.: 'abc 123' → 'ABC123'
