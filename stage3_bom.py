@@ -111,40 +111,46 @@ def normalize_no(x):
 
 
 def allocate_from_stock(no, qty_needed, stock_rows):
+    """
+    Skirsto komponento kiekį iš sandėlio lokacijų:
+      - Ima iš pirmos lokacijos tiek, kiek galima, bet ne daugiau nei reikia
+      - Likutį ima iš sekančių lokacijų
+      - Jei vis dar trūksta → prideda "NERA" eilutę su trūkstamu kiekiu
+    """
     allocations = []
-    remaining = qty_needed
+    remaining = int(round(qty_needed))
 
-    for _, srow in stock_rows.iterrows():
-        bin_code = str(srow.get("Bin Code", "")).strip()
-        stock_qty = pd.to_numeric(srow.get("Quantity", 0), errors="coerce")
-        if pd.isna(stock_qty):
-            stock_qty = 0.0
+    if stock_rows is not None and not stock_rows.empty:
+        for _, srow in stock_rows.iterrows():
+            if remaining <= 0:
+                break
 
-        if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
-            continue
-        if remaining <= 0:
-            break
+            bin_code = str(srow.get("Bin Code", "")).strip()
+            stock_qty = pd.to_numeric(srow.get("Quantity", 0), errors="coerce")
+            if pd.isna(stock_qty) or stock_qty <= 0:
+                continue
 
-        take = min(stock_qty, remaining)
-        remaining -= take
+            if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
+                continue
 
-        allocations.append({
-            "No.": no,
-            "Bin Code": bin_code,
-            "Allocated Qty": int(round(take))
-        })
+            take = min(int(round(stock_qty)), remaining)
+            if take > 0:
+                allocations.append({
+                    "No.": no,
+                    "Bin Code": bin_code,
+                    "Allocated Qty": take
+                })
+                remaining -= take
 
-    # jeigu dar liko neišpildytas kiekis – pridedam eilutę su NERA
+    # Jei dar liko neišpildytas kiekis
     if remaining > 0:
         allocations.append({
             "No.": no,
             "Bin Code": "NERA",
-            "Allocated Qty": 0
+            "Allocated Qty": remaining
         })
 
     return allocations
-
-
 
 def read_excel_any(file, **kwargs):
     try:
@@ -483,13 +489,16 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
+    """
+    Sudaro Job Journal iš BOM ar CUBIC BOM su teisingu kiekio paskirstymu.
+    """
     st.info(f"📑 Creating Job Journal table from {source}...")
 
     rows = []
 
     for _, row in df_alloc.iterrows():
         no = row.get("No.")
-        qty_needed = float(row.get("Quantity", 0))
+        qty_needed = float(row.get("Quantity", 0) or 0)
 
         stock_rows = row.get("Stock Rows")
         if not isinstance(stock_rows, pd.DataFrame):
@@ -516,7 +525,6 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
             })
 
     return pd.DataFrame(rows)
-
 
 def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
     """
