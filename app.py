@@ -66,7 +66,7 @@ with col_center:
         if st.button("📦 BOM", key="btn_bom", use_container_width=True):
             st.session_state.stage = "bom"
     else:
-        st.button("📦 BOM (nepasiekiama)", key="btn_bom_disabled", use_container_width=True, disabled=True)
+        st.button("📦 BOM (Not avalable)", key="btn_bom_disabled", use_container_width=True, disabled=True)
 
 st.markdown("---")
 
