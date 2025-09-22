@@ -395,26 +395,14 @@ def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw, source="BOM"):
         df_part_no = df_part_no[~df_part_no['Desc_C'].astype(str).str.upper().str.contains("CUBIC", na=False)]
     elif source.upper() == "CUBIC":
         df_part_no = df_part_no[df_part_no['Desc_C'].astype(str).str.upper().str.contains("CUBIC", na=False)]
-
-    # Map by Type
-    map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
-
-    df_bom = df_bom.copy()
-    df_bom['Norm_Type'] = (
-        df_bom['Type'].astype(str).str.upper().str.replace(" ", "")
-    )
-    df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
-
-    # Normalizuojam BOM No.
-    df_bom["No."] = df_bom["No."].map(normalize_no).fillna("")
-
-    # Backup Quantity
-    qty_backup = df_bom.get("Quantity", None)
-
-    # --- Merge ---
+    
+    # Pašalinam dublikatus, kad merge būtų m:1
+    df_part_no = df_part_no.drop_duplicates(subset=["PartNo_A"], keep="first")
+    
+    # Merge
     df_bom = df_bom.merge(
         df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
-        left_on='No.', right_on='PartNo_A', how='left', validate="m:1"
+        left_on='No.', right_on='PartNo_A', how='left'
     )
 
     # Tvarkymas
