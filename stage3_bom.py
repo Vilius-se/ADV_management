@@ -763,7 +763,6 @@ def render():
     if not files:
         return
 
-    # Tikrinam ar visi failai yra
     required_keys = ["bom", "data", "ks"]
     if not inputs["rittal"]:
         required_keys.append("cubic_bom")
@@ -794,51 +793,51 @@ def render():
             return
 
         # ================================
-        # --- BOM pipeline ---
+        # --- Project BOM pipeline ---
         # ================================
-        df_bom = files["bom"].copy()
-        df_bom = pipeline_3_1_filtering(df_bom, df_stock)
+        df_project_bom = files["bom"].copy()
+        df_project_bom = pipeline_3_1_filtering(df_project_bom, df_stock)
 
         if df_part_code is not None and not df_part_code.empty:
             rename_map_bom = dict(zip(
                 df_part_code.iloc[:,0].astype(str).str.strip(),
                 df_part_code.iloc[:,1].astype(str).str.strip()
             ))
-            df_bom["Type"] = df_bom["Type"].map(lambda x: rename_map_bom.get(x, x))
+            df_project_bom["Type"] = df_project_bom["Type"].map(lambda x: rename_map_bom.get(x, x))
 
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="BOM")
-        df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
+        df_project_bom = pipeline_3_3_add_nav_numbers(df_project_bom, df_part_no, source="BOM")
+        df_project_bom = pipeline_3_4_check_stock(df_project_bom, files["ks"])
 
         # ================================
-        # --- CUBIC pipeline ---
+        # --- CUBIC BOM pipeline ---
         # ================================
-        df_cubic = pd.DataFrame()
+        df_cubic_bom = pd.DataFrame()
         if "cubic_bom" in files and not files["cubic_bom"].empty:
-            df_cubic = pipeline_3_5_prepare_cubic(files["cubic_bom"])
-            df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
+            df_cubic_bom = pipeline_3_5_prepare_cubic(files["cubic_bom"])
+            df_cubic_bom = pipeline_3_1_filtering(df_cubic_bom, df_stock)
 
             if df_part_code is not None and not df_part_code.empty:
                 rename_map_cubic = dict(zip(
                     df_part_code.iloc[:,0].astype(str).str.strip(),
                     df_part_code.iloc[:,1].astype(str).str.strip()
                 ))
-                df_cubic["Type"] = df_cubic["Type"].map(lambda x: rename_map_cubic.get(x, x))
+                df_cubic_bom["Type"] = df_cubic_bom["Type"].map(lambda x: rename_map_cubic.get(x, x))
 
-            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no, source="CUBIC")
-            df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
+            df_cubic_bom = pipeline_3_3_add_nav_numbers(df_cubic_bom, df_part_no, source="CUBIC")
+            df_cubic_bom = pipeline_3_4_check_stock(df_cubic_bom, files["ks"])
 
         # ================================
         # --- Missing NAV numbers ---
         # ================================
-        missing_bom   = pipeline_4_4_missing_nav(df_bom, "BOM")
-        missing_cubic = pipeline_4_4_missing_nav(df_cubic, "CUBIC")
+        missing_project = pipeline_4_4_missing_nav(df_project_bom, "Project BOM")
+        missing_cubic   = pipeline_4_4_missing_nav(df_cubic_bom, "CUBIC BOM")
 
-        if not missing_bom.empty:
-            st.subheader("📋 Missing NAV numbers (BOM)")
-            st.dataframe(missing_bom, use_container_width=True)
+        if not missing_project.empty:
+            st.subheader("📋 Missing NAV numbers (Project BOM)")
+            st.dataframe(missing_project, use_container_width=True)
 
         if not missing_cubic.empty:
-            st.subheader("📋 Missing NAV numbers (CUBIC)")
+            st.subheader("📋 Missing NAV numbers (CUBIC BOM)")
             st.dataframe(missing_cubic, use_container_width=True)
 
         # --- Part_no lentelė paruošta ---
@@ -847,27 +846,27 @@ def render():
         # ================================
         # --- Atskiri Job Journal ---
         # ================================
-        job_journal_bom = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
+        job_journal_project = pipeline_4_1_job_journal(df_project_bom, inputs["project_number"], source="Project BOM")
 
         job_journal_cubic = pd.DataFrame()
-        if not df_cubic.empty:
-            job_journal_cubic = pipeline_4_1_job_journal(df_cubic, inputs["project_number"], source="CUBIC")
+        if not df_cubic_bom.empty:
+            job_journal_cubic = pipeline_4_1_job_journal(df_cubic_bom, inputs["project_number"], source="CUBIC BOM")
 
         # ================================
         # --- NAV Tables ---
         # ================================
-        nav_table_bom = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
+        nav_table_project = pipeline_4_2_nav_table(df_project_bom, df_part_no_ready)
 
         nav_table_cubic = pd.DataFrame()
-        if not df_cubic.empty:
-            nav_table_cubic = pipeline_4_2_nav_table(df_cubic, df_part_no_ready)
+        if not df_cubic_bom.empty:
+            nav_table_cubic = pipeline_4_2_nav_table(df_cubic_bom, df_part_no_ready)
 
         # ================================
         # --- Calculation ---
         # ================================
         calc_table = pipeline_4_3_calculation(
-            df_bom,
-            df_cubic,
+            df_project_bom,
+            df_cubic_bom,
             df_hours,
             inputs["panel_type"],
             inputs["grounding"],
@@ -879,18 +878,18 @@ def render():
         # ================================
         st.success("✅ BOM processing complete!")
 
-        st.subheader("📑 Job Journal (BOM)")
-        st.dataframe(job_journal_bom, use_container_width=True)
+        st.subheader("📑 Job Journal (Project BOM)")
+        st.dataframe(job_journal_project, use_container_width=True)
 
         if not job_journal_cubic.empty:
-            st.subheader("📑 Job Journal (CUBIC)")
+            st.subheader("📑 Job Journal (CUBIC BOM)")
             st.dataframe(job_journal_cubic, use_container_width=True)
 
-        st.subheader("🛒 NAV Table (BOM)")
-        st.dataframe(nav_table_bom, use_container_width=True)
+        st.subheader("🛒 NAV Table (Project BOM)")
+        st.dataframe(nav_table_project, use_container_width=True)
 
         if not nav_table_cubic.empty:
-            st.subheader("🛒 NAV Table (CUBIC)")
+            st.subheader("🛒 NAV Table (CUBIC BOM)")
             st.dataframe(nav_table_cubic, use_container_width=True)
 
         st.subheader("💰 Calculation")
