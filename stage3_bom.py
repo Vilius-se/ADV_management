@@ -857,11 +857,17 @@ def render():
 
         # --- galutinės lentelės ---
         job_journal_bom   = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
-        job_journal_cubic = pipeline_4_1_job_journal(df_cubic, inputs["project_number"], source="CUBIC")
-
+        
+        # CUBIC apdorojimas – tik jei yra failas
+        job_journal_cubic = pd.DataFrame()
+        if not df_cubic.empty:
+            job_journal_cubic = pipeline_4_1_job_journal(df_cubic, inputs["project_number"], source="CUBIC")
+        
         nav_table_bom   = pipeline_4_2_nav_table(df_bom, df_part_no_ready)
-        nav_table_cubic = pipeline_4_2_nav_table(df_cubic, df_part_no_ready)
-
+        nav_table_cubic = pd.DataFrame()
+        if not df_cubic.empty:
+            nav_table_cubic = pipeline_4_2_nav_table(df_cubic, df_part_no_ready)
+        
         calc_table  = pipeline_4_3_calculation(
             df_bom,
             df_cubic,
@@ -870,21 +876,23 @@ def render():
             inputs["grounding"],
             inputs["project_number"]
         )
-
+        
         # --- išvedimas ---
         st.success("✅ BOM processing complete!")
-
+        
         st.subheader("📑 Job Journal (BOM)")
         st.dataframe(job_journal_bom, use_container_width=True)
         
-        st.subheader("📑 Job Journal (CUBIC)")
-        st.dataframe(job_journal_cubic, use_container_width=True)
-
+        if not job_journal_cubic.empty:
+            st.subheader("📑 Job Journal (CUBIC)")
+            st.dataframe(job_journal_cubic, use_container_width=True)
+        
         st.subheader("🛒 NAV Table (BOM)")
         st.dataframe(nav_table_bom, use_container_width=True)
-
-        st.subheader("🛒 NAV Table (CUBIC)")
-        st.dataframe(nav_table_cubic, use_container_width=True)
-
+        
+        if not nav_table_cubic.empty:
+            st.subheader("🛒 NAV Table (CUBIC)")
+            st.dataframe(nav_table_cubic, use_container_width=True)
+        
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
