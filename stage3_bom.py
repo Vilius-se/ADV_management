@@ -805,7 +805,7 @@ def render():
             ))
             df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
 
-        df_bom   = pipeline_3_2_add_accessories(df_bom, df_accessories)
+        #df_bom   = pipeline_3_2_add_accessories(df_bom, df_accessories)
         df_bom   = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
         df_bom   = pipeline_3_4_check_stock(df_bom, files["ks"])
 
@@ -813,6 +813,7 @@ def render():
         df_cubic = files.get("cubic_bom", pd.DataFrame())
         if not df_cubic.empty:
             df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
+            df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
