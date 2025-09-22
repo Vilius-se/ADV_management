@@ -1,5 +1,13 @@
 import streamlit as st
-import stage3_bom  # <-- naujas failas
+import importlib
+
+# --- BOM modulio validacija ---
+bom_available = True
+stage3_bom = None
+try:
+    stage3_bom = importlib.import_module("stage3_bom")
+except Exception as e:
+    bom_available = False
 
 st.set_page_config(
     page_title="Advansor Wireset Helper",
@@ -8,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS (tas pats dizainas kaip Stage1/2) ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -54,8 +62,11 @@ with col_center:
     if st.button("🔧 Convert for KOMAX", key="btn_komax", use_container_width=True):
         st.session_state.stage = "komax"
     st.write("")
-    if st.button("📦 BOM", key="btn_bom", use_container_width=True):
-        st.session_state.stage = "bom"
+    if bom_available:
+        if st.button("📦 BOM", key="btn_bom", use_container_width=True):
+            st.session_state.stage = "bom"
+    else:
+        st.button("📦 BOM (nepasiekiama)", key="btn_bom_disabled", use_container_width=True, disabled=True)
 
 st.markdown("---")
 
@@ -68,9 +79,17 @@ elif st.session_state.stage == "komax":
     st.header("Stage 2: Convert for KOMAX")
     st.info("⚙️ Čia bus KOMAX logika (stage2 pipelines).")
 
-elif st.session_state.stage == "bom":
+elif st.session_state.stage == "bom" and bom_available:
     try:
         stage3_bom.render()
     except Exception as e:
         st.error("❌ BOM modulio klaida: " + str(e))
-        st.session_state.stage = None  # grąžina į neutralų režimą
+        st.session_state.stage = None
+
+# --- FOOTER ---
+st.markdown("---")
+st.markdown("""
+<div style="text-align:center; padding:1rem 0; color:#64748b;">
+  🌱 Sustainable Data Solutions • ⚡ The Future is Electric
+</div>
+""", unsafe_allow_html=True)
