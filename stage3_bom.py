@@ -374,71 +374,8 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     return df_out
 
 
-def pipeline_3_3_add_nav_numbers(df_bom, df_part_no_raw, source="BOM"):
-    """
-    Priskiria NAV numerius BOM arba CUBIC BOM įrašams pagal Part_no lapą.
-    Jei neranda atitikmens → palieka tuščią.
-    """
-    if df_bom is None or df_bom.empty:
-        return pd.DataFrame()
+HS5
 
-    df_out = df_bom.copy()
-
-    # Originalūs laukai išsaugojimui
-    if "Original Type" not in df_out.columns:
-        df_out["Original Type"] = df_out.get("Type", "")
-    if "Original Article" not in df_out.columns and "Article No." in df_out.columns:
-        df_out["Original Article"] = df_out["Article No."]
-
-    # Part_no sutvarkymas
-    df_part_no = df_part_no_raw.copy()
-    df_part_no.columns = [
-        "PartNo_A", "PartName_B", "Desc_C",
-        "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"
-    ]
-
-    # Filtruojam pagal šaltinį
-    if source.upper() == "BOM":
-        df_part_no = df_part_no[~df_part_no["Desc_C"].astype(str).str.upper().str.contains("CUBIC", na=False)]
-    elif source.upper() == "CUBIC":
-        df_part_no = df_part_no[df_part_no["Desc_C"].astype(str).str.upper().str.contains("CUBIC", na=False)]
-
-    # Normalizacija
-    def normalize_no(x):
-        try:
-            return str(int(float(str(x).replace(",", ".").strip())))
-        except:
-            return str(x).strip()
-
-    df_part_no["PartNo_A"] = df_part_no["PartNo_A"].map(normalize_no).fillna("")
-    df_part_no["Norm_B"] = df_part_no["PartName_B"].astype(str).str.upper().str.replace(" ", "")
-
-    # Unikalumas
-    df_part_no = df_part_no.drop_duplicates(subset=["Norm_B"], keep="first")
-
-    # BOM paruošimas
-    df_out["Norm_Type"] = df_out["Type"].astype(str).str.upper().str.replace(" ", "")
-
-    # Mapinam NAV numerius
-    map_by_type = dict(zip(df_part_no["Norm_B"], df_part_no["PartNo_A"]))
-    df_out["No."] = df_out["Norm_Type"].map(map_by_type)
-
-    # Merge papildomai info (description, supplier, price)
-    df_out = df_out.merge(
-        df_part_no[["PartNo_A", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"]],
-        left_on="No.", right_on="PartNo_A", how="left"
-    )
-
-    # Tvarkom stulpelius
-    df_out = df_out.drop(columns=["Norm_Type", "PartNo_A"])
-    df_out = df_out.rename(columns={
-        "Desc_C": "Description",
-        "Manufacturer_D": "Supplier",
-        "SupplierNo_E": "Supplier No.",
-        "UnitPrice_F": "Unit Cost"
-    })
-
-    return df_out
 
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
