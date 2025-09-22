@@ -790,7 +790,6 @@ def render():
         # --- BOM processing ---
         # ================================
         df_bom = files["bom"].copy()
-
         df_bom = pipeline_3_1_filtering(df_bom, df_stock)
 
         if df_part_code is not None and not df_part_code.empty:
@@ -801,7 +800,7 @@ def render():
             df_bom["Type"] = df_bom["Type"].map(lambda x: rename_map_bom.get(x, x))
 
         df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="BOM")
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         # ================================
@@ -819,7 +818,7 @@ def render():
                 ))
                 df_cubic["Type"] = df_cubic["Type"].map(lambda x: rename_map_cubic.get(x, x))
 
-            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
+            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no, source="CUBIC")
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
         # ================================
