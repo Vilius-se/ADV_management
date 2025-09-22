@@ -98,6 +98,33 @@ def get_sheet_safe(data_dict, names):
 
 # ---- Helper: universalus Excel reader (.xls + .xlsx) ----
 
+def normalize_part_no(df_part_no_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalizuoja Part_no sheetą į standartinius stulpelius:
+    PartNo_A, PartName_B, Desc_C, Manufacturer_D, SupplierNo_E, UnitPrice_F
+    """
+    if df_part_no_raw is None or df_part_no_raw.empty:
+        return pd.DataFrame()
+
+    df = df_part_no_raw.copy()
+    df = df.rename(columns=lambda c: str(c).strip())
+
+    col_map = {}
+    if df.shape[1] >= 1:
+        col_map[df.columns[0]] = "PartNo_A"
+    if df.shape[1] >= 2:
+        col_map[df.columns[1]] = "PartName_B"
+    if df.shape[1] >= 3:
+        col_map[df.columns[2]] = "Desc_C"
+    if df.shape[1] >= 4:
+        col_map[df.columns[3]] = "Manufacturer_D"
+    if df.shape[1] >= 5:
+        col_map[df.columns[4]] = "SupplierNo_E"
+    if df.shape[1] >= 6:
+        col_map[df.columns[5]] = "UnitPrice_F"
+
+    return df.rename(columns=col_map)
+
 def normalize_no(x):
     """
     Normalizuoja NAV numerius: pašalina kablelius, taškus,
@@ -759,12 +786,13 @@ def render():
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         # --- pasiimam reikalingus sheetus iš DATA ---
-        df_stock     = get_sheet_safe(files["data"], ["Stock"])
-        df_part_no   = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-        df_hours     = get_sheet_safe(files["data"], ["Hours"])
-        df_part_code = get_sheet_safe(files["data"], ["Part_code", "Part code"])
+        df_stock       = get_sheet_safe(files["data"], ["Stock"])
+        df_part_no_raw = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_part_no     = normalize_part_no(df_part_no_raw)   # <-- NORMALIZUOJAM ČIA
+        df_hours       = get_sheet_safe(files["data"], ["Hours"])
+        df_part_code   = get_sheet_safe(files["data"], ["Part_code", "Part code"])
 
-        if df_stock is None or df_part_no is None:
+        if df_stock is None or df_part_no.empty:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
@@ -792,7 +820,7 @@ def render():
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
 
         # NAV Table (Project BOM) – be stock
-        nav_table_bom = pipeline_4_2_nav_table(df_bom, st.session_state.get("part_no", df_part_no))
+        nav_table_bom = pipeline_4_2_nav_table(df_bom, df_part_no)
 
         # Tikrinam stock (reikia Job Journal)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
@@ -814,7 +842,7 @@ def render():
             df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no, source="CUBIC BOM")
 
             # NAV Table (CUBIC BOM) – be stock
-            nav_table_cubic = pipeline_4_2_nav_table(df_cubic, st.session_state.get("part_no", df_part_no))
+            nav_table_cubic = pipeline_4_2_nav_table(df_cubic, df_part_no)
 
             # Tikrinam stock (reikia Job Journal)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
