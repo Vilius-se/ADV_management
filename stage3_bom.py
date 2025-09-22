@@ -389,62 +389,58 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
     """
-    Priskiria NAV numerius BOM arba CUBIC BOM komponentams pagal DATA.xlsx → Part_no.
-    Jei neranda atitikmens – palieka tuščią 'No.'.
-    
-    Args:
-        df_bom: Project BOM arba CUBIC BOM DataFrame
-        df_part_no_raw: Part_no DataFrame iš DATA.xlsx
-        source: teksto žyma ("BOM" arba "CUBIC"), naudinga debug'ui
+    BOM'ui priskiria NAV numerius iš Part_no lentelės.
+    - 'Type' nekeičiamas (lieka originalus)
+    - 'No.' = rastas NAV numeris, jei neranda → tuščia
     """
-    if df_bom is None or df_bom.empty or df_part_no_raw is None or df_part_no_raw.empty:
-        return df_bom if df_bom is not None else pd.DataFrame()
+    st.info(f"🔗 Assigning NAV numbers for {source}...")
 
-    df_bom = df_bom.copy()
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
 
-    # Originalių laukų išsaugojimas
-    if "Original Type" not in df_bom.columns and "Type" in df_bom.columns:
-        df_bom["Original Type"] = df_bom["Type"]
-    if "Original Article" not in df_bom.columns and df_bom.shape[1] >= 1:
-        df_bom["Original Article"] = df_bom.iloc[:, 0]
+    if df_part_no_raw is None or df_part_no_raw.empty:
+        st.warning("⚠️ Part_no sheet is empty, NAV numbers cannot be assigned")
+        df_bom["No."] = ""
+        return df_bom
 
-    # Pervadinam Part_no stulpelius į standartinius
+    # Sukuriam normalizuotus raktus iš Part_no
     df_part_no = df_part_no_raw.copy()
-    expected_cols = [
+    df_part_no.columns = [
         'PartNo_A', 'PartName_B', 'Desc_C',
         'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
     ]
-    df_part_no.columns = expected_cols[:len(df_part_no.columns)]
-
-    # Normalizacija: PartName_B ir BOM Type → didžiosios raidės, be tarpų
-    def normalize_str(x):
-        return str(x).upper().replace(" ", "").strip() if pd.notna(x) else ""
-
-    df_part_no['Norm_B'] = df_part_no['PartName_B'].map(normalize_str)
-    df_bom['Norm_Type'] = df_bom['Type'].map(normalize_str)
-
-    # Sukuriam mapą pagal Type
-    map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
-
-    # Priskiriam NAV numerius (jei neranda → NaN)
-    df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
-
-    # Įkeliame papildomą info iš Part_no
-    df_bom = df_bom.merge(
-        df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
-        left_on='No.', right_on='PartNo_A', how='left'
+    df_part_no["Norm_B"] = (
+        df_part_no["PartName_B"]
+        .astype(str)
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
     )
 
-    # Sutvarkom stulpelius
-    df_bom = df_bom.drop(columns=['Norm_Type','Norm_B','PartNo_A'])
-    df_bom = df_bom.rename(columns={
-        'Desc_C': 'Description',
-        'Manufacturer_D': 'Supplier',
-        'SupplierNo_E': 'Supplier No.',
-        'UnitPrice_F': 'Unit Cost'
-    })
+    # Žemėlapis: Normalizuotas pavadinimas → NAV numeris
+    map_by_type = dict(zip(df_part_no["Norm_B"], df_part_no["PartNo_A"].astype(str)))
 
-    return df_bom
+    # BOM kopija
+    df_out = df_bom.copy()
+
+    # Normalizuotas BOM Type
+    df_out["Norm_Type"] = (
+        df_out["Type"]
+        .astype(str)
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
+    )
+
+    # NAV numerių priskyrimas
+    df_out["No."] = df_out["Norm_Type"].map(map_by_type).fillna("")
+
+    # Išvalom pagalbinį stulpelį
+    df_out = df_out.drop(columns=["Norm_Type"])
+
+    st.success(f"✅ NAV numbers assigned for {source}")
+    return df_out
+
 
 
 
