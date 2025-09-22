@@ -759,10 +759,10 @@ def render():
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         # --- pasiimam reikalingus sheetus iš DATA ---
-        df_stock       = get_sheet_safe(files["data"], ["Stock"])
-        df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-        df_hours       = get_sheet_safe(files["data"], ["Hours"])
-        df_part_code   = get_sheet_safe(files["data"], ["Part_code", "Part code"])
+        df_stock     = get_sheet_safe(files["data"], ["Stock"])
+        df_part_no   = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_hours     = get_sheet_safe(files["data"], ["Hours"])
+        df_part_code = get_sheet_safe(files["data"], ["Part_code", "Part code"])
 
         if df_stock is None or df_part_no is None:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
@@ -789,12 +789,12 @@ def render():
             df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
 
         # NAV numeriai
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no)
+        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
 
-        # NAV Table (Project BOM) – prieš stock
+        # NAV Table (Project BOM) – be stock
         nav_table_bom = pipeline_4_2_nav_table(df_bom, st.session_state.get("part_no", df_part_no))
 
-        # Tikrinam stock
+        # Tikrinam stock (reikia Job Journal)
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         # Job Journal (Project BOM)
@@ -811,12 +811,12 @@ def render():
         if not df_cubic.empty:
             df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
             df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
-            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no)
+            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no, source="CUBIC BOM")
 
-            # NAV Table (CUBIC BOM) – prieš stock
+            # NAV Table (CUBIC BOM) – be stock
             nav_table_cubic = pipeline_4_2_nav_table(df_cubic, st.session_state.get("part_no", df_part_no))
 
-            # Tikrinam stock
+            # Tikrinam stock (reikia Job Journal)
             df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
 
             # Job Journal (CUBIC BOM)
@@ -855,4 +855,5 @@ def render():
 
         st.subheader("💰 Calculation")
         st.dataframe(calc_table, use_container_width=True)
+
 
