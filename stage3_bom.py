@@ -120,7 +120,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
     allocations = []
 
     # Saugiai normalizuojam qty_needed
-    qty_needed = pd.to_numeric([qty_needed], errors="coerce").fillna(0).iloc[0]
+    qty_needed = pd.to_numeric(pd.Series([qty_needed]), errors="coerce").fillna(0).iloc[0]
     remaining = int(round(qty_needed))
 
     if stock_rows is not None and not stock_rows.empty:
@@ -129,7 +129,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
                 break
 
             bin_code = str(srow.get("Bin Code", "")).strip()
-            stock_qty = pd.to_numeric([srow.get("Quantity", 0)], errors="coerce").fillna(0).iloc[0]
+            stock_qty = pd.to_numeric(pd.Series([srow.get("Quantity", 0)]), errors="coerce").fillna(0).iloc[0]
 
             if stock_qty <= 0:
                 continue
@@ -154,6 +154,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         })
 
     return allocations
+
 
 
 def read_excel_any(file, **kwargs):
