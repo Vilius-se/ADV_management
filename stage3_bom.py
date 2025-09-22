@@ -389,9 +389,10 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
     """
-    BOM'ui priskiria NAV numerius iš Part_no lentelės.
+    BOM'ui priskiria NAV numerius ir papildomą informaciją iš Part_no lentelės.
     - 'Type' nekeičiamas (lieka originalus)
     - 'No.' = rastas NAV numeris, jei neranda → tuščia
+    - Papildomi laukai: Description, Supplier, Supplier No., Unit Cost
     """
     st.info(f"🔗 Assigning NAV numbers for {source}...")
 
@@ -403,12 +404,14 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
         df_bom["No."] = ""
         return df_bom
 
-    # Sukuriam normalizuotus raktus iš Part_no
+    # Sukuriam tvarkingus stulpelius Part_no lentelei
     df_part_no = df_part_no_raw.copy()
     df_part_no.columns = [
-        'PartNo_A', 'PartName_B', 'Desc_C',
-        'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
+        "PartNo_A", "PartName_B", "Desc_C",
+        "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"
     ]
+
+    # Normalizuoti pavadinimai
     df_part_no["Norm_B"] = (
         df_part_no["PartName_B"]
         .astype(str)
@@ -417,13 +420,10 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
         .str.strip()
     )
 
-    # Žemėlapis: Normalizuotas pavadinimas → NAV numeris
-    map_by_type = dict(zip(df_part_no["Norm_B"], df_part_no["PartNo_A"].astype(str)))
-
     # BOM kopija
     df_out = df_bom.copy()
 
-    # Normalizuotas BOM Type
+    # Normalizuotas Type
     df_out["Norm_Type"] = (
         df_out["Type"]
         .astype(str)
@@ -432,16 +432,30 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
         .str.strip()
     )
 
-    # NAV numerių priskyrimas
-    df_out["No."] = df_out["Norm_Type"].map(map_by_type).fillna("")
+    # Merge pagal norm pavadinimą
+    df_out = df_out.merge(
+        df_part_no[[
+            "PartNo_A", "Norm_B", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"
+        ]],
+        left_on="Norm_Type", right_on="Norm_B", how="left"
+    )
 
-    # Išvalom pagalbinį stulpelį
-    df_out = df_out.drop(columns=["Norm_Type"])
+    # Sukuriam No. stulpelį (jei nėra – tuščias)
+    df_out["No."] = df_out["PartNo_A"].fillna("").astype(str)
 
-    st.success(f"✅ NAV numbers assigned for {source}")
+    # Pervadinam papildomus laukus
+    df_out = df_out.rename(columns={
+        "Desc_C": "Description",
+        "Manufacturer_D": "Supplier",
+        "SupplierNo_E": "Supplier No.",
+        "UnitPrice_F": "Unit Cost"
+    })
+
+    # Išvalom pagalbinius
+    df_out = df_out.drop(columns=["Norm_Type", "Norm_B", "PartNo_A"])
+
+    st.success(f"✅ NAV numbers + descriptions assigned for {source}")
     return df_out
-
-
 
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
