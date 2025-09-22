@@ -118,6 +118,9 @@ def allocate_from_stock(no, qty_needed, stock_rows):
       - Jei vis dar trūksta → prideda "NERA" eilutę su trūkstamu kiekiu
     """
     allocations = []
+
+    # Saugiai normalizuojam qty_needed
+    qty_needed = pd.to_numeric([qty_needed], errors="coerce").fillna(0).iloc[0]
     remaining = int(round(qty_needed))
 
     if stock_rows is not None and not stock_rows.empty:
@@ -126,10 +129,10 @@ def allocate_from_stock(no, qty_needed, stock_rows):
                 break
 
             bin_code = str(srow.get("Bin Code", "")).strip()
-            stock_qty = pd.to_numeric(srow.get("Quantity", 0), errors="coerce")
-            if pd.isna(stock_qty) or stock_qty <= 0:
-                continue
+            stock_qty = pd.to_numeric([srow.get("Quantity", 0)], errors="coerce").fillna(0).iloc[0]
 
+            if stock_qty <= 0:
+                continue
             if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
                 continue
 
@@ -151,6 +154,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         })
 
     return allocations
+
 
 def read_excel_any(file, **kwargs):
     try:
