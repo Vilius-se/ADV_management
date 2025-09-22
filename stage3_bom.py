@@ -111,15 +111,7 @@ def normalize_no(x):
 
 
 def allocate_from_stock(no, qty_needed, stock_rows):
-    """
-    Skirsto komponento kiekį iš sandėlio lokacijų:
-      - Ima iš pirmos lokacijos tiek, kiek galima, bet ne daugiau nei reikia
-      - Likutį ima iš sekančių lokacijų
-      - Jei vis dar trūksta → prideda "NERA" eilutę su trūkstamu kiekiu
-    """
     allocations = []
-
-    # Saugiai normalizuojam qty_needed
     qty_needed = pd.to_numeric(pd.Series([qty_needed]), errors="coerce").fillna(0).iloc[0]
     remaining = int(round(qty_needed))
 
@@ -127,13 +119,11 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         for _, srow in stock_rows.iterrows():
             if remaining <= 0:
                 break
-
             bin_code = str(srow.get("Bin Code", "")).strip()
             stock_qty = pd.to_numeric(pd.Series([srow.get("Quantity", 0)]), errors="coerce").fillna(0).iloc[0]
-
             if stock_qty <= 0:
                 continue
-            if bin_code == "67-01-01-01":  # skip netinkamą lokaciją
+            if bin_code == "67-01-01-01":
                 continue
 
             take = min(int(round(stock_qty)), remaining)
@@ -145,7 +135,6 @@ def allocate_from_stock(no, qty_needed, stock_rows):
                 })
                 remaining -= take
 
-    # Jei dar liko neišpildytas kiekis
     if remaining > 0:
         allocations.append({
             "No.": no,
@@ -154,8 +143,6 @@ def allocate_from_stock(no, qty_needed, stock_rows):
         })
 
     return allocations
-
-
 
 def read_excel_any(file, **kwargs):
     try:
@@ -431,17 +418,12 @@ def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 
 def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
-    """
-    Sudaro Job Journal iš BOM ar CUBIC BOM su teisingu kiekio paskirstymu.
-    """
     st.info(f"📑 Creating Job Journal table from {source}...")
 
     rows = []
-
     for _, row in df_alloc.iterrows():
         no = row.get("No.")
         qty_needed = float(row.get("Quantity", 0) or 0)
-
         stock_rows = row.get("Stock Rows")
         if not isinstance(stock_rows, pd.DataFrame):
             stock_rows = pd.DataFrame(columns=["Bin Code", "Quantity"])
@@ -449,14 +431,10 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
         allocations = allocate_from_stock(no, qty_needed, stock_rows)
 
         for alloc in allocations:
-            doc_no = project_number
-            if alloc["Bin Code"] == "NERA":
-                doc_no += "/NERA"
-
             rows.append({
                 "Type": "Item",
                 "No.": no,
-                "Document No.": doc_no,
+                "Document No.": project_number,
                 "Job No.": project_number,
                 "Job Task No.": 1144,
                 "Quantity": alloc["Allocated Qty"],
@@ -465,7 +443,6 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
                 "Description": row.get("Description", ""),
                 "Original Type": row.get("Original Type", "")
             })
-
 
     return pd.DataFrame(rows)
 
