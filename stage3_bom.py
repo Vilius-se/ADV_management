@@ -149,7 +149,7 @@ def allocate_from_stock(no, qty_needed, stock_rows):
     if remaining > 0:
         allocations.append({
             "No.": no,
-            "Bin Code": "NERA",
+            "Bin Code": "",
             "Allocated Qty": remaining
         })
 
@@ -460,11 +460,12 @@ def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source
                 "Job No.": project_number,
                 "Job Task No.": 1144,
                 "Quantity": alloc["Allocated Qty"],
-                "Location Code": "KAUNAS",
+                "Location Code": "KAUNAS" if alloc["Bin Code"] else "",
                 "Bin Code": alloc["Bin Code"],
                 "Description": row.get("Description", ""),
                 "Original Type": row.get("Original Type", "")
             })
+
 
     return pd.DataFrame(rows)
 
