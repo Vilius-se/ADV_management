@@ -360,6 +360,67 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     st.success(f"✅ Added {len(added)} accessories")
     return df_out
 
+def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
+    """
+    Priskiria NAV numerius BOM arba CUBIC BOM komponentams pagal DATA.xlsx → Part_no.
+    Jei neranda atitikmens – palieka tuščią 'No.'.
+    
+    Args:
+        df_bom: Project BOM arba CUBIC BOM DataFrame
+        df_part_no_raw: Part_no DataFrame iš DATA.xlsx
+        source: teksto žyma ("BOM" arba "CUBIC"), naudinga debug'ui
+    """
+    if df_bom is None or df_bom.empty or df_part_no_raw is None or df_part_no_raw.empty:
+        return df_bom if df_bom is not None else pd.DataFrame()
+
+    df_bom = df_bom.copy()
+
+    # Originalių laukų išsaugojimas
+    if "Original Type" not in df_bom.columns and "Type" in df_bom.columns:
+        df_bom["Original Type"] = df_bom["Type"]
+    if "Original Article" not in df_bom.columns and df_bom.shape[1] >= 1:
+        df_bom["Original Article"] = df_bom.iloc[:, 0]
+
+    # Pervadinam Part_no stulpelius į standartinius
+    df_part_no = df_part_no_raw.copy()
+    expected_cols = [
+        'PartNo_A', 'PartName_B', 'Desc_C',
+        'Manufacturer_D', 'SupplierNo_E', 'UnitPrice_F'
+    ]
+    df_part_no.columns = expected_cols[:len(df_part_no.columns)]
+
+    # Normalizacija: PartName_B ir BOM Type → didžiosios raidės, be tarpų
+    def normalize_str(x):
+        return str(x).upper().replace(" ", "").strip() if pd.notna(x) else ""
+
+    df_part_no['Norm_B'] = df_part_no['PartName_B'].map(normalize_str)
+    df_bom['Norm_Type'] = df_bom['Type'].map(normalize_str)
+
+    # Sukuriam mapą pagal Type
+    map_by_type = dict(zip(df_part_no['Norm_B'], df_part_no['PartNo_A']))
+
+    # Priskiriam NAV numerius (jei neranda → NaN)
+    df_bom['No.'] = df_bom['Norm_Type'].map(map_by_type)
+
+    # Įkeliame papildomą info iš Part_no
+    df_bom = df_bom.merge(
+        df_part_no[['PartNo_A','Desc_C','Manufacturer_D','SupplierNo_E','UnitPrice_F','Norm_B']],
+        left_on='No.', right_on='PartNo_A', how='left'
+    )
+
+    # Sutvarkom stulpelius
+    df_bom = df_bom.drop(columns=['Norm_Type','Norm_B','PartNo_A'])
+    df_bom = df_bom.rename(columns={
+        'Desc_C': 'Description',
+        'Manufacturer_D': 'Supplier',
+        'SupplierNo_E': 'Supplier No.',
+        'UnitPrice_F': 'Unit Cost'
+    })
+
+    return df_bom
+
+
+
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
 
