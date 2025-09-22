@@ -816,18 +816,16 @@ def render():
             ))
             df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
 
-        # NAV numeriai
+       # NAV numeriai
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
-
-        # NAV Table (Project BOM) – be stock
-        nav_table_bom = pipeline_4_2_nav_table(df_bom, df_part_no)
-
-        # Tikrinam stock (reikia Job Journal)
-        df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
-
-        # Job Journal (Project BOM)
-        job_journal_bom = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="Project BOM")
-
+        
+        # Kopija NAV Table'ui (tik originalūs kiekiai, be stock)
+        df_bom_for_nav = df_bom.copy()
+        nav_table_bom = pipeline_4_2_nav_table(df_bom_for_nav, df_part_no)
+        
+        # Kita kopija Job Journal'ui
+        df_bom_for_journal = pipeline_3_4_check_stock(df_bom.copy(), files["ks"])
+        job_journal_bom = pipeline_4_1_job_journal(df_bom_for_journal, inputs["project_number"], source="Project BOM")
         # =====================================================
         # CUBIC BOM processing
         # =====================================================
