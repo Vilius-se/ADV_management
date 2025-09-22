@@ -69,12 +69,8 @@ elif st.session_state.stage == "komax":
     st.info("⚙️ Čia bus KOMAX logika (stage2 pipelines).")
 
 elif st.session_state.stage == "bom":
-    stage3_bom.render()
-
-# --- FOOTER ---
-st.markdown("---")
-st.markdown("""
-<div style="text-align:center; padding:1rem 0; color:#64748b;">
-  🌱 Sustainable Data Solutions • ⚡ The Future is Electric
-</div>
-""", unsafe_allow_html=True)
+    try:
+        stage3_bom.render()
+    except Exception as e:
+        st.error("❌ BOM modulio klaida: " + str(e))
+        st.session_state.stage = None  # grąžina į neutralų režimą
