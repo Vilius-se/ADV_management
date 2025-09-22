@@ -765,7 +765,7 @@ def render():
 
     # Tikrinam ar visi failai yra
     required_keys = ["bom", "data", "ks"]
-    if not inputs["rittal"]:  # jei Rittal nėra, dar reikia cubic_bom
+    if not inputs["rittal"]:
         required_keys.append("cubic_bom")
 
     missing = [k for k in required_keys if k not in files]
@@ -773,6 +773,7 @@ def render():
         st.warning(f"⚠️ Missing required files: {missing}")
         return
 
+    # Preview Kaunas Stock
     st.subheader("🔎 Kaunas Stock preview")
     try:
         df_stock_preview = files["ks"].copy()
@@ -783,18 +784,17 @@ def render():
     # 3. Jei viskas yra – rodom mygtuką
     if st.button("🚀 Run BOM Processing"):
         # --- pasiimam reikalingus sheetus iš DATA ---
-        df_stock       = get_sheet_safe(files["data"], ["Stock"])
-        df_accessories = get_sheet_safe(files["data"], ["Accessories"])
-        df_part_no     = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-        df_hours       = get_sheet_safe(files["data"], ["Hours"])
-        df_part_code   = get_sheet_safe(files["data"], ["Part_code", "Part code"])
+        df_stock     = get_sheet_safe(files["data"], ["Stock"])
+        df_part_no   = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
+        df_hours     = get_sheet_safe(files["data"], ["Hours"])
+        df_part_code = get_sheet_safe(files["data"], ["Part_code", "Part code"])
 
         if df_stock is None or df_part_no is None:
             st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
             return
 
         # ================================
-        # --- BOM processing ---
+        # --- BOM pipeline ---
         # ================================
         df_bom = files["bom"].copy()
         df_bom = pipeline_3_1_filtering(df_bom, df_stock)
@@ -806,16 +806,15 @@ def render():
             ))
             df_bom["Type"] = df_bom["Type"].map(lambda x: rename_map_bom.get(x, x))
 
-        df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
         df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="BOM")
         df_bom = pipeline_3_4_check_stock(df_bom, files["ks"])
 
         # ================================
-        # --- CUBIC processing ---
+        # --- CUBIC pipeline ---
         # ================================
-        df_cubic = files.get("cubic_bom", pd.DataFrame())
-        if not df_cubic.empty:
-            df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
+        df_cubic = pd.DataFrame()
+        if "cubic_bom" in files and not files["cubic_bom"].empty:
+            df_cubic = pipeline_3_5_prepare_cubic(files["cubic_bom"])
             df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
 
             if df_part_code is not None and not df_part_code.empty:
@@ -842,11 +841,11 @@ def render():
             st.subheader("📋 Missing NAV numbers (CUBIC)")
             st.dataframe(missing_cubic, use_container_width=True)
 
-        # --- paimam jau paruoštą Part_no lentelę iš session ---
+        # --- Part_no lentelė paruošta ---
         df_part_no_ready = st.session_state.get("part_no", df_part_no)
 
         # ================================
-        # --- Atskiras Job Journal ---
+        # --- Atskiri Job Journal ---
         # ================================
         job_journal_bom = pipeline_4_1_job_journal(df_bom, inputs["project_number"], source="BOM")
 
