@@ -360,11 +360,6 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
     st.success(f"✅ Added {len(added)} accessories")
     return df_out
 
-
-HS5
-
-
-
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
 
