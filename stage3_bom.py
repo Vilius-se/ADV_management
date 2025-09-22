@@ -290,52 +290,60 @@ def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame
     return df_bom
 
 
-def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source="BOM") -> pd.DataFrame:
+def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
     """
-    Pašalina tik tuos komponentus, kurių Comment = 'no need' (case-insensitive).
+    Pašalina tik tuos komponentus, kurių Stock lape Comment == 'no need' (case-insensitive).
     Visi kiti komentarai ignoruojami (leidžiami).
     """
     st.info(f"🚦 Filtering {source}: removing only 'no need' items...")
 
-    # Pervadinam pirmą ir trečią stulpelį
-    cols = list(df_stock.columns)
-    if len(cols) >= 3:
-        rename_map = {cols[0]: "Component", cols[2]: "Comment"}
-        df_stock = df_stock.rename(columns=rename_map)
-    else:
-        st.error("❌ Stock sheet must have bent 3 stulpelius (Component, ..., Comment)")
-        return df_bom
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
 
-    # Atrenkam komponentus tik su 'no need'
+    if df_stock is None or df_stock.empty:
+        st.warning(f"⚠️ Stock sheet missing or empty — skipping 'no need' filtering for {source}")
+        return df_bom.copy()
+
+    # užtikrinam, kad turim bent 3 stulpelius (Component, ..., Comment)
+    cols = list(df_stock.columns)
+    if len(cols) < 3:
+        st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
+        return df_bom.copy()
+
+    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
+
+    # atrenkam tik tuos komponentus, kurių Comment = 'no need'
     excluded_components = (
-        df_stock[
-            df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"
-        ]["Component"]
+        df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"]
         .dropna()
         .astype(str)
     )
 
+    # normalizuojam raktus palyginimui
     excluded_norm = (
-        excluded_components.str.upper()
+        excluded_components
+        .str.upper()
         .str.replace(" ", "")
         .str.strip()
         .unique()
     )
 
-    df_bom = df_bom.copy()
-    df_bom["Norm_Type"] = (
-        df_bom["Type"].astype(str)
+    df_in = df_bom.copy()
+    df_in["Norm_Type"] = (
+        df_in["Type"]
+        .astype(str)
         .str.upper()
         .str.replace(" ", "")
         .str.strip()
     )
 
-    filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
+    filtered = df_in[~df_in["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
 
     st.success(
         f"✅ {source} filtered: {len(df_bom)} → {len(filtered)} rows "
         f"(removed {len(df_bom) - len(filtered)} 'no need' items)"
     )
+
     return filtered.drop(columns=["Norm_Type"])
 
 
