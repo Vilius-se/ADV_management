@@ -876,7 +876,7 @@ def render():
 
         st.subheader("📑 Job Journal (BOM)")
         st.dataframe(job_journal_bom, use_container_width=True)
-
+        
         st.subheader("📑 Job Journal (CUBIC)")
         st.dataframe(job_journal_cubic, use_container_width=True)
 
