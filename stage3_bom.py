@@ -290,14 +290,12 @@ def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame
     return df_bom
 
 
-def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
+def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source="BOM") -> pd.DataFrame:
     """
-    Pašalina iš BOM visus komponentus, kurie turi Comment reikšmę DATA.xlsx → Stock lape.
-    Pagal nutylėjimą laikom: 
-      1-asis stulpelis = Component,
-      3-iasis stulpelis = Comment.
+    Pašalina tik tuos komponentus, kurių Comment = 'no need' (case-insensitive).
+    Visi kiti komentarai ignoruojami (leidžiami).
     """
-    st.info("🚦 Filtering BOM according to DATA.xlsx Stock (Comment)...")
+    st.info(f"🚦 Filtering {source}: removing only 'no need' items...")
 
     # Pervadinam pirmą ir trečią stulpelį
     cols = list(df_stock.columns)
@@ -308,14 +306,15 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
         st.error("❌ Stock sheet must have bent 3 stulpelius (Component, ..., Comment)")
         return df_bom
 
-    # Atrenkam komponentus su komentarais
+    # Atrenkam komponentus tik su 'no need'
     excluded_components = (
-        df_stock[df_stock["Comment"].notna()]["Component"]
+        df_stock[
+            df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"
+        ]["Component"]
         .dropna()
         .astype(str)
     )
 
-    # Normalizuojam pavadinimus
     excluded_norm = (
         excluded_components.str.upper()
         .str.replace(" ", "")
@@ -331,15 +330,14 @@ def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame) -> pd.D
         .str.strip()
     )
 
-    # Filtravimas: išmetam VISUS, kurie yra excluded
     filtered = df_bom[~df_bom["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
 
     st.success(
-        f"✅ BOM filtered: {len(df_bom)} → {len(filtered)} rows "
-        f"(removed {len(df_bom) - len(filtered)} items with comments)"
+        f"✅ {source} filtered: {len(df_bom)} → {len(filtered)} rows "
+        f"(removed {len(df_bom) - len(filtered)} 'no need' items)"
     )
-
     return filtered.drop(columns=["Norm_Type"])
+
 
 
 def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFrame) -> pd.DataFrame:
@@ -389,74 +387,123 @@ def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFr
 
 def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
     """
-    BOM'ui priskiria NAV numerius ir papildomą informaciją iš Part_no lentelės.
-    - 'Type' nekeičiamas (lieka originalus)
-    - 'No.' = rastas NAV numeris, jei neranda → tuščia
-    - Papildomi laukai: Description, Supplier, Supplier No., Unit Cost
+    Priskiria NAV numerius ir papildomą info iš Part_no lentelės.
+    - 'Type' lieka originalus.
+    - 'No.' = sveikas NAV numeris be kablelio (string), jei nerasta -> "".
+    - Papildomi laukai: Description, Supplier, Supplier No., Unit Cost (jei Part_no turi).
     """
     st.info(f"🔗 Assigning NAV numbers for {source}...")
 
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
-    if df_part_no_raw is None or df_part_no_raw.empty:
-        st.warning("⚠️ Part_no sheet is empty, NAV numbers cannot be assigned")
-        df_bom["No."] = ""
-        return df_bom
-
-    # Sukuriam tvarkingus stulpelius Part_no lentelei
-    df_part_no = df_part_no_raw.copy()
-    df_part_no.columns = [
-        "PartNo_A", "PartName_B", "Desc_C",
-        "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"
-    ]
-
-    # Normalizuoti pavadinimai
-    df_part_no["Norm_B"] = (
-        df_part_no["PartName_B"]
-        .astype(str)
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-    )
-
-    # BOM kopija
     df_out = df_bom.copy()
 
-    # Normalizuotas Type
-    df_out["Norm_Type"] = (
-        df_out["Type"]
+    if df_part_no_raw is None or df_part_no_raw.empty:
+        st.warning("⚠️ Part_no sheet is empty — 'No.' will be left empty")
+        df_out["No."] = ""
+        return df_out
+
+    # ---- normalizuojam part_no pagal pozicijas (lankstus) ----
+    df_part = df_part_no_raw.copy().reset_index(drop=True)
+    df_part = df_part.rename(columns=lambda c: str(c).strip())
+
+    col_map = {}
+    if df_part.shape[1] >= 1:
+        col_map[df_part.columns[0]] = "PartNo_A"
+    if df_part.shape[1] >= 2:
+        col_map[df_part.columns[1]] = "PartName_B"
+    if df_part.shape[1] >= 3:
+        col_map[df_part.columns[2]] = "Desc_C"
+    if df_part.shape[1] >= 4:
+        col_map[df_part.columns[3]] = "Manufacturer_D"
+    if df_part.shape[1] >= 5:
+        col_map[df_part.columns[4]] = "SupplierNo_E"
+    if df_part.shape[1] >= 6:
+        col_map[df_part.columns[5]] = "UnitPrice_F"
+
+    df_part = df_part.rename(columns=col_map)
+
+    # Jeigu nėra PartName_B arba PartNo_A — negalime map'inti
+    if "PartName_B" not in df_part.columns or "PartNo_A" not in df_part.columns:
+        st.warning("⚠️ Part_no lacks PartNo or PartName columns — 'No.' will be left empty")
+        df_out["No."] = ""
+        return df_out
+
+    # Normalizuojam pavadinimus (PartName_B)
+    df_part["Norm_B"] = (
+        df_part["PartName_B"]
         .astype(str)
         .str.upper()
         .str.replace(" ", "")
         .str.strip()
     )
 
-    # Merge pagal norm pavadinimą
-    df_out = df_out.merge(
-        df_part_no[[
-            "PartNo_A", "Norm_B", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F"
-        ]],
-        left_on="Norm_Type", right_on="Norm_B", how="left"
+    # Normalizuojam PartNo_A — paverčiam į sveiką be .0 (jei įmanoma), paliekam string jei ne
+    def norm_partno(x):
+        try:
+            # jei numeris kaip float (pvz. 2169732.0), paverčiam į int
+            s = str(x).strip()
+            # bortinam tarpus ir keičiam kablelius
+            s2 = s.replace(",", ".")
+            if s2 == "":
+                return ""
+            f = float(s2)
+            i = int(round(f))
+            return str(i)
+        except Exception:
+            return str(x).strip()
+
+    df_part["PartNo_A"] = df_part["PartNo_A"].map(norm_partno).fillna("").astype(str)
+
+    # Drop duplicates by Norm_B (keep first)
+    df_part = df_part.drop_duplicates(subset=["Norm_B"], keep="first").reset_index(drop=True)
+
+    # Normalizuot BOM Type to match
+    df_out["Norm_Type"] = (
+        df_out["Type"].astype(str)
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
     )
 
-    # Sukuriam No. stulpelį (jei nėra – tuščias)
-    df_out["No."] = df_out["PartNo_A"].fillna("").astype(str)
+    # Map: Norm_Type -> PartNo_A
+    map_by_type = dict(zip(df_part["Norm_B"], df_part["PartNo_A"]))
 
-    # Pervadinam papildomus laukus
-    df_out = df_out.rename(columns={
-        "Desc_C": "Description",
-        "Manufacturer_D": "Supplier",
-        "SupplierNo_E": "Supplier No.",
-        "UnitPrice_F": "Unit Cost"
-    })
+    df_out["No."] = df_out["Norm_Type"].map(map_by_type).fillna("").astype(str)
 
-    # Išvalom pagalbinius
-    df_out = df_out.drop(columns=["Norm_Type", "Norm_B", "PartNo_A"])
+    # Pridėti papildomą informaciją (jei egzistuoja)
+    merge_cols = [c for c in ["PartNo_A", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F", "Norm_B"] if c in df_part.columns]
+    if merge_cols:
+        # merge pagal No. <-> PartNo_A (mes nekeičiame Type)
+        df_out = df_out.merge(
+            df_part[merge_cols],
+            left_on="No.", right_on="PartNo_A",
+            how="left"
+        )
 
-    st.success(f"✅ NAV numbers + descriptions assigned for {source}")
+        # Pervadinam papildomus lauku pavadinimus jei yra
+        rename_map = {}
+        if "Desc_C" in df_out.columns:
+            rename_map["Desc_C"] = "Description"
+        if "Manufacturer_D" in df_out.columns:
+            rename_map["Manufacturer_D"] = "Supplier"
+        if "SupplierNo_E" in df_out.columns:
+            rename_map["SupplierNo_E"] = "Supplier No."
+        if "UnitPrice_F" in df_out.columns:
+            rename_map["UnitPrice_F"] = "Unit Cost"
+
+        df_out = df_out.rename(columns=rename_map)
+
+        # Pašalinam pagalbinius stulpelius
+        dropcols = [c for c in ["Norm_Type", "Norm_B", "PartNo_A"] if c in df_out.columns]
+        df_out = df_out.drop(columns=dropcols, errors="ignore")
+    else:
+        # jei nėra merge stulpelių - tiesiog išvalom Norm_Type
+        df_out = df_out.drop(columns=["Norm_Type"], errors="ignore")
+
+    st.success(f"✅ NAV numbers assigned for {source} (found {df_out['No.'].astype(bool).sum()} of {len(df_out)})")
     return df_out
-
 
 def pipeline_3_4_check_stock(df_bom, ks_file):
     df_out = df_bom.copy()
