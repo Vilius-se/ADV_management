@@ -872,7 +872,6 @@ def render():
             inputs["grounding"],
             inputs["project_number"]
         )
-
         # ================================
         # --- Output ---
         # ================================
