@@ -32,31 +32,10 @@ def load_files_from_github():
     st.info("📥 Loading files from GitHub repository...")
     dfs = {}
     try:
-        # ---- CUBIC BOM ----
-        df_cubic = load_excel_from_url(GITHUB_FILES["cubic_bom"])
-        if df_cubic is not None and not df_cubic.empty:
-            # Quantity iš sujungtų stulpelių (E/F/G) – kaip upload'e
-            if any(col in df_cubic.columns for col in ["E","F","G"]):
-                df_cubic["Quantity"] = df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
-            elif "Quantity" not in df_cubic.columns:
-                df_cubic["Quantity"] = 0
-            df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
+        # --- CUBIC BOM ---
+        dfs["cubic_bom"] = load_excel_from_url(GITHUB_FILES["cubic_bom"])
 
-            # Sukuriam Type
-            if "Item Id" in df_cubic.columns:
-                df_cubic["Type"] = df_cubic["Item Id"].astype(str).str.strip()
-                df_cubic["Original Type"] = df_cubic["Type"]
-            elif "Type" not in df_cubic.columns:
-                df_cubic["Type"] = ""
-                df_cubic["Original Type"] = ""
-
-            # Sukuriam No.
-            if "No." not in df_cubic.columns:
-                df_cubic["No."] = df_cubic["Type"]
-
-        dfs["cubic_bom"] = df_cubic
-
-        # ---- BOM ----
+        # --- BOM ---
         df_bom = load_excel_from_url(GITHUB_FILES["bom"])
         if df_bom.shape[1] >= 2:
             colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
@@ -72,12 +51,21 @@ def load_files_from_github():
 
         dfs["bom"] = df_bom
 
-        # ---- DATA ----
+        # --- DATA ---
         dfs["data"] = pd.read_excel(
             io.BytesIO(requests.get(GITHUB_FILES["data"]).content),
             engine="openpyxl",
             sheet_name=None
         )
+
+        # --- Kaunas stock ---
+        dfs["ks"] = load_excel_from_url(GITHUB_FILES["ks"])
+
+        st.success("✅ Files loaded from GitHub")
+    except Exception as e:
+        st.error(f"❌ Cannot read GitHub files: {e}")
+    return dfs
+
 
         # ---- Kaunas stock ----
         dfs["ks"] = load_excel_from_url(GITHUB_FILES["ks"])
