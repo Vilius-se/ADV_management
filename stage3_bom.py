@@ -35,21 +35,22 @@ def load_files_from_github():
         # --- CUBIC BOM ---
         dfs["cubic_bom"] = load_excel_from_url(GITHUB_FILES["cubic_bom"])
 
-        # --- BOM ---
-        df_bom = load_excel_from_url(GITHUB_FILES["bom"])
-        if df_bom.shape[1] >= 2:
-            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-            df_bom["Original Article"] = colA
-            df_bom["Original Type"]    = colB.where(colB != "", colA)
-        else:
-            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            df_bom["Original Type"]    = df_bom["Original Article"]
-
-        if "Type" not in df_bom.columns:
-            df_bom["Type"] = df_bom["Original Type"]
-
-        dfs["bom"] = df_bom
+       # --- BOM ---
+    df_bom = load_excel_from_url(GITHUB_FILES["bom"])
+    if df_bom.shape[1] >= 2:
+        colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+        colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+        df_bom["Original Article"] = colA
+        df_bom["Original Type"]    = colB.where(colB != "", colA)
+    else:
+        df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+        df_bom["Original Type"]    = df_bom["Original Article"]
+    
+    # --- ČIA papildomai ---
+    if "Type" not in df_bom.columns:
+        df_bom["Type"] = df_bom["Original Type"]
+    
+    dfs["bom"] = df_bom
 
         # --- DATA ---
         dfs["data"] = pd.read_excel(
