@@ -40,6 +40,24 @@ def load_files_from_github():
             sheet_name=None
         )
         dfs["ks"]        = load_excel_from_url(GITHUB_FILES["ks"])
+
+        # --- NORMALIZUOJAM BOM kaip upload'e ---
+        df_bom = dfs["bom"]
+        if df_bom.shape[1] >= 2:
+            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+            df_bom["Original Article"] = colA
+            df_bom["Original Type"]    = colB.where(colB != "", colA)
+        else:
+            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]    = df_bom["Original Article"]
+
+        # Sukuriam 'Type' pagal Original Type
+        if "Type" not in df_bom.columns:
+            df_bom["Type"] = df_bom["Original Type"]
+
+        dfs["bom"] = df_bom
+
         st.success("✅ Files loaded from GitHub")
     except Exception as e:
         st.error(f"❌ Cannot read GitHub files: {e}")
