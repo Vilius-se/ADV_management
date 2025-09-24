@@ -15,49 +15,75 @@ GITHUB_FILES = {
     "ks":        "https://raw.githubusercontent.com/Vilius-se/ADV_management/main/kaunas_stock.xlsm"
 }
 
-def load_excel_from_url(url: str):
-    # Atsisiunčiam failą kaip baitus
+import requests
+import io
+
+# ---- Universalus Excel reader iš GitHub URL ----
+def load_excel_from_url(url: str, sheet_name=0):
+    """
+    Atsisiunčia Excel failą iš GitHub RAW nuorodos ir nuskaito su pandas.
+    Automatiškai parenka engine pagal plėtinį.
+    """
     r = requests.get(url)
     r.raise_for_status()
     ext = url.lower().split(".")[-1]
-    
+
     if ext in ["xlsx", "xlsm"]:
-        return pd.read_excel(io.BytesIO(r.content), engine="openpyxl")
+        return pd.read_excel(io.BytesIO(r.content), engine="openpyxl", sheet_name=sheet_name)
     elif ext == "xls":
-        return pd.read_excel(io.BytesIO(r.content), engine="xlrd")
+        return pd.read_excel(io.BytesIO(r.content), engine="xlrd", sheet_name=sheet_name)
     else:
         raise ValueError(f"Unsupported file type: {ext}")
 
+# ---- Įkėlimo iš GitHub logika ----
 def load_files_from_github():
     st.info("📥 Loading files from GitHub repository...")
     dfs = {}
     try:
         # --- CUBIC BOM ---
-        dfs["cubic_bom"] = load_excel_from_url(GITHUB_FILES["cubic_bom"])
+        df_cubic = load_excel_from_url(GITHUB_FILES["cubic_bom"])
+        if df_cubic is not None and not df_cubic.empty:
+            # Quantity iš E/F/G stulpelių
+            if any(col in df_cubic.columns for col in ["E", "F", "G"]):
+                df_cubic["Quantity"] = df_cubic[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
+            elif "Quantity" not in df_cubic.columns:
+                df_cubic["Quantity"] = 0
+            df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
 
-       # --- BOM ---
-    df_bom = load_excel_from_url(GITHUB_FILES["bom"])
-    if df_bom.shape[1] >= 2:
-        colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-        colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-        df_bom["Original Article"] = colA
-        df_bom["Original Type"]    = colB.where(colB != "", colA)
-    else:
-        df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-        df_bom["Original Type"]    = df_bom["Original Article"]
-    
-    # --- ČIA papildomai ---
-    if "Type" not in df_bom.columns:
-        df_bom["Type"] = df_bom["Original Type"]
-    
-    dfs["bom"] = df_bom
+            # Type / Original Type
+            if "Item Id" in df_cubic.columns:
+                df_cubic["Type"] = df_cubic["Item Id"].astype(str).str.strip()
+                df_cubic["Original Type"] = df_cubic["Type"]
+            else:
+                if "Type" not in df_cubic.columns:
+                    df_cubic["Type"] = ""
+                if "Original Type" not in df_cubic.columns:
+                    df_cubic["Original Type"] = df_cubic["Type"]
 
-        # --- DATA ---
-        dfs["data"] = pd.read_excel(
-            io.BytesIO(requests.get(GITHUB_FILES["data"]).content),
-            engine="openpyxl",
-            sheet_name=None
-        )
+            # No.
+            if "No." not in df_cubic.columns:
+                df_cubic["No."] = df_cubic["Type"]
+
+        dfs["cubic_bom"] = df_cubic
+
+        # --- BOM ---
+        df_bom = load_excel_from_url(GITHUB_FILES["bom"])
+        if df_bom.shape[1] >= 2:
+            colA = df_bom.iloc[:, 0].fillna("").astype(str).str.strip()
+            colB = df_bom.iloc[:, 1].fillna("").astype(str).str.strip()
+            df_bom["Original Article"] = colA
+            df_bom["Original Type"] = colB.where(colB != "", colA)
+        else:
+            df_bom["Original Article"] = df_bom.iloc[:, 0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"] = df_bom["Original Article"]
+
+        if "Type" not in df_bom.columns:
+            df_bom["Type"] = df_bom["Original Type"]
+
+        dfs["bom"] = df_bom
+
+        # --- DATA (visi sheet'ai) ---
+        dfs["data"] = load_excel_from_url(GITHUB_FILES["data"], sheet_name=None)
 
         # --- Kaunas stock ---
         dfs["ks"] = load_excel_from_url(GITHUB_FILES["ks"])
