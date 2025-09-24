@@ -917,11 +917,17 @@ def render():
     if not inputs:
         return
 
-    # 2. File uploads
-    if USE_GITHUB_FILES:
+    # --- Pasirinkimas: GitHub arba įkėlimas ---
+    use_github = st.checkbox("📂 Naudoti GitHub failus", value=True)
+
+    # 2. File uploads arba GitHub
+    if use_github:
         files = load_files_from_github()
     else:
         files = pipeline_2_2_file_uploads(inputs["rittal"])
+
+    if not files:
+        return
 
     # Tikrinam ar visi failai yra
     required_keys = ["bom", "data", "ks"]
