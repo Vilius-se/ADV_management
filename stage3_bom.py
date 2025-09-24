@@ -3,6 +3,32 @@ import pandas as pd
 import io
 import re
 
+
+# ---- NUSTATYMAS: naudoti GitHub failus vietoje upload ----
+USE_GITHUB_FILES = True  # <-- čia laikinai užsidedi True, vėliau galėsi pakeisti į False
+
+# Nuorodos į GitHub RAW failus (pvz. master/main branch)
+GITHUB_FILES = {
+    "cubic_bom": "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/cubic.xlsx",
+    "bom":       "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/bom.xlsx",
+    "data":      "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/data.xlsx",
+    "ks":        "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/kaunas_stock.xlsx"
+}
+
+def load_files_from_github():
+    st.info("📥 Loading files from GitHub repository...")
+    dfs = {}
+    try:
+        dfs["cubic_bom"] = pd.read_excel(GITHUB_FILES["cubic_bom"])
+        dfs["bom"]       = pd.read_excel(GITHUB_FILES["bom"])
+        dfs["data"]      = pd.read_excel(GITHUB_FILES["data"], sheet_name=None)
+        dfs["ks"]        = pd.read_excel(GITHUB_FILES["ks"])
+        st.success("✅ Files loaded from GitHub")
+    except Exception as e:
+        st.error(f"❌ Cannot read GitHub files: {e}")
+    return dfs
+
+
 # =====================================================
 # Pipeline 1.x – Helpers
 # =====================================================
@@ -827,9 +853,10 @@ def render():
         return
 
     # 2. File uploads
-    files = pipeline_2_2_file_uploads(inputs["rittal"])
-    if not files:
-        return
+    if USE_GITHUB_FILES:
+        files = load_files_from_github()
+    else:
+        files = pipeline_2_2_file_uploads(inputs["rittal"])
 
     # Tikrinam ar visi failai yra
     required_keys = ["bom", "data", "ks"]
