@@ -9,10 +9,10 @@ USE_GITHUB_FILES = True  # <-- čia laikinai užsidedi True, vėliau galėsi pak
 
 # Nuorodos į GitHub RAW failus (pvz. master/main branch)
 GITHUB_FILES = {
-    "cubic_bom": "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/cubic.xlsx",
+    "cubic_bom": "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/cubic.xls",
     "bom":       "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/bom.xlsx",
     "data":      "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/data.xlsx",
-    "ks":        "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/kaunas_stock.xlsx"
+    "ks":        "https://raw.githubusercontent.com/TAVOUSER/TAVOREPO/main/kaunas_stock.xlsm"
 }
 
 def load_files_from_github():
