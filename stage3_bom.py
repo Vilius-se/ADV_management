@@ -9,10 +9,10 @@ USE_GITHUB_FILES = True  # <-- čia laikinai užsidedi True, vėliau galėsi pak
 
 # Nuorodos į GitHub RAW failus (pvz. master/main branch)
 GITHUB_FILES = {
-    "cubic_bom": "https://github.com/Vilius-se/ADV_management/blob/main/cubic.xls",
-    "bom":       "https://github.com/Vilius-se/ADV_management/blob/main/bom.XLSX",
-    "data":      "https://github.com/Vilius-se/ADV_management/blob/main/data.xlsx",
-    "ks":        "https://github.com/Vilius-se/ADV_management/blob/main/kaunas_stock.xlsm"
+    "cubic_bom": "https://raw.githubusercontent.com/Vilius-se/ADV_management/main/cubic.xls",
+    "bom":       "https://raw.githubusercontent.com/Vilius-se/ADV_management/main/bom.XLSX",
+    "data":      "https://raw.githubusercontent.com/Vilius-se/ADV_management/main/data.xlsx",
+    "ks":        "https://raw.githubusercontent.com/Vilius-se/ADV_management/main/kaunas_stock.xlsm"
 }
 
 def load_excel_from_url(url: str):
