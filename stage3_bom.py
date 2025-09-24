@@ -379,14 +379,72 @@ def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame
 
     st.success("✅ BOM columns renamed according to Part_code")
     return df_bom
+def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
+    """
+    Filtruojam Project BOM:
+    - pašalinam tik tas eilutes, kurias Stock sheet turi su Comment = 'no need'
+    - kiti komentarai (Q1, Wurth, ir t.t.) lieka
+    """
+    st.info(f"🚦 Filtering {source}: removing only 'no need' items...")
 
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
 
-def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> pd.DataFrame:
+    if df_stock is None or df_stock.empty:
+        st.warning(f"⚠️ Stock sheet missing or empty — skipping filtering for {source}")
+        return df_bom.copy()
+
+    # užtikrinam, kad turim bent 3 stulpelius (Component, ..., Comment)
+    cols = list(df_stock.columns)
+    if len(cols) < 3:
+        st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
+        return df_bom.copy()
+
+    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
+
+    # atrenkam tik tuos komponentus, kurių Comment = 'no need'
+    excluded_components = (
+        df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"]
+        .dropna()
+        .astype(str)
+    )
+
+    # normalizuojam raktus palyginimui
+    excluded_norm = (
+        excluded_components
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
+        .unique()
+    )
+
+    df_in = df_bom.copy()
+    df_in["Norm_Type"] = (
+        df_in["Type"]
+        .astype(str)
+        .str.upper()
+        .str.replace(" ", "")
+        .str.strip()
+    )
+
+    filtered = df_in[~df_in["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
+
+    st.success(
+        f"✅ {source} filtered: {len(df_bom)} → {len(filtered)} rows "
+        f"(removed {len(df_bom) - len(filtered)} 'no need' items)"
+    )
+
+    return filtered.drop(columns=["Norm_Type"])
+
+def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Filtruojam CUBIC BOM:
-    - Job Journal: išmetam visas eilutes, jei Comment != "" (no need, Q1, wurth ar kitas)
-    - NAV Table: išmetam tik 'no need'
+    - Job Journal: pašalinam visas eilutes, jei Comment != "" (no need, Q1, Wurth ar kitas)
+    - NAV Table: pašalinam tik 'no need', o Q1, Wurth ir kiti lieka
+    Grąžina tuple: (df_for_journal, df_for_nav)
     """
+    st.info(f"🚦 Filtering {source} (different rules for Job Journal & NAV Table)...")
+
     if df_bom is None or df_bom.empty:
         return pd.DataFrame(), pd.DataFrame()
 
@@ -394,7 +452,7 @@ def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, s
         st.warning(f"⚠️ Stock sheet missing or empty — skipping filtering for {source}")
         return df_bom.copy(), df_bom.copy()
 
-    # paruošiam Stock sheet
+    # užtikrinam bent 3 stulpelius (Component, ..., Comment)
     cols = list(df_stock.columns)
     if len(cols) < 3:
         st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
@@ -402,8 +460,9 @@ def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, s
 
     df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
 
-    # sukuriam raktą palyginimui
+    # visi su bet kokiu Comment (Job Journal neturi jų turėti)
     excluded_all = df_stock[df_stock["Comment"].astype(str).str.strip() != ""]
+    # tik 'no need' (NAV Table neturi jų turėti)
     excluded_no_need = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]
 
     excluded_all_norm = (
@@ -416,10 +475,9 @@ def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, s
     df_in = df_bom.copy()
     df_in["Norm_Type"] = df_in["Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
 
-    # Job Journal: pašalinam visas eilutes su bet kokiu Comment
+    # Job Journal: išmetam visas su Comment
     df_for_journal = df_in[~df_in["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
-
-    # NAV Table: pašalinam tik "no need"
+    # NAV Table: išmetam tik 'no need'
     df_for_nav = df_in[~df_in["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
 
     st.success(
@@ -428,6 +486,7 @@ def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, s
     )
 
     return df_for_journal.drop(columns=["Norm_Type"]), df_for_nav.drop(columns=["Norm_Type"])
+
 
 
 
