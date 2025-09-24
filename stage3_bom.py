@@ -381,7 +381,7 @@ def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame
     return df_bom
 
 
-def def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> pd.DataFrame:
+def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> pd.DataFrame:
     """
     Filtruojam CUBIC BOM:
     - Job Journal: išmetam visas eilutes, jei Comment != "" (no need, Q1, wurth ar kitas)
