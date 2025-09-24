@@ -67,15 +67,6 @@ def load_files_from_github():
     return dfs
 
 
-        # ---- Kaunas stock ----
-        dfs["ks"] = load_excel_from_url(GITHUB_FILES["ks"])
-
-        st.success("✅ Files loaded from GitHub")
-    except Exception as e:
-        st.error(f"❌ Cannot read GitHub files: {e}")
-    return dfs
-
-
 # =====================================================
 # Pipeline 1.x – Helpers
 # =====================================================
