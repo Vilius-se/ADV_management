@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import re
-
+import requests
 
 # ---- NUSTATYMAS: naudoti GitHub failus vietoje upload ----
 USE_GITHUB_FILES = True  # <-- čia laikinai užsidedi True, vėliau galėsi pakeisti į False
@@ -15,14 +15,31 @@ GITHUB_FILES = {
     "ks":        "https://github.com/Vilius-se/ADV_management/blob/main/kaunas_stock.xlsm"
 }
 
+def load_excel_from_url(url: str):
+    # Atsisiunčiam failą kaip baitus
+    r = requests.get(url)
+    r.raise_for_status()
+    ext = url.lower().split(".")[-1]
+    
+    if ext in ["xlsx", "xlsm"]:
+        return pd.read_excel(io.BytesIO(r.content), engine="openpyxl")
+    elif ext == "xls":
+        return pd.read_excel(io.BytesIO(r.content), engine="xlrd")
+    else:
+        raise ValueError(f"Unsupported file type: {ext}")
+
 def load_files_from_github():
     st.info("📥 Loading files from GitHub repository...")
     dfs = {}
     try:
-        dfs["cubic_bom"] = pd.read_excel(GITHUB_FILES["cubic_bom"])
-        dfs["bom"]       = pd.read_excel(GITHUB_FILES["bom"])
-        dfs["data"]      = pd.read_excel(GITHUB_FILES["data"], sheet_name=None)
-        dfs["ks"]        = pd.read_excel(GITHUB_FILES["ks"])
+        dfs["cubic_bom"] = load_excel_from_url(GITHUB_FILES["cubic_bom"])
+        dfs["bom"]       = load_excel_from_url(GITHUB_FILES["bom"])
+        dfs["data"]      = pd.read_excel(
+            io.BytesIO(requests.get(GITHUB_FILES["data"]).content),
+            engine="openpyxl",
+            sheet_name=None
+        )
+        dfs["ks"]        = load_excel_from_url(GITHUB_FILES["ks"])
         st.success("✅ Files loaded from GitHub")
     except Exception as e:
         st.error(f"❌ Cannot read GitHub files: {e}")
