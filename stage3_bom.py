@@ -1027,17 +1027,15 @@ def render():
             df_bom.copy(),
             get_sheet_safe(files["data"], ["Accessories"])
         )
+        
+        # čia privalo atsirasti 'No.' stulpelis
         df_bom_for_nav = pipeline_3_3_add_nav_numbers(df_bom_for_nav, df_part_no, source="Project BOM")
+        
+        # debug: parodyk kokius stulpelius turi
+        st.write("DEBUG Project BOM stulpeliai:", list(df_bom_for_nav.columns))
         
         # --- NAV Table ---
         nav_table_bom = pipeline_4_2_nav_table(df_bom_for_nav, df_part_no)
-        
-        # --- Job Journal ---
-        df_bom_for_journal = pipeline_3_4_check_stock(df_bom.copy(), files["ks"])
-        job_journal_bom = pipeline_4_1_job_journal(
-            df_bom_for_journal, inputs["project_number"], source="Project BOM"
-        )
-
         # =====================================================
         # CUBIC BOM processing
         # =====================================================
