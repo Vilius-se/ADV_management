@@ -1015,13 +1015,13 @@ def render():
         # =====================================================
         st.subheader("📦 Processing Project BOM")
         df_bom = pipeline_3_1_filtering(files["bom"], df_stock)
-
+        
         # Išsaugom originalius BOM pavadinimus
         if "Original Type" not in df_bom.columns and df_bom.shape[1] >= 2:
             df_bom["Original Type"] = df_bom.iloc[:, 1]
         if "Original Article" not in df_bom.columns and df_bom.shape[1] >= 1:
             df_bom["Original Article"] = df_bom.iloc[:, 0]
-
+        
         # jei yra Part_code → pakeičiam pavadinimus
         if df_part_code is not None and not df_part_code.empty:
             rename_map = dict(zip(
@@ -1029,15 +1029,20 @@ def render():
                 df_part_code.iloc[:,1].astype(str).str.strip()
             ))
             df_bom["Type"] = df_bom["Type"].astype(str).map(lambda x: rename_map.get(x, x))
-
-        # NAV numeriai
-        df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
-
-        # NAV Table (kopija be stock)
-        df_bom_for_nav = df_bom.copy()
+        
+        # --- Accessories ---
+        df_bom_for_nav = pipeline_3_2_add_accessories(
+            df_bom.copy(),
+            get_sheet_safe(files["data"], ["Accessories"])
+        )
+        
+        # --- NAV numeriai ---
+        df_bom_for_nav = pipeline_3_3_add_nav_numbers(df_bom_for_nav, df_part_no, source="Project BOM")
+        
+        # --- NAV Table (užsakymo sąrašas su accessories) ---
         nav_table_bom = pipeline_4_2_nav_table(df_bom_for_nav, df_part_no)
-
-        # Job Journal (kopija su stock)
+        
+        # --- Job Journal (atskiroje logikoje su stock) ---
         df_bom_for_journal = pipeline_3_4_check_stock(df_bom.copy(), files["ks"])
         job_journal_bom = pipeline_4_1_job_journal(df_bom_for_journal, inputs["project_number"], source="Project BOM")
 
