@@ -589,27 +589,24 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
         .str.strip()
     )
 
-    # Normalizuojam PartNo_A — paverčiam į sveiką be .0 (jei įmanoma), paliekam string jei ne
+    # Normalizuojam PartNo_A
     def norm_partno(x):
         try:
-            # jei numeris kaip float (pvz. 2169732.0), paverčiam į int
-            s = str(x).strip()
-            # bortinam tarpus ir keičiam kablelius
-            s2 = s.replace(",", ".")
-            if s2 == "":
+            s = str(x).strip().replace(",", ".")
+            if s == "":
                 return ""
-            f = float(s2)
-            i = int(round(f))
-            return str(i)
+            return str(int(float(s)))
         except Exception:
             return str(x).strip()
 
     df_part["PartNo_A"] = df_part["PartNo_A"].map(norm_partno).fillna("").astype(str)
 
-    # Drop duplicates by Norm_B (keep first)
-    df_part = df_part.drop_duplicates(subset=["Norm_B"], keep="first").reset_index(drop=True)
+    # --- pašalinam dublikatus ---
+    df_part = df_part.drop_duplicates(subset=["Norm_B"], keep="first")
+    df_part = df_part.drop_duplicates(subset=["PartNo_A"], keep="first")
+    df_part = df_part.reset_index(drop=True)
 
-    # Normalizuot BOM Type to match
+    # Normalizuojam BOM Type
     df_out["Norm_Type"] = (
         df_out["Type"].astype(str)
         .str.upper()
@@ -619,20 +616,17 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
 
     # Map: Norm_Type -> PartNo_A
     map_by_type = dict(zip(df_part["Norm_B"], df_part["PartNo_A"]))
-
     df_out["No."] = df_out["Norm_Type"].map(map_by_type).fillna("").astype(str)
 
-    # Pridėti papildomą informaciją (jei egzistuoja)
+    # Pridėti papildomą informaciją
     merge_cols = [c for c in ["PartNo_A", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F", "Norm_B"] if c in df_part.columns]
     if merge_cols:
-        # merge pagal No. <-> PartNo_A (mes nekeičiame Type)
         df_out = df_out.merge(
             df_part[merge_cols],
             left_on="No.", right_on="PartNo_A",
             how="left"
         )
 
-        # Pervadinam papildomus lauku pavadinimus jei yra
         rename_map = {}
         if "Desc_C" in df_out.columns:
             rename_map["Desc_C"] = "Description"
@@ -645,11 +639,9 @@ def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFr
 
         df_out = df_out.rename(columns=rename_map)
 
-        # Pašalinam pagalbinius stulpelius
-        dropcols = [c for c in ["Norm_Type", "Norm_B", "PartNo_A"] if c in df_out.columns]
-        df_out = df_out.drop(columns=dropcols, errors="ignore")
+        # Pašalinam pagalbinius
+        df_out = df_out.drop(columns=[c for c in ["Norm_Type", "Norm_B", "PartNo_A"] if c in df_out.columns], errors="ignore")
     else:
-        # jei nėra merge stulpelių - tiesiog išvalom Norm_Type
         df_out = df_out.drop(columns=["Norm_Type"], errors="ignore")
 
     st.success(f"✅ NAV numbers assigned for {source} (found {df_out['No.'].astype(bool).sum()} of {len(df_out)})")
