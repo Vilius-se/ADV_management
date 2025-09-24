@@ -381,61 +381,53 @@ def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame
     return df_bom
 
 
-def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
+def def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> pd.DataFrame:
     """
-    Pašalina tik tuos komponentus, kurių Stock lape Comment == 'no need' (case-insensitive).
-    Visi kiti komentarai ignoruojami (leidžiami).
+    Filtruojam CUBIC BOM:
+    - Job Journal: išmetam visas eilutes, jei Comment != "" (no need, Q1, wurth ar kitas)
+    - NAV Table: išmetam tik 'no need'
     """
-    st.info(f"🚦 Filtering {source}: removing only 'no need' items...")
-
     if df_bom is None or df_bom.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
     if df_stock is None or df_stock.empty:
-        st.warning(f"⚠️ Stock sheet missing or empty — skipping 'no need' filtering for {source}")
-        return df_bom.copy()
+        st.warning(f"⚠️ Stock sheet missing or empty — skipping filtering for {source}")
+        return df_bom.copy(), df_bom.copy()
 
-    # užtikrinam, kad turim bent 3 stulpelius (Component, ..., Comment)
+    # paruošiam Stock sheet
     cols = list(df_stock.columns)
     if len(cols) < 3:
         st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
-        return df_bom.copy()
+        return df_bom.copy(), df_bom.copy()
 
     df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
 
-    # atrenkam tik tuos komponentus, kurių Comment = 'no need'
-    excluded_components = (
-        df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"]
-        .dropna()
-        .astype(str)
-    )
+    # sukuriam raktą palyginimui
+    excluded_all = df_stock[df_stock["Comment"].astype(str).str.strip() != ""]
+    excluded_no_need = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]
 
-    # normalizuojam raktus palyginimui
-    excluded_norm = (
-        excluded_components
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-        .unique()
+    excluded_all_norm = (
+        excluded_all["Component"].dropna().astype(str).str.upper().str.replace(" ", "").str.strip().unique()
+    )
+    excluded_no_need_norm = (
+        excluded_no_need["Component"].dropna().astype(str).str.upper().str.replace(" ", "").str.strip().unique()
     )
 
     df_in = df_bom.copy()
-    df_in["Norm_Type"] = (
-        df_in["Type"]
-        .astype(str)
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-    )
+    df_in["Norm_Type"] = df_in["Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
 
-    filtered = df_in[~df_in["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
+    # Job Journal: pašalinam visas eilutes su bet kokiu Comment
+    df_for_journal = df_in[~df_in["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
+
+    # NAV Table: pašalinam tik "no need"
+    df_for_nav = df_in[~df_in["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
 
     st.success(
-        f"✅ {source} filtered: {len(df_bom)} → {len(filtered)} rows "
-        f"(removed {len(df_bom) - len(filtered)} 'no need' items)"
+        f"✅ {source} filtered: {len(df_bom)} → {len(df_for_journal)} rows for Job Journal, "
+        f"{len(df_for_nav)} rows for NAV Table"
     )
 
-    return filtered.drop(columns=["Norm_Type"])
+    return df_for_journal.drop(columns=["Norm_Type"]), df_for_nav.drop(columns=["Norm_Type"])
 
 
 
@@ -998,18 +990,22 @@ def render():
         job_journal_cubic = pd.DataFrame()
 
         if not df_cubic.empty:
-            df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
-            df_cubic = pipeline_3_1_filtering(df_cubic, df_stock)
-            df_cubic = pipeline_3_3_add_nav_numbers(df_cubic, df_part_no, source="CUBIC BOM")
-
-            # NAV Table (CUBIC BOM) – be stock
-            nav_table_cubic = pipeline_4_2_nav_table(df_cubic, df_part_no)
-
-            # Tikrinam stock (reikia Job Journal)
-            df_cubic = pipeline_3_4_check_stock(df_cubic, files["ks"])
-
-            # Job Journal (CUBIC BOM)
-            job_journal_cubic = pipeline_4_1_job_journal(df_cubic, inputs["project_number"], source="CUBIC BOM")
+        df_cubic = pipeline_3_5_prepare_cubic(df_cubic)
+    
+        # NAUJAS filtravimas
+        df_cubic_for_journal, df_cubic_for_nav = pipeline_3_1_filtering_cubic(df_cubic, df_stock, source="CUBIC BOM")
+    
+        # NAV Table (CUBIC BOM) – be stock
+        nav_table_cubic = pipeline_3_2_add_accessories(df_cubic_for_nav, None)  # jei reikia accessories
+        nav_table_cubic = pipeline_3_3_add_nav_numbers(df_cubic_for_nav, df_part_no, source="CUBIC BOM")
+        nav_table_cubic = pipeline_4_2_nav_table(nav_table_cubic, df_part_no)
+    
+        # Tikrinam stock (Job Journal)
+        df_cubic_for_journal = pipeline_3_3_add_nav_numbers(df_cubic_for_journal, df_part_no, source="CUBIC BOM")
+        df_cubic_for_journal = pipeline_3_4_check_stock(df_cubic_for_journal, files["ks"])
+    
+        # Job Journal (CUBIC BOM)
+        job_journal_cubic = pipeline_4_1_job_journal(df_cubic_for_journal, inputs["project_number"], source="CUBIC BOM")
 
         # =====================================================
         # Calculation (bendram projektui)
