@@ -13,10 +13,11 @@ def add_extra_components(df, extras):
             "Type": e["type"],
             "Quantity": e.get("qty", 1),
             "Source": "Extra",
-            "No.": e.get("force_no", e["type"])  # force_no jei yra
+            "No.": e.get("force_no", e["type"])  # <- čia kritinis
         }])
         df_out = pd.concat([df_out, extra_row], ignore_index=True)
     return df_out
+
 
 def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame, label: str = "Project BOM") -> pd.DataFrame:
     req = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
