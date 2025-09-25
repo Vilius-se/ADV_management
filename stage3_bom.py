@@ -453,6 +453,7 @@ def render():
             except:
                 qty_sdd = 0
             if qty_sdd > 0:
+                st.info(f"🔹 According to Instructions: need {qty_sdd} × SDD07550")
                 extras.append({
                     "type": "SDD07550",
                     "qty": qty_sdd,
