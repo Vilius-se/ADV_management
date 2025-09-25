@@ -82,20 +82,24 @@ def pipeline_1_2_parse_qty(x):
         return float(s)
     except: 
         return 0.0
+
 def pipeline_1_3_safe_filename(s):
     s = '' if s is None else str(s).strip()
     s = re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
+
 def pipeline_1_4_normalize_no(x):
     try: 
         return str(int(float(str(x).replace(",","." ).strip())))
     except: 
         return str(x).strip()
+
 def read_excel_any(file,**kwargs):
     try: 
         return pd.read_excel(file,engine="openpyxl",**kwargs)
     except: 
         return pd.read_excel(file,engine="xlrd",**kwargs)
+
 def allocate_from_stock(no,qty_needed,stock_rows):
     allocations=[]
     qty_needed=int(round(pd.to_numeric(pd.Series([qty_needed]),errors="coerce").fillna(0).iloc[0]))
@@ -114,7 +118,7 @@ def allocate_from_stock(no,qty_needed,stock_rows):
     if remaining>0:
         allocations.append({"No.":no,"Bin Code":"","Allocated Qty":remaining})
     return allocations
-# --- Backward-compat alias ---
+
 normalize_no = pipeline_1_4_normalize_no
 
 
@@ -157,7 +161,6 @@ def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("Upload Required Files")
     dfs = {}
 
-    # --- CUBIC BOM ---
     if not rittal:
         cubic_bom = st.file_uploader("Insert CUBIC BOM", type=["xls","xlsx","xlsm"], key="cubic_bom")
         if cubic_bom:
@@ -173,7 +176,6 @@ def pipeline_2_2_file_uploads(rittal=False):
             df_cubic["No."] = df_cubic["Type"]
             dfs["cubic_bom"] = df_cubic
 
-    # --- Project BOM ---
     bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
     if bom:
         df_bom = read_excel_any(bom)
@@ -187,12 +189,10 @@ def pipeline_2_2_file_uploads(rittal=False):
             df_bom["Original Type"] = df_bom["Original Article"]
         dfs["bom"] = df_bom
 
-    # --- DATA ---
     data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
     if data_file:
         dfs["data"] = pd.read_excel(data_file, sheet_name=None)
 
-    # --- Kaunas Stock ---
     ks_file = st.file_uploader("Insert Kaunas Stock", type=["xls","xlsx","xlsm"], key="ks")
     if ks_file:
         dfs["ks"] = read_excel_any(ks_file)
@@ -221,7 +221,6 @@ def pipeline_2_4_normalize_part_no(df_raw):
     if df.shape[1] >= 5: col_map[df.columns[4]] = "SupplierNo_E"
     if df.shape[1] >= 6: col_map[df.columns[5]] = "UnitPrice_F"
     return df.rename(columns=col_map)
-
 
 # =====================================================
 # 3A – Project BOM
@@ -561,14 +560,17 @@ def pipeline_4_2_missing_nav(df, source):
         "Quantity": qty,
         "NAV No.": missing["No."]
     })
+
+    
+def render():
     st.header("Stage 3: BOM Management")
 
-    # --- Inputs ---
+    # Inputs
     inputs = pipeline_2_1_user_inputs()
     if not inputs:
         return
 
-    # --- File uploads ---
+    # File uploads
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files:
         return
