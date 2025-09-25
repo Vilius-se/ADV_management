@@ -703,16 +703,33 @@ def render(debug_flag=False):
     
             mech_inputs = []
             with st.form("mech_form", clear_on_submit=False):
-                st.write("Įvesk kiekius mechanikai:")
+                st.markdown(
+                    """
+                    <style>
+                    table {width: 100%; border-collapse: collapse;}
+                    th, td {border: 1px solid gray; padding: 4px; text-align: left;}
+                    th {background-color: #333; color: white;}
+                    </style>
+                    <table>
+                    <tr>
+                        <th>No.</th>
+                        <th>Original Type</th>
+                        <th>Description</th>
+                        <th>Avail</th>
+                        <th>Qty to Mech</th>
+                    </tr>
+                    """,
+                    unsafe_allow_html=True
+                )
             
                 mech_inputs = []
                 for idx, row in editable.iterrows():
-                    cols = st.columns([2, 2, 5, 1, 1])  # siauresnė lentelė
-                    cols[0].markdown(f"{row.get('No.', '')}")
-                    cols[1].markdown(f"{row.get('Original Type', '')}")
-                    cols[2].markdown(f"{row.get('Description', '')}")
-                    cols[3].markdown(f"{int(row['Available Qty'])}")  # rodome tekstu, be žalio badge
-                    take = cols[4].number_input(
+                    c1, c2, c3, c4, c5 = st.columns([2, 2, 5, 1, 2])
+                    c1.write(str(row.get("No.", "")))
+                    c2.write(str(row.get("Original Type", "")))
+                    c3.write(str(row.get("Description", "")))
+                    c4.write(int(row["Available Qty"]))
+                    take = c5.number_input(
                         label="",
                         min_value=0,
                         max_value=int(row["Available Qty"]),
@@ -721,7 +738,7 @@ def render(debug_flag=False):
                         key=f"take_{idx}",
                     )
                     mech_inputs.append((idx, take))
-            
+
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
                 
             if confirm:
