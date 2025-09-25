@@ -455,20 +455,22 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
 # 3B – CUBIC BOM
 # =====================================================
 
-def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False):
-    if df_cubic is None or df_cubic.empty: 
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
+    if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
 
-    df = df_cubic.copy().rename(columns=lambda c:str(c).strip())
+    df = df_cubic.copy().rename(columns=lambda c: str(c).strip())
 
-    if any(col in df.columns for col in ["E","F","G"]):
-        df["Quantity"] = df[["E","F","G"]].bfill(axis=1).iloc[:,0]
+    # Quantity sutvarkymas
+    if any(col in df.columns for col in ["E", "F", "G"]):
+        df["Quantity"] = df[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
         df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
     elif "Quantity" in df.columns:
         df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
-    else: 
+    else:
         df["Quantity"] = 0
 
+    # Type ir Original Type
     if "Item Id" in df.columns:
         df["Type"] = df["Item Id"].astype(str).str.strip()
         df["Original Type"] = df["Type"]
@@ -476,21 +478,27 @@ def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False
         df["Type"] = ""
         df["Original Type"] = ""
 
-    if "No." not in df.columns: 
+    if "No." not in df.columns:
         df["No."] = df["Type"]
 
+    # --- tikras pervadinimas pagal Part_code ---
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(
             df_part_code.iloc[:,0].astype(str).str.strip(),
             df_part_code.iloc[:,1].astype(str).str.strip()
         ))
-        df = df.rename(columns=rename_map)
 
+        if "Type" in df.columns:
+            df["Type"] = df["Type"].astype(str).str.strip().replace(rename_map)
+        if "Original Type" in df.columns:
+            df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
+
+    # Extras
     if extras:
         df = add_extra_components(df, [e for e in extras if e["target"]=="cubic"])
 
-    if debug: st.write("🔧 After 3B_0_prepare_cubic + extras:", df.head(10))
     return df
+
 
 
 def pipeline_3B_1_filtering(df_cubic,df_stock):
