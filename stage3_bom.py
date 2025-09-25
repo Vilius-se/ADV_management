@@ -667,15 +667,15 @@ def render(debug_flag=False):
             df_j = pipeline_3B_4_stock(df_j, files["ks"])
             job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-        # --- Stage control ---
+# --- Stage control ---
         if "mech_confirmed" not in st.session_state:
             st.session_state["mech_confirmed"] = False
 
-            if not st.session_state["mech_confirmed"]:
+        if not st.session_state["mech_confirmed"]:
             # --- Etapas 1: rodom tik CUBIC Job Journal ir allocation ---
             if not job_B.empty:
                 st.subheader("📑 Job Journal (CUBIC BOM)")
-        
+
                 with st.form("mech_form", clear_on_submit=False):
                     editable = job_B.copy()
                     editable["Take Qty"] = 0
@@ -686,7 +686,7 @@ def render(debug_flag=False):
                         key="mech_editor"
                     )
                     confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
-        
+
                 if confirm:
                     mech_rows = []
                     for _, r in edited.iterrows():
@@ -707,7 +707,7 @@ def render(debug_flag=False):
                     st.session_state["df_mech"] = pd.DataFrame(mech_rows)
                     st.session_state["mech_confirmed"] = True
                     st.experimental_rerun()
-        
+
             st.stop()  # sustabdo app'ą šiame etape
 
         else:
@@ -739,6 +739,5 @@ def render(debug_flag=False):
             if not miss_nav_A.empty or not miss_nav_B.empty:
                 st.subheader("⚠️ Missing NAV Numbers")
                 if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
-                if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
-
+                if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True
 
