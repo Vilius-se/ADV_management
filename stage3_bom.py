@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import re
 import io
+import datetime
+from openpyxl import Workbook
 
 def add_extra_components(df, extras):
     if df is None: 
@@ -656,3 +658,59 @@ def render():
         if not miss_nav_A.empty: st.dataframe(miss_nav_A, use_container_width=True)
         if not miss_nav_B.empty: st.dataframe(miss_nav_B, use_container_width=True)
 
+# =====================================================
+# Export to Excel
+# =====================================================
+if st.button("💾 Export Results to Excel"):
+    ts = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    pallet_size = ""
+    if "df_calc" in locals():
+        try:
+            pallet_size = str(calc[calc["Label"]=="Pallet size"]["Value"].iloc[0])
+        except:
+            pallet_size = ""
+
+    filename = f"{inputs['project_number']}_{inputs['panel_type']}_{inputs['grounding']}_{pallet_size}_{ts}.xlsx"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Info"
+    ws.append(["Project number", inputs["project_number"]])
+    ws.append(["Panel type", inputs["panel_type"]])
+    ws.append(["Grounding", inputs["grounding"]])
+    ws.append(["Main switch", inputs["main_switch"]])
+    ws.append(["Swing frame", inputs["swing_frame"]])
+    ws.append(["UPS", inputs["ups"]])
+    ws.append(["Rittal", inputs["rittal"]])
+
+    def add_df_to_wb(df, title):
+        if df is None or df.empty: 
+            return
+        ws = wb.create_sheet(title)
+        ws.append(df.columns.tolist())
+        for _, row in df.iterrows():
+            ws.append(row.tolist())
+
+    add_df_to_wb(job_A, "JobJournal_ProjectBOM")
+    add_df_to_wb(nav_A, "NAV_ProjectBOM")
+    add_df_to_wb(job_B, "JobJournal_CUBICBOM")
+    add_df_to_wb(nav_B, "NAV_CUBICBOM")
+    if "df_mech" in st.session_state: add_df_to_wb(st.session_state["df_mech"], "Mech")
+    if "df_remain" in st.session_state: add_df_to_wb(st.session_state["df_remain"], "Remaining")
+    add_df_to_wb(calc, "Calculation")
+
+    # Missing NAV tables
+    add_df_to_wb(miss_nav_A, "MissingNAV_ProjectBOM")
+    add_df_to_wb(miss_nav_B, "MissingNAV_CUBICBOM")
+
+    # Save and download
+    save_path = f"/tmp/{filename}"
+    wb.save(save_path)
+
+    with open(save_path, "rb") as f:
+        st.download_button(
+            label="⬇️ Download Excel",
+            data=f,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
