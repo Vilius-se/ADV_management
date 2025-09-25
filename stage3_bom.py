@@ -35,18 +35,13 @@ def add_extra_components(df, extras):
     return df_out
 
 def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
-                             label: str = "Project BOM", debug: bool = False) -> pd.DataFrame:
-    _dbg(debug, f"{label} → NAV: input df_bom", df_bom)
-
+                             label: str = "Project BOM") -> pd.DataFrame:
     req = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
     if df_part_no is None or df_part_no.empty or any(c not in df_part_no.columns for c in req):
-        _dbg(debug, f"{label} → NAV: Part_no trūksta reikiamų stulpelių {req}")
         return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
     supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
     manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
-    _dbg(debug, f"{label} → NAV: supplier_map (sample)", supplier_map)
-    _dbg(debug, f"{label} → NAV: manuf_map (sample)", manuf_map)
 
     tmp = df_bom.copy()
     if "Quantity" not in tmp.columns: tmp["Quantity"] = 0
@@ -54,29 +49,15 @@ def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
     if "No." not in tmp.columns: tmp["No."] = ""
     tmp["No."] = tmp["No."].astype(str)
     tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
-    _dbg(debug, f"{label} → NAV: normalized tmp", tmp)
 
     nav_rows = []
-    m_total = len(tmp)
-    m_profit10 = 0
-    m_supplier_default = 0
-    m_missing_no = 0
-
     for _, r in tmp.iterrows():
         part_no = str(r["No."]).strip()
         qty = float(r.get("Quantity", 0) or 0)
         manuf = manuf_map.get(part_no, "")
 
-        if part_no == "" or part_no.lower() == "nan":
-            m_missing_no += 1
-
         profit = 10 if "DANFOSS" in str(manuf).upper() else 17
-        if profit == 10:
-            m_profit10 += 1
-
         supplier = supplier_map.get(part_no, 30093)
-        if part_no not in supplier_map:
-            m_supplier_default += 1
 
         nav_rows.append({
             "Type": "Item",
@@ -88,21 +69,11 @@ def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
             "Description": r.get("Description", "")
         })
 
-    _dbg(debug, f"{label} → NAV: metrics", {
-        "rows_total": m_total,
-        "profit10_cnt": m_profit10,
-        "supplier_default_cnt": m_supplier_default,
-        "missing_No_cnt": m_missing_no
-    })
-
     nav_table = pd.DataFrame(
         nav_rows,
         columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"]
     )
-    _dbg(debug, f"{label} → NAV: final table", nav_table)
     return nav_table
-
-
 
 
 def pipeline_1_1_norm_name(x):
