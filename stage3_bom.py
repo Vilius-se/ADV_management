@@ -707,13 +707,13 @@ def render(debug_flag=False):
             
                 mech_inputs = []
                 for idx, row in editable.iterrows():
-                    cols = st.columns([2, 2, 4, 1, 1])  # kompaktiškiau
-                    cols[0].write(str(row.get("No.", "")))
-                    cols[1].write(str(row.get("Original Type", "")))
-                    cols[2].write(str(row.get("Description", "")))
-                    cols[3].write(int(row["Available Qty"]))  # paprastas skaičius
+                    cols = st.columns([2, 2, 5, 1, 1])  # siauresnė lentelė
+                    cols[0].markdown(f"{row.get('No.', '')}")
+                    cols[1].markdown(f"{row.get('Original Type', '')}")
+                    cols[2].markdown(f"{row.get('Description', '')}")
+                    cols[3].markdown(f"{int(row['Available Qty'])}")  # rodome tekstu, be žalio badge
                     take = cols[4].number_input(
-                        label="",   # jokių labelių
+                        label="",
                         min_value=0,
                         max_value=int(row["Available Qty"]),
                         step=1,
@@ -723,7 +723,7 @@ def render(debug_flag=False):
                     mech_inputs.append((idx, take))
             
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
-    
+                
             if confirm:
                 mech_rows, remain_rows = [], []
                 for idx, take in mech_inputs:
