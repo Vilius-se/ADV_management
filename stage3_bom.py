@@ -266,13 +266,15 @@ def pipeline_2_4_normalize_part_no(df_raw):
 # =====================================================
 # 3A – Project BOM
 # =====================================================
-def pipeline_3A_0_rename(df_bom, df_part_code, extras=None, debug=False):
+
+def pipeline_3A_0_rename(df_bom, df_part_code, extras=None):
+    """Pervadinam Type/Original Type pagal Part_code + pridedam extras (į Project BOM)."""
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
     df = df_bom.copy()
 
-    # Tikras pervadinimas pagal Part_code (A -> B)
+    # Part_code (A stulpelis -> B stulpelis)
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(
             df_part_code.iloc[:, 0].astype(str).str.strip(),
@@ -294,11 +296,7 @@ def pipeline_3A_0_rename(df_bom, df_part_code, extras=None, debug=False):
     if extras:
         df = add_extra_components(df, [e for e in extras if e.get("target") == "bom"])
 
-    _dbg(df, "3A_0 rename (after)", debug=debug)
     return df
-
-
-
 
 def pipeline_3A_1_filter(df_bom, df_stock, debug=False):
     if df_bom is None or df_bom.empty: 
@@ -454,13 +452,14 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
 # 3B – CUBIC BOM
 # =====================================================
 
-def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False):
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
+    """Sutvarkom Quantity/Type, pervadinam pagal Part_code, pridedam extras (į CUBIC)."""
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
 
     df = df_cubic.copy().rename(columns=lambda c: str(c).strip())
 
-    # Quantity sutvarkymas (E/F/G → pirmoji reikšmė)
+    # Quantity (E/F/G -> pirma reikšmė) arba skaitmenizuojam esamą
     if any(col in df.columns for col in ["E", "F", "G"]):
         df["Quantity"] = df[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
     if "Quantity" not in df.columns:
@@ -474,12 +473,10 @@ def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False
     if "Type" not in df.columns:
         df["Type"] = ""
         df["Original Type"] = ""
-
-    # „No.“ fallback
     if "No." not in df.columns:
         df["No."] = df["Type"]
 
-    # Pervadinimas pagal Part_code (A -> B)
+    # Part_code pervadinimas
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(
             df_part_code.iloc[:, 0].astype(str).str.strip(),
@@ -493,9 +490,7 @@ def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False
     if extras:
         df = add_extra_components(df, [e for e in extras if e.get("target") == "cubic"])
 
-    _dbg(df, "3B_0 prepare_cubic (after)", debug=debug)
     return df
-
 
 
 def pipeline_3B_1_filtering(df_cubic,df_stock):
