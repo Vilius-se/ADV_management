@@ -632,7 +632,9 @@ def render(debug_flag=False):
     # =====================================================
     if st.button("🚀 Run Processing"):
         st.session_state["processing_started"] = True
-        st.session_state["mech_confirmed"] = False  # resetinam mechaniką
+        st.session_state["mech_confirmed"] = False  # reset mechanics choice
+        st.session_state["df_mech"] = pd.DataFrame()
+        st.session_state["df_remain"] = pd.DataFrame()
 
     if not st.session_state.get("processing_started", False):
         st.stop()
@@ -683,39 +685,44 @@ def render(debug_flag=False):
     # Stage control
     # =====================================================
     if not st.session_state.get("mech_confirmed", False):
-        # --- Etapas 1: rodom tik CUBIC Job Journal ir leidžiam pasirinkti mechaniką ---
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
 
+            editable = job_B.copy()
+            editable["Available Qty"] = editable["Quantity"].astype(float)
+            editable["Input Qty"] = 0
+
             with st.form("mech_form", clear_on_submit=False):
-                editable = job_B.copy()
-                editable["Take Qty"] = 0
                 edited = st.data_editor(
                     editable,
-                    num_rows="dynamic",
+                    column_config={
+                        "Input Qty": st.column_config.NumberColumn(
+                            "Input Qty",
+                            min_value=0,
+                            max_value=None,  # ribojimą tikrinam vėliau
+                            step=1
+                        )
+                    },
                     use_container_width=True,
                     key="mech_editor"
                 )
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
             if confirm:
-                mech_rows = []
+                mech_rows, remain_rows = [], []
                 for _, r in edited.iterrows():
-                    take = float(r.get("Take Qty", 0) or 0)
+                    avail = float(r.get("Available Qty", 0) or 0)
+                    take  = min(float(r.get("Input Qty", 0) or 0), avail)
+
                     if take > 0:
-                        mech_rows.append({
-                            "Type": r.get("Type", "Item"),
-                            "No.": r.get("No."),
-                            "Document No.": r.get("Document No."),
-                            "Job No.": r.get("Job No."),
-                            "Job Task No.": r.get("Job Task No."),
-                            "Quantity": take,
-                            "Location Code": r.get("Location Code", ""),
-                            "Bin Code": r.get("Bin Code", ""),
-                            "Description": r.get("Description", ""),
-                            "Original Type": r.get("Original Type", "")
-                        })
-                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                        mech_rows.append({**r.to_dict(), "Quantity": take})
+
+                    remain_qty = avail - take
+                    if remain_qty > 0:
+                        remain_rows.append({**r.to_dict(), "Quantity": remain_qty})
+
+                st.session_state["df_mech"]   = pd.DataFrame(mech_rows)
+                st.session_state["df_remain"] = pd.DataFrame(remain_rows)
                 st.session_state["mech_confirmed"] = True
 
         st.stop()
@@ -726,6 +733,10 @@ def render(debug_flag=False):
     if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
         st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
         st.dataframe(st.session_state["df_mech"], use_container_width=True)
+
+    if "df_remain" in st.session_state and not st.session_state["df_remain"].empty:
+        st.subheader("📑 Job Journal (CUBIC BOM REMAINING)")
+        st.dataframe(st.session_state["df_remain"], use_container_width=True)
 
     if not job_A.empty:
         st.subheader("📑 Job Journal (Project BOM)")
