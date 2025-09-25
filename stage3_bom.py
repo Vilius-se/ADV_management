@@ -446,8 +446,10 @@ def render():
 
     # SDD07550 ir papildomi komponentai iš Instructions
     if df_instr is not None and not df_instr.empty:
-        row = df_instr[df_instr.iloc[:,0].astype(str).str.upper() == str(inputs["panel_type"]).upper()]
-        if not row.empty and inputs["panel_type"][0] not in ["F","G"]:
+    row = df_instr[df_instr.iloc[:,0].astype(str).str.upper() == str(inputs["panel_type"]).upper()]
+    if not row.empty:
+        # SDD07550 (E stulpelis, indeksas 4)
+        if inputs["panel_type"][0] not in ["F","G"]:
             try:
                 qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
             except:
@@ -460,16 +462,22 @@ def render():
                     "target": "cubic",
                     "force_no": "SDD07550"
                 })
-            for col in [5,6,7,9]:
-                if col < row.shape[1]:
-                    val = str(row.iloc[0,col]).strip()
-                    if val and val.lower() != "nan":
-                        extras.append({
-                            "type": val,
-                            "qty": 1,
-                            "target": "cubic",
-                            "force_no": val
-                        })
+
+        # Papildomi komponentai iš F, G, H, J stulpelių
+        extra_cols = [(5,"Plokštė"), (6,"Paletė"), (7,"Project size"), (9,"Pallet size")]
+        for col_idx, label in extra_cols:
+            if col_idx < row.shape[1]:
+                try:
+                    qty_extra = int(pd.to_numeric(row.iloc[0,col_idx], errors="coerce").fillna(0))
+                except:
+                    qty_extra = 0
+                if qty_extra > 0:
+                    st.info(f"🔹 According to Instructions: need {qty_extra} × {label}")
+                    extras.append({
+                        "type": label,
+                        "qty": qty_extra,
+                        "target": "cubic"
+                    })
 
     job_A, nav_A, df_bom_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     job_B, nav_B, df_cub_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
