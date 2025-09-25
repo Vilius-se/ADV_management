@@ -649,7 +649,6 @@ def render(debug_flag=False):
 
         # --- Project BOM ---
         if not miss_A:
-            st.subheader("📦 Project BOM")
             df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras, debug=debug_flag)
             df_bom = pipeline_3A_1_filter(df_bom, df_stock)
             df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
@@ -659,7 +658,6 @@ def render(debug_flag=False):
 
         # --- CUBIC BOM ---
         if not inputs["rittal"] and not miss_B:
-            st.subheader("📦 CUBIC BOM")
             df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras, debug=debug_flag)
             df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
             df_j = pipeline_3B_2_accessories(df_j, df_acc)
@@ -669,68 +667,76 @@ def render(debug_flag=False):
             df_j = pipeline_3B_4_stock(df_j, files["ks"])
             job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-        # --- Calculation ---
-        calc = pipeline_4_1_calculation(
-            df_bom_proc, df_cub_proc, df_hours,
-            inputs["panel_type"], inputs["grounding"], inputs["project_number"]
-        )
-        miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
-        miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
+        # --- Stage control ---
+        if "mech_confirmed" not in st.session_state:
+            st.session_state["mech_confirmed"] = False
 
-        st.success("✅ Processing complete!")
+        if not st.session_state["mech_confirmed"]:
+            # --- Etapas 1: rodom tik CUBIC Job Journal ir allocation ---
+            if not job_B.empty:
+                st.subheader("📑 Job Journal (CUBIC BOM)")
+                editable = job_B.copy()
+                editable["Take Qty"] = 0
 
-        if not job_A.empty:
-            st.subheader("📑 Job Journal (Project BOM)")
-            st.dataframe(job_A,use_container_width=True)
-        if not job_B.empty:
-            st.subheader("📑 Job Journal (CUBIC BOM)")
-            st.dataframe(job_B,use_container_width=True)
+                edited = st.data_editor(
+                    editable,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key="mech_editor"
+                )
 
-            # --- Naujas mechanikos pasirinkimas ---
-            st.subheader("⚙️ Allocate to Mechanics")
-            editable = job_B.copy()
-            editable["Take Qty"] = 0
-            edited = st.data_editor(
-                editable,
-                num_rows="dynamic",
-                use_container_width=True,
-                key="mech_editor"
+                if st.button("✅ Confirm Mechanics Allocation"):
+                    mech_rows = []
+                    for _, r in edited.iterrows():
+                        take = float(r.get("Take Qty", 0) or 0)
+                        if take > 0:
+                            mech_rows.append({
+                                "Type": r.get("Type", "Item"),
+                                "No.": r.get("No."),
+                                "Document No.": r.get("Document No."),
+                                "Job No.": r.get("Job No."),
+                                "Job Task No.": r.get("Job Task No."),
+                                "Quantity": take,
+                                "Location Code": r.get("Location Code", ""),
+                                "Bin Code": r.get("Bin Code", ""),
+                                "Description": r.get("Description", ""),
+                                "Original Type": r.get("Original Type", "")
+                            })
+                    st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                    st.session_state["mech_confirmed"] = True
+                    st.experimental_rerun()
+
+            st.stop()  # sustabdo app'ą šiame etape
+
+        else:
+            # --- Etapas 2: rodom visas kitas lenteles ---
+            if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
+                st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
+                st.dataframe(st.session_state["df_mech"], use_container_width=True)
+
+            if not job_A.empty:
+                st.subheader("📑 Job Journal (Project BOM)")
+                st.dataframe(job_A,use_container_width=True)
+            if not nav_A.empty:
+                st.subheader("🛒 NAV Table (Project BOM)")
+                st.dataframe(nav_A,use_container_width=True)
+            if not nav_B.empty:
+                st.subheader("🛒 NAV Table (CUBIC BOM)")
+                st.dataframe(nav_B,use_container_width=True)
+
+            # --- Calculation ---
+            calc = pipeline_4_1_calculation(
+                df_bom_proc, df_cub_proc, df_hours,
+                inputs["panel_type"], inputs["grounding"], inputs["project_number"]
             )
+            st.subheader("💰 Calculation")
+            st.dataframe(calc,use_container_width=True)
 
-            if st.button("✅ Confirm Mechanics Allocation"):
-                mech_rows = []
-                for _, r in edited.iterrows():
-                    take = float(r.get("Take Qty", 0) or 0)
-                    if take > 0:
-                        mech_rows.append({
-                            "Type": r.get("Type", "Item"),
-                            "No.": r.get("No."),
-                            "Document No.": r.get("Document No."),
-                            "Job No.": r.get("Job No."),
-                            "Job Task No.": r.get("Job Task No."),
-                            "Quantity": take,
-                            "Location Code": r.get("Location Code", ""),
-                            "Bin Code": r.get("Bin Code", ""),
-                            "Description": r.get("Description", ""),
-                            "Original Type": r.get("Original Type", "")
-                        })
-                df_mech = pd.DataFrame(mech_rows)
-                if not df_mech.empty:
-                    st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
-                    st.dataframe(df_mech, use_container_width=True)
+            miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
+            miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
+            if not miss_nav_A.empty or not miss_nav_B.empty:
+                st.subheader("⚠️ Missing NAV Numbers")
+                if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
+                if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
 
-        if not nav_A.empty:
-            st.subheader("🛒 NAV Table (Project BOM)")
-            st.dataframe(nav_A,use_container_width=True)
-        if not nav_B.empty:
-            st.subheader("🛒 NAV Table (CUBIC BOM)")
-            st.dataframe(nav_B,use_container_width=True)
-
-        st.subheader("💰 Calculation")
-        st.dataframe(calc,use_container_width=True)
-
-        if not miss_nav_A.empty or not miss_nav_B.empty:
-            st.subheader("⚠️ Missing NAV Numbers")
-            if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
-            if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
 
