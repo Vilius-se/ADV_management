@@ -601,11 +601,11 @@ def pipeline_4_2_missing_nav(df, source):
 def render(debug_flag=False):
     st.header("Stage 3: BOM Management")
 
-    inputs = user_inputs()
+    inputs = pipeline_2_1_user_inputs()
     if not inputs: 
         return
 
-    files = file_uploads(inputs["rittal"])
+    files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files: 
         return
 
