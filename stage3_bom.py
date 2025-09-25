@@ -462,10 +462,12 @@ def pipeline_4_2_missing_nav(df, source):
 def render():
     st.header("Stage 3: BOM Management")
 
+    # --- Inputs ---
     inputs = pipeline_2_1_user_inputs()
     if not inputs:
         return
 
+    # --- File uploads ---
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files:
         return
@@ -485,6 +487,9 @@ def render():
         else:
             st.info("CUBIC BOM skipped (Rittal)")
 
+    # =====================================================
+    # Run processing trigger
+    # =====================================================
     if st.button("🚀 Run Processing"):
         st.session_state["processing_started"] = True
         st.session_state["mech_confirmed"] = False
@@ -494,6 +499,9 @@ def render():
     if not st.session_state.get("processing_started", False):
         st.stop()
 
+    # =====================================================
+    # Processing
+    # =====================================================
     data_book = files.get("data", {})
     df_stock   = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
     df_part_no = pipeline_2_4_normalize_part_no(
@@ -505,29 +513,36 @@ def render():
     df_instr   = pipeline_2_3_get_sheet_safe(data_book, ["Instructions"])
     df_main_sw = pipeline_2_3_get_sheet_safe(data_book, ["main_switch"])
 
+    # --- Extras pagal inputs ---
     extras = []
     if inputs["ups"]:
-        extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom", "force_no": "2214036"})
-        extras.append({"type": "ADV UPS holder V3", "qty": 1, "target": "bom", "force_no": "2214035"})
-        extras.append({"type": "268-2610", "qty": 1, "target": "bom", "force_no": "1865206"})
+        extras.extend([
+            {"type": "LI32111CT01", "qty": 1, "target": "bom", "force_no": "2214036"},
+            {"type": "ADV UPS holder V3", "qty": 1, "target": "bom", "force_no": "2214035"},
+            {"type": "268-2610", "qty": 1, "target": "bom", "force_no": "1865206"},
+        ])
     if inputs["swing_frame"]:
         extras.append({"type": "9030+2970", "qty": 1, "target": "cubic", "force_no": "2185835"})
+
     if df_instr is not None and not df_instr.empty:
         row = df_instr[df_instr.iloc[:,0].astype(str).str.upper() == str(inputs["panel_type"]).upper()]
         if not row.empty:
+            # Damperiai SDD07550
             if inputs["panel_type"][0] not in ["F","G"]:
-                try: qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
-                except: qty_sdd = 0
+                try:
+                    qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
+                except:
+                    qty_sdd = 0
                 if qty_sdd > 0:
-                    st.info(f"🔹 According to Instructions: need {qty_sdd} × SDD07550")
                     extras.append({"type": "SDD07550","qty": qty_sdd,"target": "cubic","force_no": "SDD07550"})
-            for col_idx in range(5,10):  # F..J stulpeliai
+            # Bottom plates (F–J stulpeliai)
+            for col_idx in range(5,10):
                 if col_idx < row.shape[1]:
                     val = str(row.iloc[0,col_idx]).strip()
                     if val and val.lower() != "nan":
-                        st.info(f"🔹 According to Instructions: need 1 × {val}")
                         extras.append({"type": val,"qty": 1,"target": "cubic"})
 
+    # --- BOM processing ---
     job_A, nav_A, df_bom_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     job_B, nav_B, df_cub_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
@@ -549,50 +564,9 @@ def render():
         df_j = pipeline_3B_4_stock(df_j, files["ks"])
         job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-    # --- MAIN SWITCH accessories ---
-    if df_main_sw is not None and not df_main_sw.empty:
-        row = df_main_sw[df_main_sw.iloc[:,1].astype(str).str.strip().str.upper() == str(inputs["main_switch"]).upper()]
-        if not row.empty:
-            for col_idx in range(2, 12):  # C–L stulpeliai
-                if col_idx < row.shape[1]:
-                    val = str(row.iloc[0, col_idx]).strip()
-                    if val and val.lower() != "nan":
-                        norm_val = val.upper().replace(" ", "")
-                        part_match = None
-                        if not df_part_no.empty and "PartName_B" in df_part_no.columns:
-                            df_part_no["Norm_B"] = df_part_no["PartName_B"].astype(str).str.upper().str.replace(" ","").str.strip()
-                            part_match = df_part_no[df_part_no["Norm_B"] == norm_val]
-                        if part_match is not None and not part_match.empty:
-                            no_val = str(part_match.iloc[0]["PartNo_A"])
-                            desc   = str(part_match.iloc[0].get("Desc_C",""))
-                            supp   = str(part_match.iloc[0].get("SupplierNo_E",""))
-                        else:
-                            no_val, desc, supp = "","",""
-                        stock_rows = {}
-                        if "ks" in files:
-                            df_stock2 = files["ks"].copy()
-                            df_stock2 = df_stock2.rename(columns=lambda c:str(c).strip())
-                            df_stock2 = df_stock2[[df_stock2.columns[2], df_stock2.columns[1], df_stock2.columns[3]]]
-                            df_stock2.columns = ["No.","Bin Code","Quantity"]
-                            df_stock2["No."] = df_stock2["No."].apply(normalize_no)
-                            stock_groups = {k:v for k,v in df_stock2.groupby("No.")}
-                            stock_rows = stock_groups.get(no_val, pd.DataFrame(columns=["Bin Code","Quantity"]))
-                        allocations = allocate_from_stock(no_val, 1, stock_rows)
-                        for alloc in allocations:
-                            job_A = pd.concat([job_A, pd.DataFrame([{
-                                "Type": val,"Original Type": val,"No.": no_val,
-                                "Document No.": inputs["project_number"] if no_val else inputs["project_number"]+"/N",
-                                "Job No.": inputs["project_number"],"Job Task No.": 1144,
-                                "Quantity": alloc["Allocated Qty"],
-                                "Location Code": "KAUNAS" if alloc["Bin Code"] else "",
-                                "Bin Code": alloc["Bin Code"],
-                                "Description": desc,"Source": "Main switch accessory"
-                            }])], ignore_index=True)
-                        nav_A = pd.concat([nav_A, pd.DataFrame([{
-                            "Type": "Item","No.": no_val,"Quantity": 1,
-                            "Supplier": supp if supp else 30093,"Profit": 17,"Discount": 0,"Description": desc
-                        }])], ignore_index=True)
-
+    # =====================================================
+    # Stage control – Mechanics allocation
+    # =====================================================
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
@@ -606,7 +580,10 @@ def render():
                     cols[1].write(str(row.get("Original Type", "")))
                     cols[2].write(str(row.get("Description", "")))
                     cols[3].write(int(row["Available Qty"]))
-                    take = cols[4].number_input("",min_value=0,max_value=int(row["Available Qty"]),step=1,format="%d",key=f"take_{idx}")
+                    take = cols[4].number_input(
+                        "",min_value=0,max_value=int(row["Available Qty"]),step=1,
+                        format="%d",key=f"take_{idx}"
+                    )
                     mech_inputs.append((idx, take))
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
             if confirm:
@@ -631,86 +608,77 @@ def render():
                     st.session_state["df_mech"] = pd.concat([st.session_state["df_mech"], swing_row],ignore_index=True)
         st.stop()
 
-    if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
-        st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
-        st.dataframe(st.session_state["df_mech"], use_container_width=True)
-    if "df_remain" in st.session_state and not st.session_state["df_remain"].empty:
-        st.subheader("📑 Job Journal (CUBIC BOM REMAINING)")
-        st.dataframe(st.session_state["df_remain"], use_container_width=True)
-    if not job_A.empty:
-        st.subheader("📑 Job Journal (Project BOM)")
-        st.dataframe(job_A, use_container_width=True)
-    if not nav_A.empty:
-        st.subheader("🛒 NAV Table (Project BOM)")
-        st.dataframe(nav_A, use_container_width=True)
-    if not nav_B.empty:
-        st.subheader("🛒 NAV Table (CUBIC BOM)")
-        st.dataframe(nav_B, use_container_width=True)
+    # =====================================================
+    # Stage 2 – Full results
+    # =====================================================
+    def show_table(df, title):
+        if df is not None and not df.empty:
+            st.subheader(title)
+            st.data_editor(df, use_container_width=True, hide_index=True, height=300)
 
-    calc = pipeline_4_1_calculation(df_bom_proc,df_cub_proc,df_hours,inputs["panel_type"],inputs["grounding"],inputs["project_number"],df_instr)
-    st.subheader("💰 Calculation")
-    st.dataframe(calc, use_container_width=True)
+    show_table(st.session_state.get("df_mech"), "📑 Job Journal (CUBIC BOM TO MECH.)")
+    show_table(st.session_state.get("df_remain"), "📑 Job Journal (CUBIC BOM REMAINING)")
+    show_table(job_A, "📑 Job Journal (Project BOM)")
+    show_table(nav_A, "🛒 NAV Table (Project BOM)")
+    show_table(nav_B, "🛒 NAV Table (CUBIC BOM)")
+
+    calc = pipeline_4_1_calculation(df_bom_proc, df_cub_proc, df_hours,
+                                    inputs["panel_type"], inputs["grounding"],
+                                    inputs["project_number"], df_instr)
+    show_table(calc, "💰 Calculation")
 
     miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc, "Project BOM")
     miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc, "CUBIC BOM")
-    if not miss_nav_A.empty or not miss_nav_B.empty:
-        st.subheader("⚠️ Missing NAV Numbers")
-        if not miss_nav_A.empty: st.dataframe(miss_nav_A, use_container_width=True)
-        if not miss_nav_B.empty: st.dataframe(miss_nav_B, use_container_width=True)
+    show_table(miss_nav_A, "⚠️ Missing NAV Numbers (Project BOM)")
+    show_table(miss_nav_B, "⚠️ Missing NAV Numbers (CUBIC BOM)")
 
-# =====================================================
-# Export to Excel
-# =====================================================
-if st.button("💾 Export Results to Excel"):
-    ts = datetime.datetime.now().strftime("%Y%m%d%H%M")
-    pallet_size = ""
-    try:
-        pallet_size = str(calc[calc["Label"]=="Pallet size"]["Value"].iloc[0])
-    except:
+    # =====================================================
+    # Export to Excel
+    # =====================================================
+    if st.button("💾 Export Results to Excel"):
+        ts = datetime.datetime.now().strftime("%Y%m%d%H%M")
         pallet_size = ""
+        try:
+            pallet_size = str(calc[calc["Label"]=="Pallet size"]["Value"].iloc[0])
+        except:
+            pallet_size = ""
+        filename = f"{inputs['project_number']}_{inputs['panel_type']}_{inputs['grounding']}_{pallet_size}_{ts}.xlsx"
 
-    filename = f"{inputs['project_number']}_{inputs['panel_type']}_{inputs['grounding']}_{pallet_size}_{ts}.xlsx"
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Info"
+        ws.append(["Project number", inputs["project_number"]])
+        ws.append(["Panel type", inputs["panel_type"]])
+        ws.append(["Grounding", inputs["grounding"]])
+        ws.append(["Main switch", inputs["main_switch"]])
+        ws.append(["Swing frame", inputs["swing_frame"]])
+        ws.append(["UPS", inputs["ups"]])
+        ws.append(["Rittal", inputs["rittal"]])
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Info"
-    ws.append(["Project number", inputs["project_number"]])
-    ws.append(["Panel type", inputs["panel_type"]])
-    ws.append(["Grounding", inputs["grounding"]])
-    ws.append(["Main switch", inputs["main_switch"]])
-    ws.append(["Swing frame", inputs["swing_frame"]])
-    ws.append(["UPS", inputs["ups"]])
-    ws.append(["Rittal", inputs["rittal"]])
+        def add_df_to_wb(df, title):
+            if df is None or df.empty: return
+            ws = wb.create_sheet(title)
+            ws.append(df.columns.tolist())
+            for _, row in df.iterrows():
+                ws.append(row.tolist())
 
-    def add_df_to_wb(df, title):
-        if df is None or df.empty: 
-            return
-        ws = wb.create_sheet(title)
-        ws.append(df.columns.tolist())
-        for _, row in df.iterrows():
-            ws.append(row.tolist())
+        add_df_to_wb(job_A, "JobJournal_ProjectBOM")
+        add_df_to_wb(nav_A, "NAV_ProjectBOM")
+        add_df_to_wb(job_B, "JobJournal_CUBICBOM")
+        add_df_to_wb(nav_B, "NAV_CUBICBOM")
+        add_df_to_wb(st.session_state.get("df_mech"), "JobJournal_Mech")
+        add_df_to_wb(st.session_state.get("df_remain"), "JobJournal_Remaining")
+        add_df_to_wb(calc, "Calculation")
+        add_df_to_wb(miss_nav_A, "MissingNAV_ProjectBOM")
+        add_df_to_wb(miss_nav_B, "MissingNAV_CUBICBOM")
 
-    # Lentelės
-    add_df_to_wb(job_A, "JobJournal_ProjectBOM")
-    add_df_to_wb(nav_A, "NAV_ProjectBOM")
-    add_df_to_wb(job_B, "JobJournal_CUBICBOM")
-    add_df_to_wb(nav_B, "NAV_CUBICBOM")
-    if "df_mech" in st.session_state: 
-        add_df_to_wb(st.session_state["df_mech"], "JobJournal_Mech")
-    if "df_remain" in st.session_state: 
-        add_df_to_wb(st.session_state["df_remain"], "JobJournal_Remaining")
-    add_df_to_wb(calc, "Calculation")
-    add_df_to_wb(miss_nav_A, "MissingNAV_ProjectBOM")
-    add_df_to_wb(miss_nav_B, "MissingNAV_CUBICBOM")
+        save_path = f"/tmp/{filename}"
+        wb.save(save_path)
+        with open(save_path, "rb") as f:
+            st.download_button(
+                label="⬇️ Download Excel",
+                data=f,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
-    # Save and download
-    save_path = f"/tmp/{filename}"
-    wb.save(save_path)
-
-    with open(save_path, "rb") as f:
-        st.download_button(
-            label="⬇️ Download Excel",
-            data=f,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
