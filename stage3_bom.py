@@ -704,15 +704,16 @@ def render(debug_flag=False):
             mech_inputs = []
             with st.form("mech_form", clear_on_submit=False):
                 st.write("Įvesk kiekius mechanikai:")
-    
+            
+                mech_inputs = []
                 for idx, row in editable.iterrows():
-                    cols = st.columns([2, 3, 4, 2, 2])
+                    cols = st.columns([2, 2, 4, 1, 1])  # kompaktiškiau
                     cols[0].write(str(row.get("No.", "")))
                     cols[1].write(str(row.get("Original Type", "")))
                     cols[2].write(str(row.get("Description", "")))
-                    cols[3].write(int(row["Available Qty"]))
+                    cols[3].write(int(row["Available Qty"]))  # paprastas skaičius
                     take = cols[4].number_input(
-                        "Qty to Mech",
+                        label="",   # jokių labelių
                         min_value=0,
                         max_value=int(row["Available Qty"]),
                         step=1,
@@ -720,7 +721,7 @@ def render(debug_flag=False):
                         key=f"take_{idx}",
                     )
                     mech_inputs.append((idx, take))
-    
+            
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
     
             if confirm:
