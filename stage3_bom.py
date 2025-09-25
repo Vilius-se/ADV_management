@@ -7,17 +7,6 @@ import io
 # 1.x – Helpers 
 # =====================================================
 
-
-def _dbg(df, label, debug=False):
-    if not debug: 
-        return
-    st.markdown(f"### 🔎 Debug: {label}")
-    if df is None or df.empty:
-        st.info("Empty DataFrame")
-        return
-    st.text(f"Shape: {df.shape}")
-    st.dataframe(df.head(60), use_container_width=True)
-
 def add_extra_components(df, extras):
     if df is None: 
         df = pd.DataFrame()
@@ -269,7 +258,7 @@ def pipeline_3A_0_rename(df_bom, df_part_code, extras=None):
 
     return df
 
-def pipeline_3A_1_filter(df_bom, df_stock, debug=False):
+def pipeline_3A_1_filter(df_bom, df_stock):
     if df_bom is None or df_bom.empty: 
         return pd.DataFrame()
     if df_stock is None or df_stock.empty: 
@@ -286,11 +275,11 @@ def pipeline_3A_1_filter(df_bom, df_stock, debug=False):
     df["Norm_Type"] = df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
     out = df[~df["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
 
-    _dbg(out, "3A_1 Filtered BOM", debug=debug)
+    _dbg(out, "3A_1 Filtered BOM")
     return out.drop(columns=["Norm_Type"])
 
 
-def pipeline_3A_2_accessories(df_bom, df_acc, debug=False):
+def pipeline_3A_2_accessories(df_bom, df_acc):
     if df_acc is None or df_acc.empty: 
         return df_bom
     df_out = df_bom.copy()
@@ -309,11 +298,11 @@ def pipeline_3A_2_accessories(df_bom, df_acc, debug=False):
                     "Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"
                 }])],ignore_index=True)
 
-    _dbg(df_out, "3A_2 With Accessories", debug=debug)
+    _dbg(df_out, "3A_2 With Accessories")
     return df_out
 
 
-def pipeline_3A_3_nav(df_bom, df_part_no, debug=False):
+def pipeline_3A_3_nav(df_bom, df_part_no):
     if df_bom is None or df_bom.empty: 
         return pd.DataFrame()
     if df_part_no is None or df_part_no.empty:
@@ -351,11 +340,11 @@ def pipeline_3A_3_nav(df_bom, df_part_no, debug=False):
     else:
         df = df.drop(columns=["Norm_Type"], errors="ignore")
 
-    _dbg(df, "3A_3 With NAV numbers", debug=debug)
+    _dbg(df, "3A_3 With NAV numbers")
     return df
 
 
-def pipeline_3A_4_stock(df_bom, ks_file, debug=False):
+def pipeline_3A_4_stock(df_bom, ks_file):
     if df_bom is None or df_bom.empty: 
         return pd.DataFrame()
     if isinstance(ks_file,pd.DataFrame): 
@@ -371,11 +360,11 @@ def pipeline_3A_4_stock(df_bom, ks_file, debug=False):
     stock_groups = {k:v for k,v in df_stock.groupby("No.")}
     df_bom["Stock Rows"] = df_bom["No."].map(stock_groups)
 
-    _dbg(df_bom, "3A_4 With Stock info", debug=debug)
+    _dbg(df_bom, "3A_4 With Stock info")
     return df_bom
 
 
-def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
+def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
     rows=[]
     for _,row in df_bom.iterrows():
         no=row.get("No.")
@@ -415,8 +404,8 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
         })
     nav_table=pd.DataFrame(nav_rows,columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
 
-    _dbg(job_journal, "3A_5 Job Journal", debug=debug)
-    _dbg(nav_table, "3A_5 NAV Table", debug=debug)
+    _dbg(job_journal, "3A_5 Job Journal")
+    _dbg(nav_table, "3A_5 NAV Table")
     return job_journal,nav_table,df_bom
     
 # =====================================================
@@ -583,8 +572,6 @@ def pipeline_4_2_missing_nav(df, source):
         "Quantity": qty,
         "NAV No.": missing["No."]
     })
-
-def render(debug_flag=False):
     st.header("Stage 3: BOM Management")
 
     # --- Inputs ---
@@ -659,7 +646,7 @@ def render(debug_flag=False):
 
     # --- Project BOM ---
     if not miss_A:
-        df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras, debug=debug_flag)
+        df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras)
         df_bom = pipeline_3A_1_filter(df_bom, df_stock)
         df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
         df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
@@ -689,7 +676,7 @@ def render(debug_flag=False):
     # --- CUBIC BOM ---
     if not inputs["rittal"] and not miss_B:
         df_cubic = pipeline_3B_0_prepare_cubic(
-            files["cubic_bom"], df_code, extras, debug=debug_flag
+            files["cubic_bom"], df_code, extras)
         )
         df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
         df_j = pipeline_3B_2_accessories(df_j, df_acc)
