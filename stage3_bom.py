@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import io
 import re
-import requests
 
 # =====================================================
 # Pipeline 1.x – Helpers
