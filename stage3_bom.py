@@ -915,86 +915,187 @@ def pipeline_4_4_missing_nav(df: pd.DataFrame, source: str) -> pd.DataFrame:
     return out
 
 # =====================================================
+# Project BOM processing helper
+# =====================================================
+def process_project_bom(df_bom_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
+    """
+    Project BOM seka:
+    filter(no need) → accessories → NAV → stock → Job Journal + NAV, return enriched DF for calculation
+    """
+    if df_bom_raw is None or df_bom_raw.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    # 1) Filtruojam tik 'no need'
+    df_bom = pipeline_3_1_filtering(df_bom_raw, df_stock, source="Project BOM")
+
+    # 2) Accessories
+    df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
+
+    # 3) NAV numeriai (prideda ir Unit Cost / Description / Supplier…)
+    df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
+
+    # 4) Stock tikrinimas (prideda Stock Rows grupes pagal No.)
+    df_bom = pipeline_3_4_check_stock(df_bom, ks_file)
+
+    # 5) Lentelės
+    job_journal = pipeline_4_1_job_journal(df_bom, project_number, source="Project BOM")
+    nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no)
+
+    # Grąžinam ir enriched df_bom, kad Calculation turėtų Quantity + Unit Cost
+    return job_journal, nav_table, df_bom
+
+
+# =====================================================
+# CUBIC BOM processing helper
+# =====================================================
+def process_cubic_bom(df_cubic_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
+    """
+    CUBIC BOM seka:
+    copy → filter(ALL / only no need) → accessories → NAV (abiejose) → stock tik pirmai →
+    Job Journal (pirma) + NAV Table (antra), return enriched DF for calculation (naudojam NAV kopiją)
+    """
+    if df_cubic_raw is None or df_cubic_raw.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    df_cubic = pipeline_3_5_prepare_cubic(df_cubic_raw)
+
+    # Dvi kopijos: 1) be visų su komentarais; 2) be 'no need'
+    df_cubic_for_journal, df_cubic_for_nav = pipeline_3_1_filtering_cubic(df_cubic, df_stock, source="CUBIC BOM")
+
+    # Accessories abiem
+    df_cubic_for_journal = pipeline_3_2_add_accessories(df_cubic_for_journal, df_accessories)
+    df_cubic_for_nav     = pipeline_3_2_add_accessories(df_cubic_for_nav, df_accessories)
+
+    # NAV numeriai abiem (prideda Unit Cost ir kt.)
+    df_cubic_for_journal = pipeline_3_3_add_nav_numbers(df_cubic_for_journal, df_part_no, source="CUBIC BOM")
+    df_cubic_for_nav     = pipeline_3_3_add_nav_numbers(df_cubic_for_nav, df_part_no, source="CUBIC BOM")
+
+    # Stock tikrinimas tik Journal kopijai
+    df_cubic_for_journal = pipeline_3_4_check_stock(df_cubic_for_journal, ks_file)
+
+    # Lentelės
+    job_journal = pipeline_4_1_job_journal(df_cubic_for_journal, project_number, source="CUBIC BOM")
+    nav_table   = pipeline_4_2_nav_table(df_cubic_for_nav, df_part_no)
+
+    # Calculation rekomenduojama naudoti NAV kopiją (turi Unit Cost)
+    return job_journal, nav_table, df_cubic_for_nav
+
+
+# =====================================================
 # Main render for Stage 3 (tik failų įkėlimas, be GitHub)
 # =====================================================
 def render():
     st.header("Stage 3: BOM Management")
 
-    # 1. Inputs
+    # 1) Inputs
     inputs = pipeline_2_1_user_inputs()
     if not inputs:
         return
 
-    # 2. Failų įkėlimas (be GitHub)
+    # 2) Failų įkėlimas
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files:
         return
 
-    # 3. Reikalingi sheet’ai iš DATA
-    df_stock       = get_sheet_safe(files["data"], ["Stock"])
-    df_part_no_raw = get_sheet_safe(files["data"], ["Part_no", "Parts_no", "Part no"])
-    df_part_no     = normalize_part_no(df_part_no_raw)
-    df_hours       = get_sheet_safe(files["data"], ["Hours"])
-    df_accessories = get_sheet_safe(files["data"], ["Accessories"])
+    # 3) Dinaminė patikra, ko trūksta kiekvienam moduliui
+    required_project = ["bom", "data", "ks"]
+    required_cubic   = ["cubic_bom", "data", "ks"] if not inputs["rittal"] else []
 
-    if df_stock is None or df_part_no.empty:
-        st.error("❌ DATA.xlsx must contain at least 'Stock' and 'Part_no' sheets")
-        return
+    missing_project = [k for k in required_project if k not in files]
+    missing_cubic   = [k for k in required_cubic if k not in files]
 
-    # 4. Kaunas Stock preview
-    st.subheader("🔎 Kaunas Stock preview")
-    try:
+    st.subheader("📋 Reikalaujami failai")
+    col1, col2 = st.columns(2)
+    with col1:
+        if missing_project:
+            st.warning(f"Project BOM: trūksta {missing_project}")
+        else:
+            st.success("Project BOM: OK")
+    with col2:
+        if not inputs["rittal"]:
+            if missing_cubic:
+                st.warning(f"CUBIC BOM: trūksta {missing_cubic}")
+            else:
+                st.success("CUBIC BOM: OK")
+        else:
+            st.info("CUBIC BOM: praleista (Rittal)")
+
+    # 4) Kaunas Stock preview (tik jei yra)
+    if "ks" in files and isinstance(files["ks"], pd.DataFrame) and not files["ks"].empty:
+        st.subheader("🔎 Kaunas Stock preview")
         st.dataframe(files["ks"].head(20), use_container_width=True)
-    except Exception as e:
-        st.error(f"❌ Cannot preview stock: {e}")
 
-    # 5. Processing
+    # 5) Processing
     if st.button("🚀 Run BOM Processing"):
 
-        # =====================================================
-        # Project BOM
-        # =====================================================
-        st.subheader("📦 Project BOM")
-        job_journal_bom, nav_table_bom = process_project_bom(
-            files["bom"], df_stock, df_accessories, df_part_no, files["ks"], inputs["project_number"]
-        )
+        # Patogūs getteriai su apsauga (nekelia KeyError)
+        data_book = files.get("data")
+        df_stock       = get_sheet_safe(data_book, ["Stock"])        if isinstance(data_book, dict) else None
+        df_part_no_raw = get_sheet_safe(data_book, ["Part_no","Parts_no","Part no"]) if isinstance(data_book, dict) else None
+        df_part_no     = normalize_part_no(df_part_no_raw) if df_part_no_raw is not None else pd.DataFrame()
+        df_hours       = get_sheet_safe(data_book, ["Hours"])        if isinstance(data_book, dict) else None
+        df_accessories = get_sheet_safe(data_book, ["Accessories"])  if isinstance(data_book, dict) else None
 
-        # =====================================================
-        # CUBIC BOM
-        # =====================================================
-        job_journal_cubic, nav_table_cubic = pd.DataFrame(), pd.DataFrame()
-        if not inputs["rittal"]:
-            st.subheader("📦 CUBIC BOM")
-            job_journal_cubic, nav_table_cubic = process_cubic_bom(
-                files["cubic_bom"], df_stock, df_accessories, df_part_no, files["ks"], inputs["project_number"]
+        # Inicijuojam tuščias išvestis
+        job_journal_bom   = pd.DataFrame()
+        nav_table_bom     = pd.DataFrame()
+        df_bom_processed  = pd.DataFrame()
+
+        job_journal_cubic = pd.DataFrame()
+        nav_table_cubic   = pd.DataFrame()
+        df_cubic_processed = pd.DataFrame()
+
+        any_done = False
+
+        # ---------------- Project BOM ----------------
+        if not missing_project:
+            st.subheader("📦 Project BOM")
+            job_journal_bom, nav_table_bom, df_bom_processed = process_project_bom(
+                files.get("bom"), df_stock, df_accessories, df_part_no, files.get("ks"), inputs["project_number"]
             )
+            any_done = True
+        else:
+            st.info("Project BOM praleista – įkelk trūkstamus failus.")
 
-        # =====================================================
-        # Calculation
-        # =====================================================
+        # ---------------- CUBIC BOM ----------------
+        if not inputs["rittal"]:
+            if not missing_cubic:
+                st.subheader("📦 CUBIC BOM")
+                job_journal_cubic, nav_table_cubic, df_cubic_processed = process_cubic_bom(
+                    files.get("cubic_bom"), df_stock, df_accessories, df_part_no, files.get("ks"), inputs["project_number"]
+                )
+                any_done = True
+            else:
+                st.info("CUBIC BOM praleista – įkelk trūkstamus failus.")
+
+        if not any_done:
+            st.error("⛔ Nieko nevykdžiau: trūksta privalomų failų.")
+            return
+
+        # ---------------- Calculation ----------------
         calc_table = pipeline_4_3_calculation(
-            files["bom"],
-            files["cubic_bom"] if not inputs["rittal"] else pd.DataFrame(),
-            df_hours,
+            df_bom_processed,           # turi Quantity + Unit Cost
+            df_cubic_processed,         # turi Unit Cost po NAV
+            df_hours if df_hours is not None else pd.DataFrame(),
             inputs["panel_type"],
             inputs["grounding"],
             inputs["project_number"]
         )
 
-        # =====================================================
-        # Output
-        # =====================================================
+        # ---------------- Output ----------------
         st.success("✅ BOM processing complete!")
 
-        st.subheader("📑 Job Journal (Project BOM)")
-        st.dataframe(job_journal_bom, use_container_width=True)
+        if not job_journal_bom.empty:
+            st.subheader("📑 Job Journal (Project BOM)")
+            st.dataframe(job_journal_bom, use_container_width=True)
 
         if not job_journal_cubic.empty:
             st.subheader("📑 Job Journal (CUBIC BOM)")
             st.dataframe(job_journal_cubic, use_container_width=True)
 
-        st.subheader("🛒 NAV Table (Project BOM)")
-        st.dataframe(nav_table_bom, use_container_width=True)
+        if not nav_table_bom.empty:
+            st.subheader("🛒 NAV Table (Project BOM)")
+            st.dataframe(nav_table_bom, use_container_width=True)
 
         if not nav_table_cubic.empty:
             st.subheader("🛒 NAV Table (CUBIC BOM)")
