@@ -692,21 +692,21 @@ def render(debug_flag=False):
             editable["Available Qty"] = editable["Quantity"].astype(float)
             editable["Input Qty"] = 0
 
-           with st.form("mech_form", clear_on_submit=False):
-    edited = st.data_editor(
-        editable,
-        column_config={
-            "Input Qty": st.column_config.NumberColumn(
-                "Input Qty",
-                min_value=0,
-                max_value=int(editable["Available Qty"].max()),  # čia svarbu
-                step=1
-            )
-        },
-        use_container_width=True,
-        key="mech_editor"
-    )
-    confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+               with st.form("mech_form", clear_on_submit=False):
+        edited = st.data_editor(
+            editable,
+            column_config={
+                "Input Qty": st.column_config.NumberColumn(
+                    "Input Qty",
+                    min_value=0,
+                    max_value=int(editable["Available Qty"].max()),  # čia svarbu
+                    step=1
+                )
+            },
+            use_container_width=True,
+            key="mech_editor"
+        )
+        confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
             if confirm:
                 mech_rows, remain_rows = [], []
