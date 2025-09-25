@@ -654,6 +654,9 @@ def render(debug_flag=False):
         else:
             st.info("CUBIC BOM skipped (Rittal)")
 
+    # =====================================================
+    # Run processing trigger
+    # =====================================================
     if st.button("🚀 Run Processing"):
         st.session_state["processing_started"] = True
         st.session_state["mech_confirmed"] = False
@@ -667,35 +670,26 @@ def render(debug_flag=False):
     # Processing
     # =====================================================
     data_book = files.get("data", {})
-    df_stock   = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
+    df_stock = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
     df_part_no = pipeline_2_4_normalize_part_no(
         pipeline_2_3_get_sheet_safe(data_book, ["Part_no", "Parts_no", "Part no"])
     )
-    df_hours   = pipeline_2_3_get_sheet_safe(data_book, ["Hours"])
-    df_acc     = pipeline_2_3_get_sheet_safe(data_book, ["Accessories"])
-    df_code    = pipeline_2_3_get_sheet_safe(data_book, ["Part_code"])
-    df_instr   = pipeline_2_3_get_sheet_safe(data_book, ["Instructions"])
+    df_hours = pipeline_2_3_get_sheet_safe(data_book, ["Hours"])
+    df_acc = pipeline_2_3_get_sheet_safe(data_book, ["Accessories"])
+    df_code = pipeline_2_3_get_sheet_safe(data_book, ["Part_code"])
 
-    # --- Extras pagal inputs + instructions ---
+    # --- Extras pagal inputs ---
     extras = []
-    if inputs["ups"]:
-        extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom"})
-        extras.append({"type": "ADV UPS holder V3", "qty": 1, "target": "bom"})
-        extras.append({"type": "268-2610", "qty": 1, "target": "bom"})
-    if inputs["swing_frame"]:
-        extras.append({"type": "9030+2970", "qty": 1, "target": "cubic"})
 
-    # --- Instructions logika ---
-    if df_instr is not None and not df_instr.empty:
-        row = df_instr[df_instr.iloc[:, 0].astype(str).str.upper() == inputs["panel_type"].upper()]
-        if not row.empty and inputs["panel_type"].upper() not in ["F", "G"]:
-            qty_sdd = pd.to_numeric(row.iloc[0, 4], errors="coerce")  # E stulpelis
-            if pd.notna(qty_sdd) and qty_sdd > 0:
-                extras.append({"type": "SDD07550", "qty": int(qty_sdd), "target": "cubic"})
-            for col in [5, 6, 7, 9]:  # F,G,H,J stulpeliai
-                val = str(row.iloc[0, col]).strip()
-                if val and val.lower() != "nan":
-                    extras.append({"type": val, "qty": 1, "target": "cubic"})
+    # UPS pagrindinis + priedai (Project BOM → NAV + Job Journal)
+    if inputs["ups"]:
+        extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom", "force_no": "2214036"})
+        extras.append({"type": "ADV UPS holder V3", "qty": 1, "target": "bom", "force_no": "2214035"})
+        extras.append({"type": "268-2610", "qty": 1, "target": "bom", "force_no": "1865206"})
+
+    # Swing frame (CUBIC BOM NAV + Mechanics Journal)
+    if inputs["swing_frame"]:
+        extras.append({"type": "9030+2970", "qty": 1, "target": "cubic", "force_no": "2185835"})
 
     job_A, nav_A, df_bom_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     job_B, nav_B, df_cub_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -711,9 +705,29 @@ def render(debug_flag=False):
             df_bom, inputs["project_number"], df_part_no
         )
 
+        # Jei UPS pažymėtas → pridedam UPS ir priedus į Job Journal (Project BOM)
+        if inputs["ups"]:
+            ups_rows = [
+                {"Type": "LI32111CT01", "Original Type": "LI32111CT01", "No.": "2214036",
+                 "Quantity": 1, "Document No.": inputs["project_number"], "Job No.": inputs["project_number"],
+                 "Job Task No.": 1144, "Location Code": "KAUNAS", "Bin Code": "",
+                 "Description": "UPS main unit", "Source": "Extra"},
+                {"Type": "ADV UPS holder V3", "Original Type": "ADV UPS holder V3", "No.": "2214035",
+                 "Quantity": 1, "Document No.": inputs["project_number"], "Job No.": inputs["project_number"],
+                 "Job Task No.": 1144, "Location Code": "KAUNAS", "Bin Code": "",
+                 "Description": "UPS holder", "Source": "Extra"},
+                {"Type": "268-2610", "Original Type": "268-2610", "No.": "1865206",
+                 "Quantity": 1, "Document No.": inputs["project_number"], "Job No.": inputs["project_number"],
+                 "Job Task No.": 1144, "Location Code": "KAUNAS", "Bin Code": "",
+                 "Description": "UPS accessory", "Source": "Extra"},
+            ]
+            job_A = pd.concat([job_A, pd.DataFrame(ups_rows)], ignore_index=True)
+
     # --- CUBIC BOM ---
     if not inputs["rittal"] and not miss_B:
-        df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras, debug=debug_flag)
+        df_cubic = pipeline_3B_0_prepare_cubic(
+            files["cubic_bom"], df_code, extras, debug=debug_flag
+        )
         df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
         df_j = pipeline_3B_2_accessories(df_j, df_acc)
         df_n = pipeline_3B_2_accessories(df_n, df_acc)
@@ -725,51 +739,70 @@ def render(debug_flag=False):
         )
 
     # =====================================================
-    # Mechanics allocation (CUBIC BOM → Mech)
+    # Stage control
     # =====================================================
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
+
             editable = job_B.copy()
-            editable["Avail"] = editable["Quantity"].astype(int)
-            editable["Qty to Mech"] = 0
+            editable["Available Qty"] = editable["Quantity"].astype(int)
 
-            edited = st.data_editor(
-                editable,
-                column_config={
-                    "Qty to Mech": st.column_config.NumberColumn(
-                        "Qty to Mech",
+            mech_inputs = []
+            with st.form("mech_form", clear_on_submit=False):
+                for idx, row in editable.iterrows():
+                    cols = st.columns([2, 3, 4, 2, 2])
+                    cols[0].write(str(row.get("No.", "")))
+                    cols[1].write(str(row.get("Original Type", "")))
+                    cols[2].write(str(row.get("Description", "")))
+                    cols[3].write(int(row["Available Qty"]))
+                    take = cols[4].number_input(
+                        "",
                         min_value=0,
-                        max_value=int(editable["Avail"].max()),
+                        max_value=int(row["Available Qty"]),
                         step=1,
-                        format="%d"
+                        format="%d",
+                        key=f"take_{idx}",
                     )
-                },
-                hide_index=True,
-                use_container_width=True,
-                num_rows="fixed",
-                key="mech_editor"
-            )
+                    mech_inputs.append((idx, take))
 
-            if st.button("✅ Confirm Mechanics Allocation"):
+                confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+
+            if confirm:
                 mech_rows, remain_rows = [], []
-                for _, r in edited.iterrows():
-                    avail = int(r.get("Avail", 0))
-                    take  = min(int(r.get("Qty to Mech", 0)), avail)
-                    if take > 0:
-                        mech_rows.append({**r.to_dict(), "Quantity": take})
-                    remain_qty = avail - take
-                    if remain_qty > 0:
-                        remain_rows.append({**r.to_dict(), "Quantity": remain_qty})
+                for idx, take in mech_inputs:
+                    avail = int(editable.loc[idx, "Available Qty"])
+                    r = editable.loc[idx].to_dict()
 
-                st.session_state["df_mech"]   = pd.DataFrame(mech_rows)
+                    if take > 0:
+                        mech_rows.append({**r, "Quantity": take})
+
+                    remain_qty = avail - take
+                    # Swing (2185835) neatsiduria Remaining
+                    if remain_qty > 0 and str(r.get("No.", "")) != "2185835":
+                        remain_rows.append({**r, "Quantity": remain_qty})
+
+                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
                 st.session_state["df_remain"] = pd.DataFrame(remain_rows)
                 st.session_state["mech_confirmed"] = True
-                st.rerun()
+
+                # Jei swing pažymėtas → iškart į Mechanics Journal
+                if inputs["swing_frame"]:
+                    swing_row = pd.DataFrame([{
+                        "Type": "9030+2970", "Original Type": "9030+2970", "No.": "2185835",
+                        "Quantity": 1, "Document No.": inputs["project_number"], "Job No.": inputs["project_number"],
+                        "Job Task No.": 1144, "Location Code": "KAUNAS", "Bin Code": "",
+                        "Description": "Swing frame component", "Source": "Extra"
+                    }])
+                    st.session_state["df_mech"] = pd.concat(
+                        [st.session_state["df_mech"], swing_row],
+                        ignore_index=True
+                    )
+
         st.stop()
 
     # =====================================================
-    # Results
+    # Stage 2 – Full results
     # =====================================================
     if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
         st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
@@ -797,7 +830,6 @@ def render(debug_flag=False):
         inputs["panel_type"],
         inputs["grounding"],
         inputs["project_number"],
-        df_instr   # 👈 perduodam instructions
     )
     st.subheader("💰 Calculation")
     st.dataframe(calc, use_container_width=True)
@@ -810,4 +842,5 @@ def render(debug_flag=False):
             st.dataframe(miss_nav_A, use_container_width=True)
         if not miss_nav_B.empty:
             st.dataframe(miss_nav_B, use_container_width=True)
+
 
