@@ -672,41 +672,43 @@ def render(debug_flag=False):
             st.session_state["mech_confirmed"] = False
 
         if not st.session_state["mech_confirmed"]:
-            # --- Etapas 1: rodom tik CUBIC Job Journal ir allocation ---
-            if not job_B.empty:
-                st.subheader("📑 Job Journal (CUBIC BOM)")
+        # --- Etapas 1: rodom tik CUBIC Job Journal ir allocation ---
+        if not job_B.empty:
+            st.subheader("📑 Job Journal (CUBIC BOM)")
+    
+            with st.form("mech_form", clear_on_submit=False):
                 editable = job_B.copy()
                 editable["Take Qty"] = 0
-
                 edited = st.data_editor(
                     editable,
                     num_rows="dynamic",
                     use_container_width=True,
                     key="mech_editor"
                 )
-
-                if st.button("✅ Confirm Mechanics Allocation"):
-                    mech_rows = []
-                    for _, r in edited.iterrows():
-                        take = float(r.get("Take Qty", 0) or 0)
-                        if take > 0:
-                            mech_rows.append({
-                                "Type": r.get("Type", "Item"),
-                                "No.": r.get("No."),
-                                "Document No.": r.get("Document No."),
-                                "Job No.": r.get("Job No."),
-                                "Job Task No.": r.get("Job Task No."),
-                                "Quantity": take,
-                                "Location Code": r.get("Location Code", ""),
-                                "Bin Code": r.get("Bin Code", ""),
-                                "Description": r.get("Description", ""),
-                                "Original Type": r.get("Original Type", "")
-                            })
-                    st.session_state["df_mech"] = pd.DataFrame(mech_rows)
-                    st.session_state["mech_confirmed"] = True
-                    st.experimental_rerun()
-
-            st.stop()  # sustabdo app'ą šiame etape
+                confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+    
+            if confirm:
+                mech_rows = []
+                for _, r in edited.iterrows():
+                    take = float(r.get("Take Qty", 0) or 0)
+                    if take > 0:
+                        mech_rows.append({
+                            "Type": r.get("Type", "Item"),
+                            "No.": r.get("No."),
+                            "Document No.": r.get("Document No."),
+                            "Job No.": r.get("Job No."),
+                            "Job Task No.": r.get("Job Task No."),
+                            "Quantity": take,
+                            "Location Code": r.get("Location Code", ""),
+                            "Bin Code": r.get("Bin Code", ""),
+                            "Description": r.get("Description", ""),
+                            "Original Type": r.get("Original Type", "")
+                        })
+                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                st.session_state["mech_confirmed"] = True
+                st.experimental_rerun()
+    
+        st.stop()  # sustabdo app'ą šiame etape
 
         else:
             # --- Etapas 2: rodom visas kitas lenteles ---
