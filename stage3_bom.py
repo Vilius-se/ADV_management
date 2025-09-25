@@ -7,31 +7,40 @@ import io
 # 1.x – Helpers
 # =====================================================
 
+import pandas as pd
+import re
+
 def pipeline_1_1_norm_name(x):
     return ''.join(str(x).upper().split())
 
 def pipeline_1_2_parse_qty(x):
-    if pd.isna(x): return 0.0
-    if isinstance(x,(int,float)): return float(x)
-    s=str(x).strip().replace('\xa0','').replace(' ','')
-    if ',' in s and '.' in s: s=s.replace(',','')
-    else: s=s.replace('.','').replace(',','.')
-    try: return float(s)
-    except: return 0.0
-
+    if pd.isna(x): 
+        return 0.0
+    if isinstance(x,(int,float)): 
+        return float(x)
+    s = str(x).strip().replace('\xa0','').replace(' ','')
+    if ',' in s and '.' in s: 
+        s = s.replace(',','')
+    else: 
+        s = s.replace('.','').replace(',','.')
+    try: 
+        return float(s)
+    except: 
+        return 0.0
 def pipeline_1_3_safe_filename(s):
-    s='' if s is None else str(s).strip()
-    s=re.sub(r'[\\/:*?"<>|]+','',s)
+    s = '' if s is None else str(s).strip()
+    s = re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
-
 def pipeline_1_4_normalize_no(x):
-    try: return str(int(float(str(x).replace(",","." ).strip())))
-    except: return str(x).strip()
-
+    try: 
+        return str(int(float(str(x).replace(",","." ).strip())))
+    except: 
+        return str(x).strip()
 def read_excel_any(file,**kwargs):
-    try: return pd.read_excel(file,engine="openpyxl",**kwargs)
-    except: return pd.read_excel(file,engine="xlrd",**kwargs)
-
+    try: 
+        return pd.read_excel(file,engine="openpyxl",**kwargs)
+    except: 
+        return pd.read_excel(file,engine="xlrd",**kwargs)
 def allocate_from_stock(no,qty_needed,stock_rows):
     allocations=[]
     qty_needed=int(round(pd.to_numeric(pd.Series([qty_needed]),errors="coerce").fillna(0).iloc[0]))
@@ -50,6 +59,9 @@ def allocate_from_stock(no,qty_needed,stock_rows):
     if remaining>0:
         allocations.append({"No.":no,"Bin Code":"","Allocated Qty":remaining})
     return allocations
+# --- Backward-compat alias ---
+normalize_no = pipeline_1_4_normalize_no
+
 
 # =====================================================
 # 2.x – Inputs & File Uploads
