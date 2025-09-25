@@ -8,22 +8,16 @@ import io
 # =====================================================
 
 
-def _dbg(show, title, obj=None, rows=8):
-    if not show:
+def _dbg(df, label, debug=False):
+    if not debug: 
         return
-    import streamlit as st
-    st.caption(f"🧪 {title}")
-    if obj is None:
+    st.markdown(f"### 🔎 Debug: {label}")
+    if df is None or df.empty:
+        st.info("Empty DataFrame")
         return
-    import pandas as pd
-    if isinstance(obj, pd.DataFrame):
-        st.write(f"shape={obj.shape}")
-        st.dataframe(obj.head(rows), use_container_width=True)
-    elif isinstance(obj, dict):
-        items = list(obj.items())[:rows]
-        st.dataframe(pd.DataFrame(items, columns=["key","value"]))
-    else:
-        st.write(obj)
+    st.text(f"Shape: {df.shape}")
+    st.dataframe(df.head(10), use_container_width=True)
+
 
 
 def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
