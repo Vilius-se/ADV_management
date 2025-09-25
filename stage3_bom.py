@@ -257,20 +257,28 @@ def pipeline_2_4_file_uploads(rittal=False):
 # =====================================================
 
 def pipeline_3A_0_rename(df_bom, df_part_code, debug=False):
-    if df_bom is None or df_bom.empty: 
+    if df_bom is None or df_bom.empty:
         return pd.DataFrame()
-    if df_part_code is None or df_part_code.empty: 
+    if df_part_code is None or df_part_code.empty:
         return df_bom
+
+    # žemėlapis: senas → naujas
     rename_map = dict(zip(
         df_part_code.iloc[:,0].astype(str).str.strip(),
         df_part_code.iloc[:,1].astype(str).str.strip()
     ))
-    df = df_bom.rename(columns=rename_map)
-    if "Type" not in df.columns: df["Type"] = df.iloc[:,0].astype(str)
-    if "Original Type" not in df.columns: df["Original Type"] = df["Type"]
-    if "Original Article" not in df.columns: df["Original Article"] = df.iloc[:,0].astype(str)
 
-    _dbg(df, "3A_0 Renamed BOM", debug=debug)
+    df = df_bom.rename(columns=rename_map)
+
+    # jei trūksta būtinų stulpelių, sukuriam
+    if "Type" not in df.columns:
+        df["Type"] = df.iloc[:,0].astype(str)
+    if "Original Type" not in df.columns:
+        df["Original Type"] = df["Type"]
+    if "Original Article" not in df.columns:
+        df["Original Article"] = df.iloc[:,0].astype(str)
+
+    _dbg(df, "3A_0 Renamed BOM (via Part_code)", debug=debug)
     return df
 
 
