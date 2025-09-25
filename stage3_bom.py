@@ -407,19 +407,32 @@ def render():
     required_A = ["bom","data","ks"]
     required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
 
-    miss_A = [k for k in required_A if k not in files]
-    miss_B = [k for k in required_B if k not in files]
+    labels = {
+    "bom": "Project BOM file",
+    "cubic_bom": "CUBIC BOM file",
+    "data": "DATA (Part_no, Accessories, Hours, Part_code...)", 
+    "ks": "Kaunas Stock file"
+}
 
+    miss_A = [labels[k] for k in required_A if k not in files]
+    miss_B = [labels[k] for k in required_B if k not in files]
+    
     st.subheader("📋 Required files")
     col1,col2 = st.columns(2)
     with col1:
-        st.success("Project BOM: OK") if not miss_A else st.warning(f"Project BOM missing: {miss_A}")
+        if not miss_A:
+            st.success("Project BOM: OK")
+        else:
+            st.warning("Project BOM missing: " + ", ".join(miss_A))
     with col2:
         if not inputs["rittal"]:
-            st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
+            if not miss_B:
+                st.success("CUBIC BOM: OK")
+            else:
+                st.warning("CUBIC BOM missing: " + ", ".join(miss_B))
         else:
             st.info("CUBIC BOM skipped (Rittal)")
-
+            
     if "ks" in files and not files["ks"].empty:
         st.subheader("🔎 Kaunas Stock preview")
         st.dataframe(files["ks"].head(20), use_container_width=True)
