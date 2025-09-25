@@ -264,40 +264,39 @@ def pipeline_2_4_normalize_part_no(df_raw):
 
 
 # =====================================================
-# 3A – Project BOM (su debug)
+# 3A – Project BOM
 # =====================================================
-
-def pipeline_3A_0_rename(df_bom, df_part_code, extras=None):
+def pipeline_3A_0_rename(df_bom, df_part_code, extras=None, debug=False):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
 
     df = df_bom.copy()
 
-    # --- tikras pervadinimas pagal Part_code ---
+    # Tikras pervadinimas pagal Part_code (A -> B)
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(
-            df_part_code.iloc[:,0].astype(str).str.strip(),
-            df_part_code.iloc[:,1].astype(str).str.strip()
+            df_part_code.iloc[:, 0].astype(str).str.strip(),
+            df_part_code.iloc[:, 1].astype(str).str.strip()
         ))
+        for col in ["Type", "Original Type"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().replace(rename_map)
 
-        if "Type" in df.columns:
-            df["Type"] = df["Type"].astype(str).str.strip().replace(rename_map)
-        if "Original Type" in df.columns:
-            df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
-
-    # --- užtikrinam, kad būtini stulpeliai egzistuotų ---
+    # Būtinų stulpelių apsauga
     if "Type" not in df.columns:
-        df["Type"] = df.iloc[:,0].astype(str)
+        df["Type"] = df.iloc[:, 0].astype(str)
     if "Original Type" not in df.columns:
         df["Original Type"] = df["Type"]
     if "Original Article" not in df.columns:
-        df["Original Article"] = df.iloc[:,0].astype(str)
+        df["Original Article"] = df.iloc[:, 0].astype(str)
 
-    # --- pridedam extras, jei reikia ---
+    # Extras tik į Project BOM
     if extras:
-        df = add_extra_components(df, [e for e in extras if e["target"]=="bom"])
+        df = add_extra_components(df, [e for e in extras if e.get("target") == "bom"])
 
+    _dbg(df, "3A_0 rename (after)", debug=debug)
     return df
+
 
 
 
@@ -455,48 +454,46 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
 # 3B – CUBIC BOM
 # =====================================================
 
-def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False):
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame()
 
     df = df_cubic.copy().rename(columns=lambda c: str(c).strip())
 
-    # Quantity sutvarkymas
+    # Quantity sutvarkymas (E/F/G → pirmoji reikšmė)
     if any(col in df.columns for col in ["E", "F", "G"]):
         df["Quantity"] = df[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
-        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
-    elif "Quantity" in df.columns:
-        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
-    else:
+    if "Quantity" not in df.columns:
         df["Quantity"] = 0
+    df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
 
-    # Type ir Original Type
+    # Type / Original Type
     if "Item Id" in df.columns:
         df["Type"] = df["Item Id"].astype(str).str.strip()
         df["Original Type"] = df["Type"]
-    elif "Type" not in df.columns:
+    if "Type" not in df.columns:
         df["Type"] = ""
         df["Original Type"] = ""
 
+    # „No.“ fallback
     if "No." not in df.columns:
         df["No."] = df["Type"]
 
-    # --- tikras pervadinimas pagal Part_code ---
+    # Pervadinimas pagal Part_code (A -> B)
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(
-            df_part_code.iloc[:,0].astype(str).str.strip(),
-            df_part_code.iloc[:,1].astype(str).str.strip()
+            df_part_code.iloc[:, 0].astype(str).str.strip(),
+            df_part_code.iloc[:, 1].astype(str).str.strip()
         ))
+        for col in ["Type", "Original Type"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().replace(rename_map)
 
-        if "Type" in df.columns:
-            df["Type"] = df["Type"].astype(str).str.strip().replace(rename_map)
-        if "Original Type" in df.columns:
-            df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
-
-    # Extras
+    # Extras tik į CUBIC
     if extras:
-        df = add_extra_components(df, [e for e in extras if e["target"]=="cubic"])
+        df = add_extra_components(df, [e for e in extras if e.get("target") == "cubic"])
 
+    _dbg(df, "3B_0 prepare_cubic (after)", debug=debug)
     return df
 
 
