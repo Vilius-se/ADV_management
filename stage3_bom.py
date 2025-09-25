@@ -442,7 +442,8 @@ def render():
             # --- SDD07550 (E stulpelis, jei ne F/G) ---
             if inputs["panel_type"][0] not in ["F","G"]:
                 try:
-                    qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
+                    val = row.iloc[0,4]
+                    qty_sdd = int(pd.to_numeric(val, errors="coerce"))
                 except:
                     qty_sdd = 0
                 if qty_sdd > 0:
