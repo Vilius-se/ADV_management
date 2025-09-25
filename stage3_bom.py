@@ -703,52 +703,31 @@ def render(debug_flag=False):
     
             mech_inputs = []
             with st.form("mech_form", clear_on_submit=False):
-                st.markdown(
-                    """
-                    <style>
-                    table.mech-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-size: 13px;
-                    }
-                    table.mech-table th, table.mech-table td {
-                        border: 1px solid #555;
-                        padding: 2px 6px;
-                        text-align: left;
-                    }
-                    table.mech-table th {
-                        background-color: #333;
-                        color: white;
-                    }
-                    </style>
-                    <table class="mech-table">
-                    <tr>
-                        <th>No.</th>
-                        <th>Original Type</th>
-                        <th>Description</th>
-                        <th>Avail</th>
-                        <th>Qty to Mech</th>
-                    </tr>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
             
-                mech_inputs = []
-                for idx, row in editable.iterrows():
-                    c1, c2, c3, c4, c5 = st.columns([2, 2, 5, 1, 2])
-                    c1.write(str(row.get("No.", "")))
-                    c2.write(str(row.get("Original Type", "")))
-                    c3.write(str(row.get("Description", "")))
-                    c4.write(int(row["Available Qty"]))
-                    take = c5.number_input(
-                        label="",  # be jokio label
-                        min_value=0,
-                        max_value=int(row["Available Qty"]),
-                        step=1,
-                        format="%d",
-                        key=f"take_{idx}",
-                    )
-                    mech_inputs.append((idx, take))
+                editable = job_B.copy()
+                editable["Avail"] = editable["Quantity"].astype(int)
+                editable["Qty to Mech"] = 0
+            
+                edited = st.data_editor(
+                    editable[["No.", "Original Type", "Description", "Avail", "Qty to Mech"]],
+                    column_config={
+                        "Qty to Mech": st.column_config.NumberColumn(
+                            "",
+                            min_value=0,
+                            max_value=int(editable["Avail"].max()),
+                            step=1,
+                            format="%d"
+                        ),
+                        "Avail": st.column_config.NumberColumn(
+                            "Avail",
+                            format="%d"
+                        )
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    key="mech_editor"
+                )
             
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
