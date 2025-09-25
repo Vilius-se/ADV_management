@@ -1,1106 +1,482 @@
 import streamlit as st
 import pandas as pd
-import io
 import re
+import io
 
 # =====================================================
-# Pipeline 1.x – Helpers
+# 1.x – Helpers
 # =====================================================
 
-def pipeline_1_1_norm_name(x):
-    """
-    Normalize name: make uppercase, remove spaces.
-    Pvz.: 'abc 123' → 'ABC123'
-    """
+def norm_name(x):
     return ''.join(str(x).upper().split())
 
-def pipeline_1_2_parse_qty(x):
-    """
-    Parse numeric quantities from string or mixed format.
-    Tvarko kablelius, taškus, tarpelius.
-    Pvz.: '1,5' → 1.5, '2.000,50' → 2000.5
-    """
-    if pd.isna(x):
-        return 0.0
-    if isinstance(x, (int, float)):
-        return float(x)
-    s = str(x).strip().replace('\xa0','').replace(' ','')
-    if ',' in s and '.' in s:
-        s = s.replace(',','')
-    else:
-        s = s.replace('.','').replace(',','.')
-    try:
-        return float(s)
-    except:
-        return 0.0
+def parse_qty(x):
+    if pd.isna(x): return 0.0
+    if isinstance(x,(int,float)): return float(x)
+    s=str(x).strip().replace('\xa0','').replace(' ','')
+    if ',' in s and '.' in s: s=s.replace(',','')
+    else: s=s.replace('.','').replace(',','.')
+    try: return float(s)
+    except: return 0.0
 
-def pipeline_1_3_safe_filename(s):
-    """
-    Format filename safe for Windows/SharePoint.
-    Pašalina draudžiamus simbolius, tarpus pakeičia į '_'.
-    """
-    s = '' if s is None else str(s).strip()
-    s = re.sub(r'[\\/:*?"<>|]+','',s)
+def safe_filename(s):
+    s='' if s is None else str(s).strip()
+    s=re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
-    
+
+def normalize_no(x):
+    try: return str(int(float(str(x).replace(",","." ).strip())))
+    except: return str(x).strip()
+
+def read_excel_any(file,**kwargs):
+    try: return pd.read_excel(file,engine="openpyxl",**kwargs)
+    except: return pd.read_excel(file,engine="xlrd",**kwargs)
+
+def allocate_from_stock(no,qty_needed,stock_rows):
+    allocations=[]
+    qty_needed=int(round(pd.to_numeric(pd.Series([qty_needed]),errors="coerce").fillna(0).iloc[0]))
+    remaining=qty_needed
+    if stock_rows is not None and not stock_rows.empty:
+        for _,srow in stock_rows.iterrows():
+            if remaining<=0: break
+            bin_code=str(srow.get("Bin Code","")).strip()
+            stock_qty=pd.to_numeric(pd.Series([srow.get("Quantity",0)]),errors="coerce").fillna(0).iloc[0]
+            if stock_qty<=0: continue
+            if bin_code=="67-01-01-01": continue
+            take=min(int(round(stock_qty)),remaining)
+            if take>0:
+                allocations.append({"No.":no,"Bin Code":bin_code,"Allocated Qty":take})
+                remaining-=take
+    if remaining>0:
+        allocations.append({"No.":no,"Bin Code":"","Allocated Qty":remaining})
+    return allocations
+
 # =====================================================
-# Pipeline 2.x – vartotojo įvestis ir failai
+# 2.x – Inputs & File Uploads
 # =====================================================
 
-def pipeline_2_1_user_inputs():
-    """
-    Surenka vartotojo įvestis: projekto numerį, panelės tipą,
-    įžeminimo tipą, pagrindinį jungiklį ir pasirinktus checkbox’us.
-    """
-    st.subheader("🔢 Project Information")
-
-    project_number = st.text_input("Project number (format: 1234-567)")
-    if project_number and not re.match(r"^\d{4}-\d{3}$", project_number):
-        st.error("⚠️ Invalid format (must be 1234-567)")
+def user_inputs():
+    st.subheader("Project Information")
+    project_number=st.text_input("Project number (1234-567)")
+    if project_number and not re.match(r"^\d{4}-\d{3}$",project_number):
+        st.error("Invalid format (must be 1234-567)")
         return None
+    panel_type=st.selectbox("Panel type",['A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8',
+                                          'F','F1','F2','F3','F4','F4.1','F5','F6','F7',
+                                          'G','G1','G2','G3','G4','G5','G6','G7','Custom'])
+    grounding=st.selectbox("Grounding type",["TT","TN-S","TN-C-S"])
+    main_switch=st.selectbox("Main switch",["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"])
+    swing_frame=st.checkbox("Swing frame?")
+    ups=st.checkbox("UPS?")
+    rittal=st.checkbox("Rittal?")
+    return {"project_number":project_number,"panel_type":panel_type,"grounding":grounding,
+            "main_switch":main_switch,"swing_frame":swing_frame,"ups":ups,"rittal":rittal}
 
-    panel_type = st.selectbox(
-        "Panel type", 
-        options=[
-            'A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8',
-            'F','F1','F2','F3','F4','F4.1','F5','F6','F7',
-            'G','G1','G2','G3','G4','G5','G6','G7',
-            'Custom'
-        ]
-    )
-
-    grounding   = st.selectbox("Grounding type", ["TT", "TN-S", "TN-C-S"])
-    main_switch = st.selectbox("Main switch", ["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"])
-
-    swing_frame = st.checkbox("Swing frame?")
-    ups         = st.checkbox("UPS?")
-    rittal      = st.checkbox("Rittal?")
-
-    return {
-        "project_number": project_number,
-        "panel_type": panel_type,
-        "grounding": grounding,
-        "main_switch": main_switch,
-        "swing_frame": swing_frame,
-        "ups": ups,
-        "rittal": rittal,
-    }
-
-def get_sheet_safe(data_dict, names):
-    """
-    Grąžina pirmą sutampantį lapą iš data_dict pagal galimus pavadinimus.
-    names: sąrašas galimų variantų
-    """
+def get_sheet_safe(data_dict,names):
+    if not isinstance(data_dict,dict): return None
     for key in data_dict.keys():
-        if str(key).strip().upper().replace(" ", "_") in [n.upper().replace(" ", "_") for n in names]:
+        if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
             return data_dict[key]
     return None
 
-# ---- Helper: universalus Excel reader (.xls + .xlsx) ----
-
-def normalize_part_no(df_part_no_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normalizuoja Part_no sheetą į standartinius stulpelius:
-    PartNo_A, PartName_B, Desc_C, Manufacturer_D, SupplierNo_E, UnitPrice_F
-    """
-    if df_part_no_raw is None or df_part_no_raw.empty:
-        return pd.DataFrame()
-
-    df = df_part_no_raw.copy()
-    df = df.rename(columns=lambda c: str(c).strip())
-
-    col_map = {}
-    if df.shape[1] >= 1:
-        col_map[df.columns[0]] = "PartNo_A"
-    if df.shape[1] >= 2:
-        col_map[df.columns[1]] = "PartName_B"
-    if df.shape[1] >= 3:
-        col_map[df.columns[2]] = "Desc_C"
-    if df.shape[1] >= 4:
-        col_map[df.columns[3]] = "Manufacturer_D"
-    if df.shape[1] >= 5:
-        col_map[df.columns[4]] = "SupplierNo_E"
-    if df.shape[1] >= 6:
-        col_map[df.columns[5]] = "UnitPrice_F"
-
+def normalize_part_no(df_raw):
+    if df_raw is None or df_raw.empty: return pd.DataFrame()
+    df=df_raw.copy().rename(columns=lambda c:str(c).strip())
+    col_map={}
+    if df.shape[1]>=1: col_map[df.columns[0]]="PartNo_A"
+    if df.shape[1]>=2: col_map[df.columns[1]]="PartName_B"
+    if df.shape[1]>=3: col_map[df.columns[2]]="Desc_C"
+    if df.shape[1]>=4: col_map[df.columns[3]]="Manufacturer_D"
+    if df.shape[1]>=5: col_map[df.columns[4]]="SupplierNo_E"
+    if df.shape[1]>=6: col_map[df.columns[5]]="UnitPrice_F"
     return df.rename(columns=col_map)
 
-def normalize_no(x):
-    """
-    Normalizuoja NAV numerius: pašalina kablelius, taškus,
-    palieka tik sveiką skaičių kaip string.
-    Pvz. '2169732.0' -> '2169732'
-    """
-    try:
-        return str(int(float(str(x).replace(",", ".").strip())))
-    except:
-        return str(x).strip()
-
-
-def allocate_from_stock(no, qty_needed, stock_rows):
-    allocations = []
-    qty_needed = pd.to_numeric(pd.Series([qty_needed]), errors="coerce").fillna(0).iloc[0]
-    remaining = int(round(qty_needed))
-
-    if stock_rows is not None and not stock_rows.empty:
-        for _, srow in stock_rows.iterrows():
-            if remaining <= 0:
-                break
-            bin_code = str(srow.get("Bin Code", "")).strip()
-            stock_qty = pd.to_numeric(pd.Series([srow.get("Quantity", 0)]), errors="coerce").fillna(0).iloc[0]
-            if stock_qty <= 0:
-                continue
-            if bin_code == "67-01-01-01":
-                continue
-
-            take = min(int(round(stock_qty)), remaining)
-            if take > 0:
-                allocations.append({
-                    "No.": no,
-                    "Bin Code": bin_code,
-                    "Allocated Qty": take
-                })
-                remaining -= take
-
-    if remaining > 0:
-        allocations.append({
-            "No.": no,
-            "Bin Code": "",
-            "Allocated Qty": remaining
-        })
-
-    return allocations
-
-def read_excel_any(file, **kwargs):
-    try:
-        return pd.read_excel(file, engine="openpyxl", **kwargs)
-    except Exception:
-        return pd.read_excel(file, engine="xlrd", **kwargs)
-
-# Universal Excel reader (.xls / .xlsx / .xlsm)
-def read_excel_any(file, **kwargs):
-    try:
-        return pd.read_excel(file, engine="openpyxl", **kwargs)
-    except Exception:
-        return pd.read_excel(file, engine="xlrd", **kwargs)
-
-# ---- Pipeline 2.2: File uploads (be stulpelių validacijos) ----
-def pipeline_2_2_file_uploads(rittal=False):
-    st.subheader("📂 Upload Required Files")
-
-    dfs = {}
-
-    # --- CUBIC BOM (tik jei ne Rittal) ---
+def file_uploads(rittal=False):
+    st.subheader("Upload Required Files")
+    dfs={}
     if not rittal:
-        st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert CUBIC BOM</h3>", unsafe_allow_html=True)
-        cubic_bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="cubic_bom")
+        cubic_bom=st.file_uploader("Insert CUBIC BOM",type=["xls","xlsx","xlsm"],key="cubic_bom")
         if cubic_bom:
-            try:
-                # Skaitom platesnį bloką (B:G), nes Quantity gali būti E/F/G
-                df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,E:F,G")
-                df_cubic = df_cubic.rename(columns=lambda c: str(c).strip())
-
-                # Sukuriam Quantity kaip pirmą nenulinę reikšmę tarp E,F,G
-                if {"E", "F", "G"}.issubset(df_cubic.columns):
-                    df_cubic["Quantity"] = (
-                        df_cubic[["E", "F", "G"]]
-                        .bfill(axis=1)  # užpildo iš kairės
-                        .iloc[:, 0]     # pasiima pirmą reikšmę
-                    )
-                elif "Quantity" not in df_cubic.columns:
-                    df_cubic["Quantity"] = 0
-
-                # Normalizacija
-                df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
-                df_cubic = df_cubic.rename(columns={"Item Id": "Type"})
-                df_cubic["Original Type"] = df_cubic["Type"]
-
-                # Sukuriam No.
-                df_cubic["No."] = df_cubic["Type"]
-
-                dfs["cubic_bom"] = df_cubic
-            except Exception as e:
-                st.error(f"⚠️ Cannot open CUBIC BOM: {e}")
-
-    # --- BOM ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert BOM</h3>", unsafe_allow_html=True)
-    bom = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="bom")
+            df_cubic=read_excel_any(cubic_bom,skiprows=13,usecols="B,E:F,G")
+            df_cubic=df_cubic.rename(columns=lambda c:str(c).strip())
+            if {"E","F","G"}.issubset(df_cubic.columns):
+                df_cubic["Quantity"]=df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
+            elif "Quantity" not in df_cubic.columns:
+                df_cubic["Quantity"]=0
+            df_cubic["Quantity"]=pd.to_numeric(df_cubic["Quantity"],errors="coerce").fillna(0)
+            df_cubic=df_cubic.rename(columns={"Item Id":"Type"})
+            df_cubic["Original Type"]=df_cubic["Type"]
+            df_cubic["No."]=df_cubic["Type"]
+            dfs["cubic_bom"]=df_cubic
+    bom=st.file_uploader("Insert BOM",type=["xls","xlsx","xlsm"],key="bom")
     if bom:
-        try:
-            df_bom = read_excel_any(bom)
-
-            # pasiruošiam pirmus du stulpelius kaip originalius
-            if df_bom.shape[1] >= 2:
-                colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-                df_bom["Original Article"] = colA
-                df_bom["Original Type"]    = colB.where(colB != "", colA)
-            else:
-                df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-                df_bom["Original Type"]    = df_bom["Original Article"]
-
-            dfs["bom"] = df_bom
-        except Exception as e:
-            st.error(f"⚠️ Cannot open BOM: {e}")
-
-    # --- DATA ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert DATA</h3>", unsafe_allow_html=True)
-    data_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="data")
+        df_bom=read_excel_any(bom)
+        if df_bom.shape[1]>=2:
+            colA=df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            colB=df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+            df_bom["Original Article"]=colA
+            df_bom["Original Type"]=colB.where(colB!="",colA)
+        else:
+            df_bom["Original Article"]=df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"]=df_bom["Original Article"]
+        dfs["bom"]=df_bom
+    data_file=st.file_uploader("Insert DATA",type=["xls","xlsx","xlsm"],key="data")
     if data_file:
-        try:
-            dfs["data"] = pd.read_excel(data_file, sheet_name=None)  # <-- VISI LAPAI
-        except Exception as e:
-            st.error(f"⚠️ Cannot open DATA: {e}")
-
-    # --- Kaunas Stock ---
-    st.markdown("<h3 style='color:#0ea5e9; font-weight:700;'>📂 Insert Kaunas Stock</h3>", unsafe_allow_html=True)
-    ks_file = st.file_uploader("", type=["xls", "xlsx", "xlsm"], key="ks")
+        dfs["data"]=pd.read_excel(data_file,sheet_name=None)
+    ks_file=st.file_uploader("Insert Kaunas Stock",type=["xls","xlsx","xlsm"],key="ks")
     if ks_file:
-        try:
-            dfs["ks"] = read_excel_any(ks_file)
-        except Exception as e:
-            st.error(f"⚠️ Cannot open Kaunas Stock: {e}")
-
+        dfs["ks"]=read_excel_any(ks_file)
     return dfs
 
 # =====================================================
-# Project BOM processing
-# =====================================================
-def process_project_bom(df_bom_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
-    if df_bom_raw is None or df_bom_raw.empty:
-        return pd.DataFrame(), pd.DataFrame()
-
-    # 1. Filtruojam tik no need
-    df_bom = pipeline_3_1_filtering(df_bom_raw, df_stock, source="Project BOM")
-
-    # 2. Accessories
-    df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
-
-    # 3. NAV numeriai
-    df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
-
-    # 4. Stock tikrinimas
-    df_bom = pipeline_3_4_check_stock(df_bom, ks_file)
-
-    # 5. Lentelės
-    job_journal = pipeline_4_1_job_journal(df_bom, project_number, source="Project BOM")
-    nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no)
-
-    return job_journal, nav_table
-
-
-# =====================================================
-# CUBIC BOM processing
-# =====================================================
-def process_cubic_bom(df_cubic_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
-    if df_cubic_raw is None or df_cubic_raw.empty:
-        return pd.DataFrame(), pd.DataFrame()
-
-    df_cubic = pipeline_3_5_prepare_cubic(df_cubic_raw)
-
-    # Kopijos: viena su visais komentarais, kita tik su no need
-    df_cubic_for_journal, df_cubic_for_nav = pipeline_3_1_filtering_cubic(df_cubic, df_stock)
-
-    # Accessories
-    df_cubic_for_journal = pipeline_3_2_add_accessories(df_cubic_for_journal, df_accessories)
-    df_cubic_for_nav     = pipeline_3_2_add_accessories(df_cubic_for_nav, df_accessories)
-
-    # NAV numeriai
-    df_cubic_for_journal = pipeline_3_3_add_nav_numbers(df_cubic_for_journal, df_part_no, source="CUBIC BOM")
-    df_cubic_for_nav     = pipeline_3_3_add_nav_numbers(df_cubic_for_nav, df_part_no, source="CUBIC BOM")
-
-    # Stock tikrinimas tik Journal kopijai
-    df_cubic_for_journal = pipeline_3_4_check_stock(df_cubic_for_journal, ks_file)
-
-    # Lentelės
-    job_journal = pipeline_4_1_job_journal(df_cubic_for_journal, project_number, source="CUBIC BOM")
-    nav_table   = pipeline_4_2_nav_table(df_cubic_for_nav, df_part_no)
-
-    return job_journal, nav_table
-
-
-
-# =====================================================
-# Pipeline 3.x – Duomenų apdorojimas
+# 3A – Project BOM
 # =====================================================
 
-def pipeline_3_0_rename_columns(df_bom: pd.DataFrame, df_part_code: pd.DataFrame) -> pd.DataFrame:
-    """
-    Pervadina BOM stulpelius pagal DATA.xlsx → Part_code.
-    1-asis stulpelis = senas pavadinimas, 2-asis = naujas pavadinimas.
-    """
-    st.info("🔄 Renaming BOM columns according to Part_code...")
-
-    if df_part_code is None or df_part_code.empty:
-        st.warning("⚠️ Part_code sheet not found, skipping rename")
-        return df_bom
-
-    rename_map = dict(zip(
-        df_part_code.iloc[:, 0].astype(str).str.strip(),
-        df_part_code.iloc[:, 1].astype(str).str.strip()
+def pipeline_3A_0_rename(df_bom, df_part_code):
+    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if df_part_code is None or df_part_code.empty: return df_bom
+    rename_map=dict(zip(
+        df_part_code.iloc[:,0].astype(str).str.strip(),
+        df_part_code.iloc[:,1].astype(str).str.strip()
     ))
+    df=df_bom.rename(columns=rename_map)
+    if "Type" not in df.columns: df["Type"]=df.iloc[:,0].astype(str)
+    if "Original Type" not in df.columns: df["Original Type"]=df["Type"]
+    if "Original Article" not in df.columns: df["Original Article"]=df.iloc[:,0].astype(str)
+    return df
 
-    df_bom = df_bom.rename(columns=rename_map)
+def pipeline_3A_1_filter(df_bom,df_stock):
+    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if df_stock is None or df_stock.empty: return df_bom.copy()
+    cols=list(df_stock.columns)
+    if len(cols)<3: return df_bom.copy()
+    df_stock=df_stock.rename(columns={cols[0]:"Component",cols[2]:"Comment"})
+    excluded=df_stock[df_stock["Comment"].astype(str).str.lower().str.strip()=="no need"]["Component"].astype(str)
+    excluded_norm=excluded.str.upper().str.replace(" ","").str.strip().unique()
+    df=df_bom.copy()
+    df["Norm_Type"]=df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+    out=df[~df["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
+    return out.drop(columns=["Norm_Type"])
 
-    st.success("✅ BOM columns renamed according to Part_code")
-    return df_bom
-def pipeline_3_1_filtering(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
-    """
-    Filtruojam Project BOM:
-    - pašalinam tik tas eilutes, kurias Stock sheet turi su Comment = 'no need'
-    - kiti komentarai (Q1, Wurth, ir t.t.) lieka
-    """
-    st.info(f"🚦 Filtering {source}: removing only 'no need' items...")
+def pipeline_3A_2_accessories(df_bom,df_acc):
+    if df_acc is None or df_acc.empty: return df_bom
+    df_out=df_bom.copy()
+    for _,row in df_bom.iterrows():
+        main_item=str(row["Type"]).strip()
+        matches=df_acc[df_acc.iloc[:,0].astype(str).str.strip()==main_item]
+        for _,acc_row in matches.iterrows():
+            acc_vals=acc_row.values[1:]
+            for i in range(0,len(acc_vals),3):
+                if i+2>=len(acc_vals) or pd.isna(acc_vals[i]): break
+                acc_item=str(acc_vals[i]).strip()
+                try: acc_qty=float(str(acc_vals[i+1]).replace(",",".")) 
+                except: acc_qty=1
+                acc_manuf=str(acc_vals[i+2]).strip()
+                df_out=pd.concat([df_out,pd.DataFrame([{
+                    "Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"
+                }])],ignore_index=True)
+    return df_out
 
-    if df_bom is None or df_bom.empty:
-        return pd.DataFrame()
-
-    if df_stock is None or df_stock.empty:
-        st.warning(f"⚠️ Stock sheet missing or empty — skipping filtering for {source}")
-        return df_bom.copy()
-
-    # užtikrinam, kad turim bent 3 stulpelius (Component, ..., Comment)
-    cols = list(df_stock.columns)
-    if len(cols) < 3:
-        st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
-        return df_bom.copy()
-
-    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
-
-    # atrenkam tik tuos komponentus, kurių Comment = 'no need'
-    excluded_components = (
-        df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"]
-        .dropna()
-        .astype(str)
-    )
-
-    # normalizuojam raktus palyginimui
-    excluded_norm = (
-        excluded_components
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-        .unique()
-    )
-
-    df_in = df_bom.copy()
-    df_in["Norm_Type"] = (
-        df_in["Type"]
-        .astype(str)
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-    )
-
-    filtered = df_in[~df_in["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
-
-    st.success(
-        f"✅ {source} filtered: {len(df_bom)} → {len(filtered)} rows "
-        f"(removed {len(df_bom) - len(filtered)} 'no need' items)"
-    )
-
-    return filtered.drop(columns=["Norm_Type"])
-
-def pipeline_3_1_filtering_cubic(df_bom: pd.DataFrame, df_stock: pd.DataFrame, source: str = "CUBIC BOM") -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Filtruojam CUBIC BOM:
-    - Job Journal: pašalinam visas eilutes, jei Comment != "" (no need, Q1, Wurth ar kitas)
-    - NAV Table: pašalinam tik 'no need', o Q1, Wurth ir kiti lieka
-    Grąžina tuple: (df_for_journal, df_for_nav)
-    """
-    st.info(f"🚦 Filtering {source} (different rules for Job Journal & NAV Table)...")
-
-    if df_bom is None or df_bom.empty:
-        return pd.DataFrame(), pd.DataFrame()
-
-    if df_stock is None or df_stock.empty:
-        st.warning(f"⚠️ Stock sheet missing or empty — skipping filtering for {source}")
-        return df_bom.copy(), df_bom.copy()
-
-    # užtikrinam bent 3 stulpelius (Component, ..., Comment)
-    cols = list(df_stock.columns)
-    if len(cols) < 3:
-        st.error("❌ Stock sheet must have at least 3 columns (Component, ..., Comment)")
-        return df_bom.copy(), df_bom.copy()
-
-    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
-
-    # visi su bet kokiu Comment (Job Journal neturi jų turėti)
-    excluded_all = df_stock[df_stock["Comment"].astype(str).str.strip() != ""]
-    # tik 'no need' (NAV Table neturi jų turėti)
-    excluded_no_need = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]
-
-    excluded_all_norm = (
-        excluded_all["Component"].dropna().astype(str).str.upper().str.replace(" ", "").str.strip().unique()
-    )
-    excluded_no_need_norm = (
-        excluded_no_need["Component"].dropna().astype(str).str.upper().str.replace(" ", "").str.strip().unique()
-    )
-
-    df_in = df_bom.copy()
-    df_in["Norm_Type"] = df_in["Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
-
-    # Job Journal: išmetam visas su Comment
-    df_for_journal = df_in[~df_in["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
-    # NAV Table: išmetam tik 'no need'
-    df_for_nav = df_in[~df_in["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
-
-    st.success(
-        f"✅ {source} filtered: {len(df_bom)} → {len(df_for_journal)} rows for Job Journal, "
-        f"{len(df_for_nav)} rows for NAV Table"
-    )
-
-    return df_for_journal.drop(columns=["Norm_Type"]), df_for_nav.drop(columns=["Norm_Type"])
-
-
-
-
-def pipeline_3_2_add_accessories(df_bom: pd.DataFrame, df_accessories: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prideda accessories pagal DATA.xlsx → Accessories lapą.
-    Logika: jei BOM’e yra pagrindinis komponentas, įtraukiami jo accessories.
-    Accessories įrašomi į 'Type', kad gautų NAV numerius vėliau.
-    """
-    st.info("➕ Adding accessories...")
-
-    if df_accessories is None or df_accessories.empty:
-        st.warning("⚠️ Accessories sheet not found, skipping")
+def pipeline_3A_3_nav(df_bom,df_part_no):
+    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if df_part_no is None or df_part_no.empty:
+        df_bom["No."]=""
         return df_bom
-
-    df_out = df_bom.copy()
-    added = []
-
-    for _, row in df_bom.iterrows():
-        main_item = str(row["Type"]).strip()
-        matches = df_accessories[df_accessories.iloc[:, 0].astype(str).str.strip() == main_item]
-
-        for _, acc_row in matches.iterrows():
-            acc_values = acc_row.values[1:]  # viskas po pirmo stulpelio
-            for i in range(0, len(acc_values), 3):
-                if i + 2 >= len(acc_values) or pd.isna(acc_values[i]):
-                    break
-
-                acc_item = str(acc_values[i]).strip()  # accessory pavadinimas
-                try:
-                    acc_qty = float(str(acc_values[i + 1]).replace(",", "."))
-                except:
-                    acc_qty = 1
-                acc_manuf = str(acc_values[i + 2]).strip()
-
-                # accessories įrašom į Type
-                df_out = pd.concat([df_out, pd.DataFrame([{
-                    "Type": acc_item,
-                    "Quantity": acc_qty,
-                    "Manufacturer": acc_manuf,
-                    "Source": "Accessory"  # žyma identifikacijai
-                }])], ignore_index=True)
-
-                added.append(acc_item)
-
-    st.success(f"✅ Added {len(added)} accessories")
-    return df_out
-
-def pipeline_3_3_add_nav_numbers(df_bom: pd.DataFrame, df_part_no_raw: pd.DataFrame, source: str = "BOM") -> pd.DataFrame:
-    """
-    Priskiria NAV numerius ir papildomą info iš Part_no lentelės.
-    - 'Type' lieka originalus.
-    - 'No.' = sveikas NAV numeris be kablelio (string), jei nerasta -> "".
-    - Papildomi laukai: Description, Supplier, Supplier No., Unit Cost (jei Part_no turi).
-    """
-    st.info(f"🔗 Assigning NAV numbers for {source}...")
-
-    if df_bom is None or df_bom.empty:
-        return pd.DataFrame()
-
-    df_out = df_bom.copy()
-
-    if df_part_no_raw is None or df_part_no_raw.empty:
-        st.warning("⚠️ Part_no sheet is empty — 'No.' will be left empty")
-        df_out["No."] = ""
-        return df_out
-
-    # ---- normalizuojam part_no pagal pozicijas (lankstus) ----
-    df_part = df_part_no_raw.copy().reset_index(drop=True)
-    df_part = df_part.rename(columns=lambda c: str(c).strip())
-
-    col_map = {}
-    if df_part.shape[1] >= 1:
-        col_map[df_part.columns[0]] = "PartNo_A"
-    if df_part.shape[1] >= 2:
-        col_map[df_part.columns[1]] = "PartName_B"
-    if df_part.shape[1] >= 3:
-        col_map[df_part.columns[2]] = "Desc_C"
-    if df_part.shape[1] >= 4:
-        col_map[df_part.columns[3]] = "Manufacturer_D"
-    if df_part.shape[1] >= 5:
-        col_map[df_part.columns[4]] = "SupplierNo_E"
-    if df_part.shape[1] >= 6:
-        col_map[df_part.columns[5]] = "UnitPrice_F"
-
-    df_part = df_part.rename(columns=col_map)
-
-    # Jeigu nėra PartName_B arba PartNo_A — negalime map'inti
+    df_part=df_part_no.copy().reset_index(drop=True).rename(columns=lambda c:str(c).strip())
     if "PartName_B" not in df_part.columns or "PartNo_A" not in df_part.columns:
-        st.warning("⚠️ Part_no lacks PartNo or PartName columns — 'No.' will be left empty")
-        df_out["No."] = ""
-        return df_out
-
-    # Normalizuojam pavadinimus (PartName_B)
-    df_part["Norm_B"] = (
-        df_part["PartName_B"]
-        .astype(str)
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-    )
-
-    # Normalizuojam PartNo_A
+        df_bom["No."]=""
+        return df_bom
+    df_part["Norm_B"]=df_part["PartName_B"].astype(str).str.upper().str.replace(" ","").str.strip()
     def norm_partno(x):
-        try:
-            s = str(x).strip().replace(",", ".")
-            if s == "":
-                return ""
-            return str(int(float(s)))
-        except Exception:
-            return str(x).strip()
-
-    df_part["PartNo_A"] = df_part["PartNo_A"].map(norm_partno).fillna("").astype(str)
-
-    # --- pašalinam dublikatus ---
-    df_part = df_part.drop_duplicates(subset=["Norm_B"], keep="first")
-    df_part = df_part.drop_duplicates(subset=["PartNo_A"], keep="first")
-    df_part = df_part.reset_index(drop=True)
-
-    # Normalizuojam BOM Type
-    df_out["Norm_Type"] = (
-        df_out["Type"].astype(str)
-        .str.upper()
-        .str.replace(" ", "")
-        .str.strip()
-    )
-
-    # Map: Norm_Type -> PartNo_A
-    map_by_type = dict(zip(df_part["Norm_B"], df_part["PartNo_A"]))
-    df_out["No."] = df_out["Norm_Type"].map(map_by_type).fillna("").astype(str)
-
-    # Pridėti papildomą informaciją
-    merge_cols = [c for c in ["PartNo_A", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F", "Norm_B"] if c in df_part.columns]
+        try: return str(int(float(str(x).strip().replace(",","."))))
+        except: return str(x).strip()
+    df_part["PartNo_A"]=df_part["PartNo_A"].map(norm_partno).fillna("").astype(str)
+    df_part=df_part.drop_duplicates(subset=["Norm_B"],keep="first").drop_duplicates(subset=["PartNo_A"],keep="first")
+    df=df_bom.copy()
+    df["Norm_Type"]=df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+    map_by_type=dict(zip(df_part["Norm_B"],df_part["PartNo_A"]))
+    df["No."]=df["Norm_Type"].map(map_by_type).fillna("").astype(str)
+    merge_cols=[c for c in ["PartNo_A","Desc_C","Manufacturer_D","SupplierNo_E","UnitPrice_F","Norm_B"] if c in df_part.columns]
     if merge_cols:
-        df_out = df_out.merge(
-            df_part[merge_cols],
-            left_on="No.", right_on="PartNo_A",
-            how="left"
-        )
-
-        rename_map = {}
-        if "Desc_C" in df_out.columns:
-            rename_map["Desc_C"] = "Description"
-        if "Manufacturer_D" in df_out.columns:
-            rename_map["Manufacturer_D"] = "Supplier"
-        if "SupplierNo_E" in df_out.columns:
-            rename_map["SupplierNo_E"] = "Supplier No."
-        if "UnitPrice_F" in df_out.columns:
-            rename_map["UnitPrice_F"] = "Unit Cost"
-
-        df_out = df_out.rename(columns=rename_map)
-
-        # Pašalinam pagalbinius
-        df_out = df_out.drop(columns=[c for c in ["Norm_Type", "Norm_B", "PartNo_A"] if c in df_out.columns], errors="ignore")
+        df=df.merge(df_part[merge_cols],left_on="No.",right_on="PartNo_A",how="left")
+        df=df.rename(columns={"Desc_C":"Description","Manufacturer_D":"Supplier","SupplierNo_E":"Supplier No.","UnitPrice_F":"Unit Cost"})
+        df=df.drop(columns=[c for c in ["Norm_Type","Norm_B","PartNo_A"] if c in df.columns],errors="ignore")
     else:
-        df_out = df_out.drop(columns=["Norm_Type"], errors="ignore")
+        df=df.drop(columns=["Norm_Type"],errors="ignore")
+    return df
 
-    st.success(f"✅ NAV numbers assigned for {source} (found {df_out['No.'].astype(bool).sum()} of {len(df_out)})")
-    return df_out
+def pipeline_3A_4_stock(df_bom,ks_file):
+    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if isinstance(ks_file,pd.DataFrame): df_stock=ks_file.copy()
+    else: df_stock=pd.read_excel(io.BytesIO(ks_file.getvalue()),engine="openpyxl")
+    df_stock=df_stock.rename(columns=lambda c:str(c).strip())
+    df_stock=df_stock[[df_stock.columns[2],df_stock.columns[1],df_stock.columns[3]]]
+    df_stock.columns=["No.","Bin Code","Quantity"]
+    df_stock["No."]=df_stock["No."].apply(normalize_no)
+    df_bom["No."]=df_bom["No."].apply(normalize_no)
+    stock_groups={k:v for k,v in df_stock.groupby("No.")}
+    df_bom["Stock Rows"]=df_bom["No."].map(stock_groups)
+    return df_bom
 
-def pipeline_3_4_check_stock(df_bom, ks_file):
-    df_out = df_bom.copy()
-
-    # Įsikeliam Kaunas Stock
-    if isinstance(ks_file, pd.DataFrame):
-        df_stock = ks_file.copy()
-    else:
-        df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
-
-    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
-    # Teisinga tvarka: C (No.), B (Bin Code), D (Quantity)
-    df_stock = df_stock[[df_stock.columns[2], df_stock.columns[1], df_stock.columns[3]]]
-    df_stock.columns = ["No.", "Bin Code", "Quantity"]
-
-    # Normalizuojam numerius
-    df_stock["No."] = df_stock["No."].apply(normalize_no)
-    df_out["No."]   = df_out["No."].apply(normalize_no)
-
-    # Sukuriam grupes pagal No.
-    stock_groups = {k: v for k, v in df_stock.groupby("No.")}
-    df_out["Stock Rows"] = df_out["No."].map(stock_groups)
-
-    return df_out
-
-
-def pipeline_3_5_prepare_cubic(df_cubic: pd.DataFrame) -> pd.DataFrame:
-    if df_cubic is None or df_cubic.empty:
-        return pd.DataFrame()
-
-    df_out = df_cubic.copy()
-    cols = {c: str(c).strip() for c in df_out.columns}
-    df_out = df_out.rename(columns=cols)
-
-    # Quantity iš sujungtų langelių (E:F:G)
-    if any(col in df_out.columns for col in ["E", "F", "G"]):
-        df_out["Quantity"] = df_out[["E","F","G"]].bfill(axis=1).iloc[:,0]
-        df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
-    elif "Quantity" in df_out.columns:
-        df_out["Quantity"] = pd.to_numeric(df_out["Quantity"], errors="coerce").fillna(0)
-    else:
-        df_out["Quantity"] = 0
-
-    if "Item Id" in df_out.columns:
-        df_out["Type"] = df_out["Item Id"].astype(str).str.strip()
-        df_out["Original Type"] = df_out["Type"]
-
-    return df_out
-
-# =====================================================
-# Pipeline 4.x – Galutinės lentelės
-# =====================================================
-
-def pipeline_4_1_job_journal(df_alloc: pd.DataFrame, project_number: str, source: str = "BOM") -> pd.DataFrame:
-    st.info(f"📑 Creating Job Journal table from {source}...")
-
-    rows = []
-    for _, row in df_alloc.iterrows():
-        no = row.get("No.")
-        qty_needed = float(row.get("Quantity", 0) or 0)
-        stock_rows = row.get("Stock Rows")
-        if not isinstance(stock_rows, pd.DataFrame):
-            stock_rows = pd.DataFrame(columns=["Bin Code", "Quantity"])
-
-        allocations = allocate_from_stock(no, qty_needed, stock_rows)
-
+def pipeline_3A_5_tables(df_bom,project_number,df_part_no):
+    rows=[]
+    for _,row in df_bom.iterrows():
+        no=row.get("No.")
+        qty=float(row.get("Quantity",0) or 0)
+        stock_rows=row.get("Stock Rows")
+        if not isinstance(stock_rows,pd.DataFrame):
+            stock_rows=pd.DataFrame(columns=["Bin Code","Quantity"])
+        allocations=allocate_from_stock(no,qty,stock_rows)
         for alloc in allocations:
-            rows.append({
-                "Type": "Item",
-                "No.": no,
-                "Document No.": project_number,
-                "Job No.": project_number,
-                "Job Task No.": 1144,
-                "Quantity": alloc["Allocated Qty"],
-                "Location Code": "KAUNAS" if alloc["Bin Code"] else "",
-                "Bin Code": alloc["Bin Code"],
-                "Description": row.get("Description", ""),
-                "Original Type": row.get("Original Type", "")
-            })
+            rows.append({"Type":"Item","No.":no,"Document No.":project_number,"Job No.":project_number,
+                         "Job Task No.":1144,"Quantity":alloc["Allocated Qty"],
+                         "Location Code":"KAUNAS" if alloc["Bin Code"] else "",
+                         "Bin Code":alloc["Bin Code"],
+                         "Description":row.get("Description",""),
+                         "Original Type":row.get("Original Type","")})
+    job_journal=pd.DataFrame(rows)
+    supplier_map=dict(zip(df_part_no["PartNo_A"].astype(str),df_part_no["SupplierNo_E"]))
+    manuf_map=dict(zip(df_part_no["PartNo_A"].astype(str),df_part_no["Manufacturer_D"].astype(str)))
+    tmp=df_bom.copy()
+    if "Quantity" not in tmp.columns: tmp["Quantity"]=0
+    if "Description" not in tmp.columns: tmp["Description"]=""
+    tmp["No."]=tmp["No."].astype(str)
+    tmp["Quantity"]=pd.to_numeric(tmp["Quantity"],errors="coerce").fillna(0)
+    nav_rows=[]
+    for _,r in tmp.iterrows():
+        part_no=str(r["No."]); qty=float(r.get("Quantity",0) or 0)
+        manuf=manuf_map.get(part_no,"")
+        profit=10 if "DANFOSS" in str(manuf).upper() else 17
+        supplier=supplier_map.get(part_no,30093)
+        nav_rows.append({"Type":"Item","No.":part_no,"Quantity":qty,"Supplier":supplier,
+                         "Profit":profit,"Discount":0,"Description":r.get("Description","")})
+    nav_table=pd.DataFrame(nav_rows,columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+    return job_journal,nav_table,df_bom
+# =====================================================
+# 3B – CUBIC BOM
+# =====================================================
 
-    return pd.DataFrame(rows)
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code):
+    if df_cubic is None or df_cubic.empty: return pd.DataFrame()
+    df=df_cubic.copy().rename(columns=lambda c:str(c).strip())
+    if any(col in df.columns for col in ["E","F","G"]):
+        df["Quantity"]=df[["E","F","G"]].bfill(axis=1).iloc[:,0]
+        df["Quantity"]=pd.to_numeric(df["Quantity"],errors="coerce").fillna(0)
+    elif "Quantity" in df.columns:
+        df["Quantity"]=pd.to_numeric(df["Quantity"],errors="coerce").fillna(0)
+    else: df["Quantity"]=0
+    if "Item Id" in df.columns:
+        df["Type"]=df["Item Id"].astype(str).str.strip()
+        df["Original Type"]=df["Type"]
+    elif "Type" not in df.columns:
+        df["Type"]=""
+        df["Original Type"]=""
+    if "No." not in df.columns: df["No."]=df["Type"]
+    if df_part_code is not None and not df_part_code.empty:
+        rename_map=dict(zip(
+            df_part_code.iloc[:,0].astype(str).str.strip(),
+            df_part_code.iloc[:,1].astype(str).str.strip()
+        ))
+        df=df.rename(columns=rename_map)
+    return df
 
-def pipeline_4_2_nav_table(df_alloc: pd.DataFrame, df_part_no: pd.DataFrame) -> pd.DataFrame:
-    """
-    Sukuria NAV užsakymo lentelę iš df_alloc:
-      - Stulpeliai: Type, No., Quantity, Supplier, Profit, Discount, Description
-      - Supplier paimamas iš Part_no pagal PartNo_A
-      - Profit = 17, o jei gamintojas DANFOSS -> 10
-    """
-    st.info("🛒 Creating NAV order table...")
+def pipeline_3B_1_filtering(df_cubic,df_stock):
+    if df_cubic is None or df_cubic.empty: return pd.DataFrame(),pd.DataFrame()
+    if df_stock is None or df_stock.empty: return df_cubic.copy(),df_cubic.copy()
+    cols=list(df_stock.columns)
+    if len(cols)<3: return df_cubic.copy(),df_cubic.copy()
+    df_stock=df_stock.rename(columns={cols[0]:"Component",cols[2]:"Comment"})
+    excluded_all=df_stock[df_stock["Comment"].astype(str).str.strip()!=""]["Component"].astype(str)
+    excluded_no_need=df_stock[df_stock["Comment"].astype(str).str.lower().str.strip()=="no need"]["Component"].astype(str)
+    excluded_all_norm=excluded_all.str.upper().str.replace(" ","").str.strip().unique()
+    excluded_no_need_norm=excluded_no_need.str.upper().str.replace(" ","").str.strip().unique()
+    df=df_cubic.copy()
+    df["Norm_Type"]=df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+    df_journal=df[~df["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
+    df_nav=df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
+    return df_journal.drop(columns=["Norm_Type"]),df_nav.drop(columns=["Norm_Type"])
 
-    if df_alloc is None or df_alloc.empty:
-        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+def pipeline_3B_2_accessories(df,df_acc):
+    if df_acc is None or df_acc.empty: return df
+    df_out=df.copy()
+    for _,row in df.iterrows():
+        main_item=str(row["Type"]).strip()
+        matches=df_acc[df_acc.iloc[:,0].astype(str).str.strip()==main_item]
+        for _,acc_row in matches.iterrows():
+            acc_vals=acc_row.values[1:]
+            for i in range(0,len(acc_vals),3):
+                if i+2>=len(acc_vals) or pd.isna(acc_vals[i]): break
+                acc_item=str(acc_vals[i]).strip()
+                try: acc_qty=float(str(acc_vals[i+1]).replace(",",".")) 
+                except: acc_qty=1
+                acc_manuf=str(acc_vals[i+2]).strip()
+                df_out=pd.concat([df_out,pd.DataFrame([{
+                    "Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"
+                }])],ignore_index=True)
+    return df_out
 
-    # Užtikrinam Part_no stulpelius
-    needed = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
-    for col in needed:
-        if col not in df_part_no.columns:
-            st.error(f"❌ Part_no sheet missing required column: {col}")
-            return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+def pipeline_3B_3_nav(df,df_part_no):
+    return pipeline_3A_3_nav(df,df_part_no)
 
-    supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
-    manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
+def pipeline_3B_4_stock(df_journal,ks_file):
+    return pipeline_3A_4_stock(df_journal,ks_file)
 
-    tmp = df_alloc.copy()
+def pipeline_3B_5_tables(df_journal,df_nav,project_number,df_part_no):
+    job_journal,_,_=pipeline_3A_5_tables(df_journal,project_number,df_part_no)
+    _,nav_table,_=pipeline_3A_5_tables(df_nav,project_number,df_part_no)
+    return job_journal,nav_table,df_nav
 
-    # --- Saugikliai ---
-    if "No." not in tmp.columns:
-        st.error("❌ NAV table source must contain 'No.' column")
-        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+# =====================================================
+# 4.x – Calculation & Missing NAV
+# =====================================================
 
-    if "Quantity" not in tmp.columns:
-        tmp["Quantity"] = 0   # <-- jei trūksta, sukuriam
+def pipeline_4_1_calculation(df_bom, df_cubic, df_hours, panel_type, grounding, project_number):
+    if df_bom is None: df_bom = pd.DataFrame()
+    if df_cubic is None: df_cubic = pd.DataFrame()
+    if df_hours is None: df_hours = pd.DataFrame()
 
-    if "Description" not in tmp.columns:
-        tmp["Description"] = ""
-
-    # Konversijos
-    tmp["No."] = tmp["No."].astype(str)
-    tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
-
-    rows = []
-    for _, r in tmp.iterrows():
-        part_no = str(r["No."])
-        qty = float(r.get("Quantity", 0) or 0)
-        manuf = manuf_map.get(part_no, "")
-        profit = 10 if "DANFOSS" in manuf.upper() else 17
-        supplier = supplier_map.get(part_no, 30093)
-
-        rows.append({
-            "Type": "Item",
-            "No.": part_no,
-            "Quantity": qty,
-            "Supplier": supplier,
-            "Profit": profit,
-            "Discount": 0,
-            "Description": r.get("Description", "")
-        })
-
-    return pd.DataFrame(rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
-
-
-def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
-                             panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
-    """
-    Sukuria sąmatos lentelę:
-    - Parts cost, CUBIC cost, Hours cost, Smart supply, Wire set, Extra
-    - Total, Total+5%, Total+35%
-    """
-    st.info("💰 Creating Calculation table...")
-
-    # Užtikrinam, kad skaičiai būtų float
-    qty_bom = pd.to_numeric(df_bom.get("Quantity", 0), errors="coerce").fillna(0)
-    unit_bom = pd.to_numeric(df_bom.get("Unit Cost", 0), errors="coerce").fillna(0)
-    parts_cost = (qty_bom * unit_bom).sum() if not df_bom.empty else 0
-
-    if df_cubic is not None and not df_cubic.empty:
-        qty_cubic = pd.to_numeric(df_cubic.get("Quantity", 0), errors="coerce").fillna(0)
-        unit_cubic = pd.to_numeric(df_cubic.get("Unit Cost", 0), errors="coerce").fillna(0)
-        cubic_cost = (qty_cubic * unit_cubic).sum()
-    else:
-        cubic_cost = 0
-
-    # Hours pagal projektą
-    hours_cost = 0
-    if df_hours is not None and not df_hours.empty:
-        hourly_rate = pd.to_numeric(df_hours.iloc[1, 4], errors="coerce") if df_hours.shape[1] > 4 else 0
-        row_match = df_hours[df_hours.iloc[:, 0].astype(str).str.upper() == str(panel_type).upper()]
-        hours_value = 0
-        if not row_match.empty:
-            if grounding == "TT":
-                hours_value = pd.to_numeric(row_match.iloc[0, 1], errors="coerce")
-            elif grounding == "TN-S":
-                hours_value = pd.to_numeric(row_match.iloc[0, 2], errors="coerce")
-            elif grounding == "TN-C-S":
-                hours_value = pd.to_numeric(row_match.iloc[0, 3], errors="coerce")
-        hours_cost = (hours_value if pd.notna(hours_value) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
-
-    smart_supply_cost = 9750.0
-    wire_set_cost     = 2500.0
-
-    total = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
-    total_plus_5  = total * 1.05
-    total_plus_35 = total * 1.35
-
-    df_calc = pd.DataFrame([
-        {"Label": "Parts", "Value": parts_cost},
-        {"Label": "Cubic", "Value": cubic_cost},
-        {"Label": "Hours cost", "Value": hours_cost},
-        {"Label": "Smart supply", "Value": smart_supply_cost},
-        {"Label": "Wire set", "Value": wire_set_cost},
-        {"Label": "Extra", "Value": 0},
-        {"Label": "Total", "Value": total},
-        {"Label": "Total+5%", "Value": total_plus_5},
-        {"Label": "Total+35%", "Value": total_plus_35},
-    ])
-
-    return df_calc
-
-def pipeline_4_3_calculation(df_bom: pd.DataFrame, df_cubic: pd.DataFrame, df_hours: pd.DataFrame,
-                             panel_type: str, grounding: str, project_number: str) -> pd.DataFrame:
-    """
-    Sukuria sąmatos lentelę:
-    - Parts cost, CUBIC cost, Hours cost, Smart supply, Wire set, Extra
-    - Total, Total+5%, Total+35%
-    """
-    st.info("💰 Creating Calculation table...")
-
-    # --- Parts cost ---
-    if not df_bom.empty:
-        qty_bom = pd.to_numeric(df_bom["Quantity"], errors="coerce").fillna(0) if "Quantity" in df_bom.columns else 0
-        unit_bom = pd.to_numeric(df_bom["Unit Cost"], errors="coerce").fillna(0) if "Unit Cost" in df_bom.columns else 0
-        parts_cost = (qty_bom * unit_bom).sum() if isinstance(qty_bom, pd.Series) else 0
+    if not df_bom.empty and "Quantity" in df_bom and "Unit Cost" in df_bom:
+        parts_cost = (pd.to_numeric(df_bom["Quantity"], errors="coerce").fillna(0) *
+                      pd.to_numeric(df_bom["Unit Cost"], errors="coerce").fillna(0)).sum()
     else:
         parts_cost = 0
 
-    # --- CUBIC cost ---
-    if df_cubic is not None and not df_cubic.empty:
-        if "Unit Cost" in df_cubic.columns and "Quantity" in df_cubic.columns:
-            qty_cubic = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
-            unit_cubic = pd.to_numeric(df_cubic["Unit Cost"], errors="coerce").fillna(0)
-            cubic_cost = (qty_cubic * unit_cubic).sum()
-        elif "Total" in df_cubic.columns:  # jei failas turi tik Total sumą
-            cubic_cost = pd.to_numeric(df_cubic["Total"], errors="coerce").fillna(0).sum()
-        else:
-            cubic_cost = 0
+    if not df_cubic.empty and "Quantity" in df_cubic and "Unit Cost" in df_cubic:
+        cubic_cost = (pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0) *
+                      pd.to_numeric(df_cubic["Unit Cost"], errors="coerce").fillna(0)).sum()
     else:
         cubic_cost = 0
 
-    # --- Hours cost ---
     hours_cost = 0
-    if df_hours is not None and not df_hours.empty:
-        hourly_rate = pd.to_numeric(df_hours.iloc[1, 4], errors="coerce") if df_hours.shape[1] > 4 else 0
-        row_match = df_hours[df_hours.iloc[:, 0].astype(str).str.upper() == str(panel_type).upper()]
-        hours_value = 0
-        if not row_match.empty:
+    if not df_hours.empty and df_hours.shape[1] > 4:
+        hourly_rate = pd.to_numeric(df_hours.iloc[1,4], errors="coerce")
+        row = df_hours[df_hours.iloc[:,0].astype(str).str.upper() == str(panel_type).upper()]
+        if not row.empty:
             if grounding == "TT":
-                hours_value = pd.to_numeric(row_match.iloc[0, 1], errors="coerce")
+                h = pd.to_numeric(row.iloc[0,1], errors="coerce")
             elif grounding == "TN-S":
-                hours_value = pd.to_numeric(row_match.iloc[0, 2], errors="coerce")
-            elif grounding == "TN-C-S":
-                hours_value = pd.to_numeric(row_match.iloc[0, 3], errors="coerce")
-        hours_cost = (hours_value if pd.notna(hours_value) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
+                h = pd.to_numeric(row.iloc[0,2], errors="coerce")
+            else:
+                h = pd.to_numeric(row.iloc[0,3], errors="coerce")
+            hours_cost = (h if pd.notna(h) else 0) * (hourly_rate if pd.notna(hourly_rate) else 0)
 
-    # --- Fixed costs ---
-    smart_supply_cost = 9750.0
-    wire_set_cost     = 2500.0
-
-    # --- Totals ---
-    total = parts_cost + cubic_cost + hours_cost + smart_supply_cost + wire_set_cost
-    total_plus_5  = total * 1.05
-    total_plus_35 = total * 1.35
+    smart_supply = 9750.0
+    wire_set = 2500.0
+    total = parts_cost + cubic_cost + hours_cost + smart_supply + wire_set
 
     df_calc = pd.DataFrame([
-        {"Label": "Parts", "Value": parts_cost},
-        {"Label": "Cubic", "Value": cubic_cost},
-        {"Label": "Hours cost", "Value": hours_cost},
-        {"Label": "Smart supply", "Value": smart_supply_cost},
-        {"Label": "Wire set", "Value": wire_set_cost},
-        {"Label": "Extra", "Value": 0},
-        {"Label": "Total", "Value": total},
-        {"Label": "Total+5%", "Value": total_plus_5},
-        {"Label": "Total+35%", "Value": total_plus_35},
+        {"Label":"Parts","Value":parts_cost},
+        {"Label":"Cubic","Value":cubic_cost},
+        {"Label":"Hours cost","Value":hours_cost},
+        {"Label":"Smart supply","Value":smart_supply},
+        {"Label":"Wire set","Value":wire_set},
+        {"Label":"Extra","Value":0},
+        {"Label":"Total","Value":total},
+        {"Label":"Total+5%","Value":total*1.05},
+        {"Label":"Total+35%","Value":total*1.35},
     ])
-
     return df_calc
 
-
-def pipeline_4_4_missing_nav(df: pd.DataFrame, source: str) -> pd.DataFrame:
-    """
-    Grąžina lentelę su nerastais NAV numeriais.
-    Parodo Original Article, Original Type, Quantity ir 'NAV No.' = None.
-    source: "BOM" arba "CUBIC"
-    """
-    if df is None or df.empty:
-        return pd.DataFrame()
-
-    missing = df[df["No."].isna()].copy()
-    if missing.empty:
-        return pd.DataFrame()
-
-    # Užtikrinam, kad stulpeliai egzistuoja
-    if "Original Article" not in missing.columns and df.shape[1] >= 1:
-        missing["Original Article"] = df.iloc[:, 0]
-    if "Original Type" not in missing.columns and df.shape[1] >= 2:
-        missing["Original Type"] = df.iloc[:, 1]
-
-    # Quantity saugiklis
-    if "Quantity" in missing.columns:
-        qty = pd.to_numeric(missing["Quantity"], errors="coerce").fillna(0).astype(int)
-    else:
-        qty = 0
-
-    out = pd.DataFrame({
+def pipeline_4_2_missing_nav(df, source):
+    if df is None or df.empty or "No." not in df.columns: return pd.DataFrame()
+    missing = df[df["No."].astype(str).str.strip()==""] if not df.empty else pd.DataFrame()
+    if missing.empty: return pd.DataFrame()
+    qty = pd.to_numeric(missing["Quantity"], errors="coerce").fillna(0).astype(int) if "Quantity" in missing else 0
+    return pd.DataFrame({
         "Source": source,
-        "Original Article (from BOM)": missing.get("Original Article", ""),
-        "Original Type (from BOM)": missing.get("Original Type", ""),
+        "Original Article": missing.get("Original Article",""),
+        "Original Type": missing.get("Original Type",""),
         "Quantity": qty,
         "NAV No.": missing["No."]
     })
-
-    return out
-
 # =====================================================
-# Project BOM processing helper
+# Stage 3 Render
 # =====================================================
-def process_project_bom(df_bom_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
-    """
-    Project BOM seka:
-    filter(no need) → accessories → NAV → stock → Job Journal + NAV, return enriched DF for calculation
-    """
-    if df_bom_raw is None or df_bom_raw.empty:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # 1) Filtruojam tik 'no need'
-    df_bom = pipeline_3_1_filtering(df_bom_raw, df_stock, source="Project BOM")
-
-    # 2) Accessories
-    df_bom = pipeline_3_2_add_accessories(df_bom, df_accessories)
-
-    # 3) NAV numeriai (prideda ir Unit Cost / Description / Supplier…)
-    df_bom = pipeline_3_3_add_nav_numbers(df_bom, df_part_no, source="Project BOM")
-
-    # 4) Stock tikrinimas (prideda Stock Rows grupes pagal No.)
-    df_bom = pipeline_3_4_check_stock(df_bom, ks_file)
-
-    # 5) Lentelės
-    job_journal = pipeline_4_1_job_journal(df_bom, project_number, source="Project BOM")
-    nav_table   = pipeline_4_2_nav_table(df_bom, df_part_no)
-
-    # Grąžinam ir enriched df_bom, kad Calculation turėtų Quantity + Unit Cost
-    return job_journal, nav_table, df_bom
-
-
-# =====================================================
-# CUBIC BOM processing helper
-# =====================================================
-def process_cubic_bom(df_cubic_raw, df_stock, df_accessories, df_part_no, ks_file, project_number):
-    """
-    CUBIC BOM seka:
-    copy → filter(ALL / only no need) → accessories → NAV (abiejose) → stock tik pirmai →
-    Job Journal (pirma) + NAV Table (antra), return enriched DF for calculation (naudojam NAV kopiją)
-    """
-    if df_cubic_raw is None or df_cubic_raw.empty:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
-    df_cubic = pipeline_3_5_prepare_cubic(df_cubic_raw)
-
-    # Dvi kopijos: 1) be visų su komentarais; 2) be 'no need'
-    df_cubic_for_journal, df_cubic_for_nav = pipeline_3_1_filtering_cubic(df_cubic, df_stock, source="CUBIC BOM")
-
-    # Accessories abiem
-    df_cubic_for_journal = pipeline_3_2_add_accessories(df_cubic_for_journal, df_accessories)
-    df_cubic_for_nav     = pipeline_3_2_add_accessories(df_cubic_for_nav, df_accessories)
-
-    # NAV numeriai abiem (prideda Unit Cost ir kt.)
-    df_cubic_for_journal = pipeline_3_3_add_nav_numbers(df_cubic_for_journal, df_part_no, source="CUBIC BOM")
-    df_cubic_for_nav     = pipeline_3_3_add_nav_numbers(df_cubic_for_nav, df_part_no, source="CUBIC BOM")
-
-    # Stock tikrinimas tik Journal kopijai
-    df_cubic_for_journal = pipeline_3_4_check_stock(df_cubic_for_journal, ks_file)
-
-    # Lentelės
-    job_journal = pipeline_4_1_job_journal(df_cubic_for_journal, project_number, source="CUBIC BOM")
-    nav_table   = pipeline_4_2_nav_table(df_cubic_for_nav, df_part_no)
-
-    # Calculation rekomenduojama naudoti NAV kopiją (turi Unit Cost)
-    return job_journal, nav_table, df_cubic_for_nav
-
-
-# =====================================================
-# Main render for Stage 3 (tik failų įkėlimas, be GitHub)
-# =====================================================
 def render():
     st.header("Stage 3: BOM Management")
 
-    # 1) Inputs
     inputs = pipeline_2_1_user_inputs()
-    if not inputs:
-        return
+    if not inputs: return
 
-    # 2) Failų įkėlimas
     files = pipeline_2_2_file_uploads(inputs["rittal"])
-    if not files:
-        return
+    if not files: return
 
-    # 3) Dinaminė patikra, ko trūksta kiekvienam moduliui
-    required_project = ["bom", "data", "ks"]
-    required_cubic   = ["cubic_bom", "data", "ks"] if not inputs["rittal"] else []
+    required_A = ["bom","data","ks"]
+    required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
 
-    missing_project = [k for k in required_project if k not in files]
-    missing_cubic   = [k for k in required_cubic if k not in files]
+    miss_A = [k for k in required_A if k not in files]
+    miss_B = [k for k in required_B if k not in files]
 
-    st.subheader("📋 Reikalaujami failai")
-    col1, col2 = st.columns(2)
+    st.subheader("📋 Required files")
+    col1,col2 = st.columns(2)
     with col1:
-        if missing_project:
-            st.warning(f"Project BOM: trūksta {missing_project}")
-        else:
-            st.success("Project BOM: OK")
+        st.success("Project BOM: OK") if not miss_A else st.warning(f"Project BOM missing: {miss_A}")
     with col2:
         if not inputs["rittal"]:
-            if missing_cubic:
-                st.warning(f"CUBIC BOM: trūksta {missing_cubic}")
-            else:
-                st.success("CUBIC BOM: OK")
+            st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
         else:
-            st.info("CUBIC BOM: praleista (Rittal)")
+            st.info("CUBIC BOM skipped (Rittal)")
 
-    # 4) Kaunas Stock preview (tik jei yra)
-    if "ks" in files and isinstance(files["ks"], pd.DataFrame) and not files["ks"].empty:
+    if "ks" in files and not files["ks"].empty:
         st.subheader("🔎 Kaunas Stock preview")
         st.dataframe(files["ks"].head(20), use_container_width=True)
 
-    # 5) Processing
-    if st.button("🚀 Run BOM Processing"):
+    if st.button("🚀 Run Processing"):
+        data_book = files.get("data",{})
+        df_stock   = get_sheet_safe(data_book,["Stock"])
+        df_part_no = normalize_part_no(get_sheet_safe(data_book,["Part_no","Parts_no","Part no"]))
+        df_hours   = get_sheet_safe(data_book,["Hours"])
+        df_acc     = get_sheet_safe(data_book,["Accessories"])
+        df_code    = get_sheet_safe(data_book,["Part_code"])
 
-        # Patogūs getteriai su apsauga (nekelia KeyError)
-        data_book = files.get("data")
-        df_stock       = get_sheet_safe(data_book, ["Stock"])        if isinstance(data_book, dict) else None
-        df_part_no_raw = get_sheet_safe(data_book, ["Part_no","Parts_no","Part no"]) if isinstance(data_book, dict) else None
-        df_part_no     = normalize_part_no(df_part_no_raw) if df_part_no_raw is not None else pd.DataFrame()
-        df_hours       = get_sheet_safe(data_book, ["Hours"])        if isinstance(data_book, dict) else None
-        df_accessories = get_sheet_safe(data_book, ["Accessories"])  if isinstance(data_book, dict) else None
+        job_A, nav_A, df_bom_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
+        job_B, nav_B, df_cub_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
 
-        # Inicijuojam tuščias išvestis
-        job_journal_bom   = pd.DataFrame()
-        nav_table_bom     = pd.DataFrame()
-        df_bom_processed  = pd.DataFrame()
-
-        job_journal_cubic = pd.DataFrame()
-        nav_table_cubic   = pd.DataFrame()
-        df_cubic_processed = pd.DataFrame()
-
-        any_done = False
-
-        # ---------------- Project BOM ----------------
-        if not missing_project:
+        if not miss_A:
             st.subheader("📦 Project BOM")
-            job_journal_bom, nav_table_bom, df_bom_processed = process_project_bom(
-                files.get("bom"), df_stock, df_accessories, df_part_no, files.get("ks"), inputs["project_number"]
-            )
-            any_done = True
-        else:
-            st.info("Project BOM praleista – įkelk trūkstamus failus.")
+            df_bom = pipeline_3A_0_rename_columns(files["bom"], df_code)
+            df_bom = pipeline_3A_1_filtering(df_bom, df_stock)
+            df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
+            df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
+            df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
+            job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(df_bom, inputs["project_number"], df_part_no)
 
-        # ---------------- CUBIC BOM ----------------
-        if not inputs["rittal"]:
-            if not missing_cubic:
-                st.subheader("📦 CUBIC BOM")
-                job_journal_cubic, nav_table_cubic, df_cubic_processed = process_cubic_bom(
-                    files.get("cubic_bom"), df_stock, df_accessories, df_part_no, files.get("ks"), inputs["project_number"]
-                )
-                any_done = True
-            else:
-                st.info("CUBIC BOM praleista – įkelk trūkstamus failus.")
+        if not inputs["rittal"] and not miss_B:
+            st.subheader("📦 CUBIC BOM")
+            df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code)
+            df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
+            df_j = pipeline_3B_2_accessories(df_j, df_acc)
+            df_n = pipeline_3B_2_accessories(df_n, df_acc)
+            df_j = pipeline_3B_3_nav(df_j, df_part_no)
+            df_n = pipeline_3B_3_nav(df_n, df_part_no)
+            df_j = pipeline_3B_4_stock(df_j, files["ks"])
+            job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-        if not any_done:
-            st.error("⛔ Nieko nevykdžiau: trūksta privalomų failų.")
-            return
+        calc = pipeline_4_1_calculation(df_bom_proc, df_cub_proc, df_hours,
+                                        inputs["panel_type"], inputs["grounding"], inputs["project_number"])
+        miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
+        miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
 
-        # ---------------- Calculation ----------------
-        calc_table = pipeline_4_3_calculation(
-            df_bom_processed,           # turi Quantity + Unit Cost
-            df_cubic_processed,         # turi Unit Cost po NAV
-            df_hours if df_hours is not None else pd.DataFrame(),
-            inputs["panel_type"],
-            inputs["grounding"],
-            inputs["project_number"]
-        )
+        st.success("✅ Processing complete!")
 
-        # ---------------- Output ----------------
-        st.success("✅ BOM processing complete!")
-
-        if not job_journal_bom.empty:
+        if not job_A.empty:
             st.subheader("📑 Job Journal (Project BOM)")
-            st.dataframe(job_journal_bom, use_container_width=True)
-
-        if not job_journal_cubic.empty:
+            st.dataframe(job_A,use_container_width=True)
+        if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM)")
-            st.dataframe(job_journal_cubic, use_container_width=True)
-
-        if not nav_table_bom.empty:
+            st.dataframe(job_B,use_container_width=True)
+        if not nav_A.empty:
             st.subheader("🛒 NAV Table (Project BOM)")
-            st.dataframe(nav_table_bom, use_container_width=True)
-
-        if not nav_table_cubic.empty:
+            st.dataframe(nav_A,use_container_width=True)
+        if not nav_B.empty:
             st.subheader("🛒 NAV Table (CUBIC BOM)")
-            st.dataframe(nav_table_cubic, use_container_width=True)
+            st.dataframe(nav_B,use_container_width=True)
 
         st.subheader("💰 Calculation")
-        st.dataframe(calc_table, use_container_width=True)
+        st.dataframe(calc,use_container_width=True)
 
+        if not miss_nav_A.empty or not miss_nav_B.empty:
+            st.subheader("⚠️ Missing NAV Numbers")
+            if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
+            if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
