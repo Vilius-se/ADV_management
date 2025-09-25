@@ -492,6 +492,8 @@ def pipeline_4_2_missing_nav(df, source):
 def render():
     st.header("Stage 3: BOM Management")
 
+    debug_flag = st.checkbox("🔎 Show debug details", value=False)
+
     inputs = pipeline_2_1_user_inputs()
     if not inputs: return
 
