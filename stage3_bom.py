@@ -627,10 +627,6 @@ def render(debug_flag=False):
         else:
             st.info("CUBIC BOM skipped (Rittal)")
 
-    if "ks" in files and not files["ks"].empty:
-        st.subheader("🔎 Kaunas Stock preview")
-        st.dataframe(files["ks"].head(20), use_container_width=True)
-
     # =====================================================
     # Run processing trigger
     # =====================================================
@@ -667,7 +663,7 @@ def render(debug_flag=False):
 
     # --- Project BOM ---
     if not miss_A:
-        df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras, debug=debug_flag)
+        df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras)
         df_bom = pipeline_3A_1_filter(df_bom, df_stock)
         df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
         df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
@@ -679,7 +675,7 @@ def render(debug_flag=False):
     # --- CUBIC BOM ---
     if not inputs["rittal"] and not miss_B:
         df_cubic = pipeline_3B_0_prepare_cubic(
-            files["cubic_bom"], df_code, extras, debug=debug_flag
+            files["cubic_bom"], df_code, extras
         )
         df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
         df_j = pipeline_3B_2_accessories(df_j, df_acc)
@@ -692,66 +688,65 @@ def render(debug_flag=False):
         )
 
     # =====================================================
-# Stage control – Mechanics allocation
-# =====================================================
-if not st.session_state.get("mech_confirmed", False):
-    if not job_B.empty:
-        st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
+    # Stage 1 – Mechanics allocation
+    # =====================================================
+    if not st.session_state.get("mech_confirmed", False):
+        if not job_B.empty:
+            st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
 
-        editable = job_B.copy()
-        editable["Avail"] = editable["Quantity"].astype(int)
-        editable["Qty to Mech"] = 0
+            editable = job_B.copy()
+            editable["Avail"] = editable["Quantity"].astype(int)
+            editable["Qty to Mech"] = 0
 
-        with st.form("mech_form", clear_on_submit=False):
-            edited = st.data_editor(
-                editable[["No.", "Original Type", "Description", "Avail", "Qty to Mech"]],
-                column_config={
-                    "Qty to Mech": st.column_config.NumberColumn(
-                        "Qty to Mech",
-                        min_value=0,
-                        max_value=int(editable["Avail"].max()),
-                        step=1,
-                        format="%d"
-                    ),
-                    "Avail": st.column_config.NumberColumn(
-                        "Avail",
-                        disabled=True,
-                        format="%d"
-                    ),
-                },
-                hide_index=True,
-                use_container_width=True,
-                num_rows="fixed"
-            )
+            with st.form("mech_form", clear_on_submit=False):
+                edited = st.data_editor(
+                    editable[["No.", "Original Type", "Description", "Avail", "Qty to Mech"]],
+                    column_config={
+                        "Qty to Mech": st.column_config.NumberColumn(
+                            "Qty to Mech",
+                            min_value=0,
+                            max_value=int(editable["Avail"].max()),
+                            step=1,
+                            format="%d"
+                        ),
+                        "Avail": st.column_config.NumberColumn(
+                            "Avail",
+                            disabled=True,
+                            format="%d"
+                        ),
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    num_rows="fixed"
+                )
+                confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
-            confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+            if confirm:
+                mech_rows, remain_rows = [], []
+                for _, r in edited.iterrows():
+                    avail = int(r.get("Avail", 0))
+                    take = int(r.get("Qty to Mech", 0))
+                    take = min(take, avail)
 
-        if confirm:
-            mech_rows, remain_rows = [], []
-            for _, r in edited.iterrows():
-                avail = int(r.get("Avail", 0))
-                take = int(r.get("Qty to Mech", 0))
-                take = min(take, avail)
+                    base = {
+                        "No.": r.get("No.", ""),
+                        "Original Type": r.get("Original Type", ""),
+                        "Description": r.get("Description", ""),
+                    }
 
-                base = {
-                    "No.": r.get("No.", ""),
-                    "Original Type": r.get("Original Type", ""),
-                    "Description": r.get("Description", ""),
-                }
+                    if take > 0:
+                        mech_rows.append({**base, "Quantity": take})
 
-                if take > 0:
-                    mech_rows.append({**base, "Quantity": take})
+                    remain_qty = avail - take
+                    if remain_qty > 0:
+                        remain_rows.append({**base, "Quantity": remain_qty})
 
-                remain_qty = avail - take
-                if remain_qty > 0:
-                    remain_rows.append({**base, "Quantity": remain_qty})
+                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                st.session_state["df_remain"] = pd.DataFrame(remain_rows)
+                st.session_state["mech_confirmed"] = True
+                st.experimental_rerun()
 
-            st.session_state["df_mech"] = pd.DataFrame(mech_rows)
-            st.session_state["df_remain"] = pd.DataFrame(remain_rows)
-            st.session_state["mech_confirmed"] = True
-            st.experimental_rerun()
-
-    st.stop()
+        st.stop()
 
     # =====================================================
     # Stage 2 – Full results
@@ -794,7 +789,3 @@ if not st.session_state.get("mech_confirmed", False):
             st.dataframe(miss_nav_A, use_container_width=True)
         if not miss_nav_B.empty:
             st.dataframe(miss_nav_B, use_container_width=True)
-
-
-
-
