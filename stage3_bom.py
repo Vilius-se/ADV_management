@@ -599,27 +599,31 @@ def render(debug_flag=False):
 
     # --- Inputs ---
     inputs = pipeline_2_1_user_inputs()
-    if not inputs: 
+    if not inputs:
         return
 
     # --- File uploads ---
     files = pipeline_2_2_file_uploads(inputs["rittal"])
-    if not files: 
+    if not files:
         return
 
-    required_A = ["bom","data","ks"]
-    required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
+    required_A = ["bom", "data", "ks"]
+    required_B = ["cubic_bom", "data", "ks"] if not inputs["rittal"] else []
 
     miss_A = [k for k in required_A if k not in files]
     miss_B = [k for k in required_B if k not in files]
 
     st.subheader("📋 Required files")
-    col1,col2 = st.columns(2)
+    col1, col2 = st.columns(2)
     with col1:
-        st.success("Project BOM: OK") if not miss_A else st.warning(f"Project BOM missing: {miss_A}")
+        st.success("Project BOM: OK") if not miss_A else st.warning(
+            f"Project BOM missing: {miss_A}"
+        )
     with col2:
         if not inputs["rittal"]:
-            st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
+            st.success("CUBIC BOM: OK") if not miss_B else st.warning(
+                f"CUBIC BOM missing: {miss_B}"
+            )
         else:
             st.info("CUBIC BOM skipped (Rittal)")
 
@@ -632,7 +636,7 @@ def render(debug_flag=False):
     # =====================================================
     if st.button("🚀 Run Processing"):
         st.session_state["processing_started"] = True
-        st.session_state["mech_confirmed"] = False  # reset mechanics choice
+        st.session_state["mech_confirmed"] = False
         st.session_state["df_mech"] = pd.DataFrame()
         st.session_state["df_remain"] = pd.DataFrame()
 
@@ -642,14 +646,14 @@ def render(debug_flag=False):
     # =====================================================
     # Processing
     # =====================================================
-    data_book = files.get("data",{})
-    df_stock   = pipeline_2_3_get_sheet_safe(data_book,["Stock"])
+    data_book = files.get("data", {})
+    df_stock = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
     df_part_no = pipeline_2_4_normalize_part_no(
-        pipeline_2_3_get_sheet_safe(data_book,["Part_no","Parts_no","Part no"])
+        pipeline_2_3_get_sheet_safe(data_book, ["Part_no", "Parts_no", "Part no"])
     )
-    df_hours   = pipeline_2_3_get_sheet_safe(data_book,["Hours"])
-    df_acc     = pipeline_2_3_get_sheet_safe(data_book,["Accessories"])
-    df_code    = pipeline_2_3_get_sheet_safe(data_book,["Part_code"])
+    df_hours = pipeline_2_3_get_sheet_safe(data_book, ["Hours"])
+    df_acc = pipeline_2_3_get_sheet_safe(data_book, ["Accessories"])
+    df_code = pipeline_2_3_get_sheet_safe(data_book, ["Part_code"])
 
     # --- Extras pagal inputs ---
     extras = []
@@ -658,8 +662,8 @@ def render(debug_flag=False):
     if inputs["swing_frame"]:
         extras.append({"type": "9030+2970", "qty": 1, "target": "cubic"})
 
-    job_A, nav_A, df_bom_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
-    job_B, nav_B, df_cub_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
+    job_A, nav_A, df_bom_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    job_B, nav_B, df_cub_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     # --- Project BOM ---
     if not miss_A:
@@ -668,63 +672,71 @@ def render(debug_flag=False):
         df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
         df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
         df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
-        job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(df_bom, inputs["project_number"], df_part_no)
+        job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(
+            df_bom, inputs["project_number"], df_part_no
+        )
 
     # --- CUBIC BOM ---
     if not inputs["rittal"] and not miss_B:
-        df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras, debug=debug_flag)
+        df_cubic = pipeline_3B_0_prepare_cubic(
+            files["cubic_bom"], df_code, extras, debug=debug_flag
+        )
         df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
         df_j = pipeline_3B_2_accessories(df_j, df_acc)
         df_n = pipeline_3B_2_accessories(df_n, df_acc)
         df_j = pipeline_3B_3_nav(df_j, df_part_no)
         df_n = pipeline_3B_3_nav(df_n, df_part_no)
         df_j = pipeline_3B_4_stock(df_j, files["ks"])
-        job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
+        job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(
+            df_j, df_n, inputs["project_number"], df_part_no
+        )
 
     # =====================================================
     # Stage control
     # =====================================================
-if not st.session_state.get("mech_confirmed", False):
-    if not job_B.empty:
-        st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
+    if not st.session_state.get("mech_confirmed", False):
+        if not job_B.empty:
+            st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
 
-        editable = job_B.copy()
-        editable["Available Qty"] = editable["Quantity"].astype(float)
+            editable = job_B.copy()
+            editable["Available Qty"] = editable["Quantity"].astype(float)
 
-        with st.form("mech_form", clear_on_submit=False):
-            input_vals = []
-            for idx, row in editable.iterrows():
-                cols = st.columns([2,2,2,4])
-                cols[0].write(str(row.get("No.", "")))
-                cols[1].write(float(row["Available Qty"]))
-                take = cols[2].number_input(
-                    "Take", min_value=0,
-                    max_value=int(row["Available Qty"]),
-                    step=1, key=f"take_{idx}"
-                )
-                cols[3].write(row.get("Description",""))
-                input_vals.append((idx, take))
+            mech_inputs = []
+            with st.form("mech_form", clear_on_submit=False):
+                for idx, row in editable.iterrows():
+                    cols = st.columns([2, 2, 2, 4])
+                    cols[0].write(str(row.get("No.", "")))
+                    cols[1].write(float(row["Available Qty"]))
+                    take = cols[2].number_input(
+                        "Take",
+                        min_value=0,
+                        max_value=int(row["Available Qty"]),
+                        step=1,
+                        key=f"take_{idx}",
+                    )
+                    cols[3].write(row.get("Description", ""))
+                    mech_inputs.append((idx, take))
 
-            confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+                confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
-        if confirm:
-            mech_rows, remain_rows = [], []
-            for idx, take in input_vals:
-                avail = float(editable.loc[idx, "Available Qty"])
-                r = editable.loc[idx].to_dict()
+            if confirm:
+                mech_rows, remain_rows = [], []
+                for idx, take in mech_inputs:
+                    avail = float(editable.loc[idx, "Available Qty"])
+                    r = editable.loc[idx].to_dict()
 
-                if take > 0:
-                    mech_rows.append({**r, "Quantity": take})
+                    if take > 0:
+                        mech_rows.append({**r, "Quantity": take})
 
-                remain_qty = avail - take
-                if remain_qty > 0:
-                    remain_rows.append({**r, "Quantity": remain_qty})
+                    remain_qty = avail - take
+                    if remain_qty > 0:
+                        remain_rows.append({**r, "Quantity": remain_qty})
 
-            st.session_state["df_mech"]   = pd.DataFrame(mech_rows)
-            st.session_state["df_remain"] = pd.DataFrame(remain_rows)
-            st.session_state["mech_confirmed"] = True
+                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                st.session_state["df_remain"] = pd.DataFrame(remain_rows)
+                st.session_state["mech_confirmed"] = True
 
-    st.stop()
+        st.stop()
 
     # =====================================================
     # Stage 2 – Full results
@@ -739,29 +751,35 @@ if not st.session_state.get("mech_confirmed", False):
 
     if not job_A.empty:
         st.subheader("📑 Job Journal (Project BOM)")
-        st.dataframe(job_A,use_container_width=True)
+        st.dataframe(job_A, use_container_width=True)
     if not nav_A.empty:
         st.subheader("🛒 NAV Table (Project BOM)")
-        st.dataframe(nav_A,use_container_width=True)
+        st.dataframe(nav_A, use_container_width=True)
     if not nav_B.empty:
         st.subheader("🛒 NAV Table (CUBIC BOM)")
-        st.dataframe(nav_B,use_container_width=True)
+        st.dataframe(nav_B, use_container_width=True)
 
     # --- Calculation ---
     calc = pipeline_4_1_calculation(
-        df_bom_proc, df_cub_proc, df_hours,
-        inputs["panel_type"], inputs["grounding"], inputs["project_number"]
+        df_bom_proc,
+        df_cub_proc,
+        df_hours,
+        inputs["panel_type"],
+        inputs["grounding"],
+        inputs["project_number"],
     )
     st.subheader("💰 Calculation")
-    st.dataframe(calc,use_container_width=True)
+    st.dataframe(calc, use_container_width=True)
 
-    miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
-    miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
+    miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc, "Project BOM")
+    miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc, "CUBIC BOM")
     if not miss_nav_A.empty or not miss_nav_B.empty:
         st.subheader("⚠️ Missing NAV Numbers")
-        if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
-        if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
-            
+        if not miss_nav_A.empty:
+            st.dataframe(miss_nav_A, use_container_width=True)
+        if not miss_nav_B.empty:
+            st.dataframe(miss_nav_B, use_container_width=True)
+
 
 
 
