@@ -18,7 +18,21 @@ def _dbg(df, label, debug=False):
     st.text(f"Shape: {df.shape}")
     st.dataframe(df.head(60), use_container_width=True)
 
+def add_extra_components(df, extras):
+    if df is None: 
+        df = pd.DataFrame()
+    df_out = df.copy()
 
+    for e in extras:
+        extra_row = pd.DataFrame([{
+            "Original Type": e["type"],
+            "Type": e["type"],
+            "Quantity": e.get("qty", 1),
+            "Source": "Extra"
+        }])
+        df_out = pd.concat([df_out, extra_row], ignore_index=True)
+
+    return df_out
 
 def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
                              label: str = "Project BOM", debug: bool = False) -> pd.DataFrame:
@@ -256,29 +270,29 @@ def pipeline_2_4_file_uploads(rittal=False):
 # 3A – Project BOM (su debug)
 # =====================================================
 
-def pipeline_3A_0_rename(df_bom, df_part_code, debug=False):
-    if df_bom is None or df_bom.empty:
+def pipeline_3A_0_rename(df_bom, df_part_code, extras=None, debug=False):
+    if df_bom is None or df_bom.empty: 
         return pd.DataFrame()
-    df = df_bom.copy()
 
-    # Išsaugom original
-    if "Original Type" not in df.columns:
-        if "Type" in df.columns:
-            df["Original Type"] = df["Type"]
-        else:
-            df["Original Type"] = df.iloc[:,0].astype(str)
-
-    # Mappingas: senas -> naujas
     if df_part_code is not None and not df_part_code.empty:
-        replace_map = dict(zip(
+        rename_map = dict(zip(
             df_part_code.iloc[:,0].astype(str).str.strip(),
             df_part_code.iloc[:,1].astype(str).str.strip()
         ))
-        if "Type" in df.columns:
-            df["Type"] = df["Type"].replace(replace_map)
+        df_bom = df_bom.rename(columns=rename_map)
 
-    _dbg(df, "3A_0 BOM after Part_code mapping", debug=debug)
-    return df
+    if "Type" not in df_bom.columns: 
+        df_bom["Type"] = df_bom.iloc[:,0].astype(str)
+    if "Original Type" not in df_bom.columns: 
+        df_bom["Original Type"] = df_bom["Type"]
+    if "Original Article" not in df_bom.columns: 
+        df_bom["Original Article"] = df_bom.iloc[:,0].astype(str)
+
+    if extras:
+        df_bom = add_extra_components(df_bom, [e for e in extras if e["target"]=="bom"])
+
+    if debug: st.write("🔧 After 3A_0_rename + extras:", df_bom.head(10))
+    return df_bom
 
 
 def pipeline_3A_1_filter(df_bom, df_stock, debug=False):
@@ -435,40 +449,41 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
 # 3B – CUBIC BOM
 # =====================================================
 
-def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, debug=False):
-    if df_cubic is None or df_cubic.empty:
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None, debug=False):
+    if df_cubic is None or df_cubic.empty: 
         return pd.DataFrame()
+
     df = df_cubic.copy().rename(columns=lambda c:str(c).strip())
 
-    # Sutvarkom quantity
     if any(col in df.columns for col in ["E","F","G"]):
         df["Quantity"] = df[["E","F","G"]].bfill(axis=1).iloc[:,0]
         df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
     elif "Quantity" in df.columns:
         df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
-    else:
+    else: 
         df["Quantity"] = 0
 
-    # Sutvarkom Type / Original Type
     if "Item Id" in df.columns:
         df["Type"] = df["Item Id"].astype(str).str.strip()
+        df["Original Type"] = df["Type"]
     elif "Type" not in df.columns:
         df["Type"] = ""
-    df["Original Type"] = df["Type"]
+        df["Original Type"] = ""
 
-    # Mappingas: senas -> naujas
+    if "No." not in df.columns: 
+        df["No."] = df["Type"]
+
     if df_part_code is not None and not df_part_code.empty:
-        replace_map = dict(zip(
+        rename_map = dict(zip(
             df_part_code.iloc[:,0].astype(str).str.strip(),
             df_part_code.iloc[:,1].astype(str).str.strip()
         ))
-        df["Type"] = df["Type"].replace(replace_map)
+        df = df.rename(columns=rename_map)
 
-    # Užpildom No. su Type
-    if "No." not in df.columns:
-        df["No."] = df["Type"]
+    if extras:
+        df = add_extra_components(df, [e for e in extras if e["target"]=="cubic"])
 
-    _dbg(df, "3B_0 CUBIC BOM after Part_code mapping", debug=debug)
+    if debug: st.write("🔧 After 3B_0_prepare_cubic + extras:", df.head(10))
     return df
 
 
@@ -583,23 +598,17 @@ def pipeline_4_2_missing_nav(df, source):
     })
 
 
-def render():
+def render(debug_flag=False):
     st.header("Stage 3: BOM Management")
 
-    # Debug jungiklis
-    debug_flag = st.checkbox("🔎 Show debug details", value=False)
-
-    # 1) Inputs
-    inputs = pipeline_2_1_user_inputs()
-    if not inputs:
+    inputs = user_inputs()
+    if not inputs: 
         return
 
-    # 2) Failų įkėlimas
-    files = pipeline_2_4_file_uploads(inputs["rittal"])
-    if not files:
+    files = file_uploads(inputs["rittal"])
+    if not files: 
         return
 
-    # 3) Reikalaujami failai
     required_A = ["bom","data","ks"]
     required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
 
@@ -620,56 +629,52 @@ def render():
         st.subheader("🔎 Kaunas Stock preview")
         st.dataframe(files["ks"].head(20), use_container_width=True)
 
-    # 4) Processing
     if st.button("🚀 Run Processing"):
         data_book = files.get("data",{})
-        df_stock   = pipeline_2_2_get_sheet_safe(data_book, ["Stock"])
-        df_part_no = pipeline_2_3_normalize_part_no(
-            pipeline_2_2_get_sheet_safe(data_book, ["Part_no","Parts_no","Part no"])
-        )
-        df_hours   = pipeline_2_2_get_sheet_safe(data_book, ["Hours"])
-        df_acc     = pipeline_2_2_get_sheet_safe(data_book, ["Accessories"])
-        df_code    = pipeline_2_2_get_sheet_safe(data_book, ["Part_code"])
+        df_stock   = get_sheet_safe(data_book,["Stock"])
+        df_part_no = normalize_part_no(get_sheet_safe(data_book,["Part_no","Parts_no","Part no"]))
+        df_hours   = get_sheet_safe(data_book,["Hours"])
+        df_acc     = get_sheet_safe(data_book,["Accessories"])
+        df_code    = get_sheet_safe(data_book,["Part_code"])
+
+        # Extras pagal vartotojo pasirinkimus
+        extras = []
+        if inputs["ups"]:
+            extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom"})
+        if inputs["swing_frame"]:
+            extras.append({"type": "9030+2970", "qty": 1, "target": "cubic"})
 
         job_A, nav_A, df_bom_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
         job_B, nav_B, df_cub_proc = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
 
-        # ---------------- Project BOM ----------------
+        # --- Project BOM ---
         if not miss_A:
             st.subheader("📦 Project BOM")
-            df_bom = pipeline_3A_0_rename(files["bom"], df_code, debug=debug_flag)
-            df_bom = pipeline_3A_1_filter(df_bom, df_stock, debug=debug_flag)
-            df_bom = pipeline_3A_2_accessories(df_bom, df_acc, debug=debug_flag)
-            df_bom = pipeline_3A_3_nav(df_bom, df_part_no, debug=debug_flag)
-            df_bom = pipeline_3A_4_stock(df_bom, files["ks"], debug=debug_flag)
-            job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(
-                df_bom, inputs["project_number"], df_part_no, debug=debug_flag
-            )
+            df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras, debug=debug_flag)
+            df_bom = pipeline_3A_1_filter(df_bom, df_stock)
+            df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
+            df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
+            df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
+            job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(df_bom, inputs["project_number"], df_part_no)
 
-        # ---------------- CUBIC BOM ----------------
+        # --- CUBIC BOM ---
         if not inputs["rittal"] and not miss_B:
             st.subheader("📦 CUBIC BOM")
-            df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code)
+            df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras, debug=debug_flag)
             df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
             df_j = pipeline_3B_2_accessories(df_j, df_acc)
             df_n = pipeline_3B_2_accessories(df_n, df_acc)
             df_j = pipeline_3B_3_nav(df_j, df_part_no)
             df_n = pipeline_3B_3_nav(df_n, df_part_no)
             df_j = pipeline_3B_4_stock(df_j, files["ks"])
-            job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(
-                df_j, df_n, inputs["project_number"], df_part_no
-            )
+            job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-        # ---------------- Calculation ----------------
-        calc = pipeline_4_1_calculation(
-            df_bom_proc, df_cub_proc, df_hours,
-            inputs["panel_type"], inputs["grounding"], inputs["project_number"]
-        )
-
+        # --- Calculation ---
+        calc = pipeline_4_1_calculation(df_bom_proc, df_cub_proc, df_hours,
+                                        inputs["panel_type"], inputs["grounding"], inputs["project_number"])
         miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
         miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
 
-        # ---------------- Output ----------------
         st.success("✅ Processing complete!")
 
         if not job_A.empty:
@@ -678,6 +683,40 @@ def render():
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM)")
             st.dataframe(job_B,use_container_width=True)
+
+            # --- Naujas mechanikos pasirinkimas ---
+            st.subheader("⚙️ Allocate to Mechanics")
+            editable = job_B.copy()
+            editable["Take Qty"] = 0
+            edited = st.data_editor(
+                editable,
+                num_rows="dynamic",
+                use_container_width=True,
+                key="mech_editor"
+            )
+
+            if st.button("✅ Confirm Mechanics Allocation"):
+                mech_rows = []
+                for _, r in edited.iterrows():
+                    take = float(r.get("Take Qty", 0) or 0)
+                    if take > 0:
+                        mech_rows.append({
+                            "Type": r.get("Type", "Item"),
+                            "No.": r.get("No."),
+                            "Document No.": r.get("Document No."),
+                            "Job No.": r.get("Job No."),
+                            "Job Task No.": r.get("Job Task No."),
+                            "Quantity": take,
+                            "Location Code": r.get("Location Code", ""),
+                            "Bin Code": r.get("Bin Code", ""),
+                            "Description": r.get("Description", ""),
+                            "Original Type": r.get("Original Type", "")
+                        })
+                df_mech = pd.DataFrame(mech_rows)
+                if not df_mech.empty:
+                    st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
+                    st.dataframe(df_mech, use_container_width=True)
+
         if not nav_A.empty:
             st.subheader("🛒 NAV Table (Project BOM)")
             st.dataframe(nav_A,use_container_width=True)
@@ -692,5 +731,4 @@ def render():
             st.subheader("⚠️ Missing NAV Numbers")
             if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
             if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
-
 
