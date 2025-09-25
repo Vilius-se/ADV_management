@@ -377,22 +377,20 @@ def pipeline_4_2_missing_nav(df, source):
 # =====================================================
 # Render
 # =====================================================
+
 def render():
     st.header("Stage 3: BOM Management")
 
-    # --- Inputs ---
     inputs = pipeline_2_1_user_inputs()
     if not inputs:
         return
 
-    # --- File uploads ---
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files:
         return
 
     required_A = ["bom", "data", "ks"]
     required_B = ["cubic_bom", "data", "ks"] if not inputs["rittal"] else []
-
     miss_A = [k for k in required_A if k not in files]
     miss_B = [k for k in required_B if k not in files]
 
@@ -402,13 +400,10 @@ def render():
         st.success("Project BOM: OK") if not miss_A else st.warning(f"Project BOM missing: {miss_A}")
     with col2:
         if not inputs["rittal"]:
-            st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
+            st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"Project BOM missing: {miss_B}")
         else:
             st.info("CUBIC BOM skipped (Rittal)")
 
-    # =====================================================
-    # Run processing trigger
-    # =====================================================
     if st.button("🚀 Run Processing"):
         st.session_state["processing_started"] = True
         st.session_state["mech_confirmed"] = False
@@ -418,9 +413,6 @@ def render():
     if not st.session_state.get("processing_started", False):
         st.stop()
 
-    # =====================================================
-    # Processing
-    # =====================================================
     data_book = files.get("data", {})
     df_stock   = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
     df_part_no = pipeline_2_4_normalize_part_no(
@@ -431,28 +423,20 @@ def render():
     df_code    = pipeline_2_3_get_sheet_safe(data_book, ["Part_code"])
     df_instr   = pipeline_2_3_get_sheet_safe(data_book, ["Instructions"])
 
-    # --- Extras pagal inputs ---
     extras = []
 
-    # UPS pagrindinis + priedai (Project BOM)
     if inputs["ups"]:
         extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom", "force_no": "2214036"})
         extras.append({"type": "ADV UPS holder V3", "qty": 1, "target": "bom", "force_no": "2214035"})
         extras.append({"type": "268-2610", "qty": 1, "target": "bom", "force_no": "1865206"})
 
-    # Swing frame (CUBIC BOM NAV + Mechanics Journal)
     if inputs["swing_frame"]:
         extras.append({"type": "9030+2970", "qty": 1, "target": "cubic", "force_no": "2185835"})
 
-    # SDD07550 ir papildomi komponentai iš Instructions
-    if df_instr is not None and not df_instr.empty:
-    row = df_instr[df_instr.iloc[:,0].astype(str).str.upper() == str(inputs["panel_type"]).upper()]
-        if not row.empty:
-            # SDD07550 ir papildomi komponentai iš Instructions
+    # Instructions → SDD07550 + papildomi komponentai
     if df_instr is not None and not df_instr.empty:
         row = df_instr[df_instr.iloc[:,0].astype(str).str.upper() == str(inputs["panel_type"]).upper()]
         if not row.empty:
-        # SDD07550 (E stulpelis, indeksas 4)
             if inputs["panel_type"][0] not in ["F","G"]:
                 try:
                     qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
@@ -467,8 +451,7 @@ def render():
                         "force_no": "SDD07550"
                     })
 
-            # Papildomi komponentai iš F,G,H,J stulpelių (po 1 vnt. jei įrašas yra)
-            extra_indices = [5,6,7,9]  # F,G,H,J stulpeliai (0-based indeksai)
+            extra_indices = [5,6,7,9]  # F,G,H,J
             for col_idx in extra_indices:
                 if col_idx < row.shape[1]:
                     val = str(row.iloc[0,col_idx]).strip()
@@ -479,10 +462,10 @@ def render():
                             "qty": 1,
                             "target": "cubic"
                         })
+
     job_A, nav_A, df_bom_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     job_B, nav_B, df_cub_proc = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # --- Project BOM ---
     if not miss_A:
         df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras)
         df_bom = pipeline_3A_1_filter(df_bom, df_stock)
@@ -491,7 +474,6 @@ def render():
         df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
         job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(df_bom, inputs["project_number"], df_part_no)
 
-    # --- CUBIC BOM ---
     if not inputs["rittal"] and not miss_B:
         df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras)
         df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
@@ -502,13 +484,9 @@ def render():
         df_j = pipeline_3B_4_stock(df_j, files["ks"])
         job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-    # =====================================================
-    # Stage control
-    # =====================================================
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
-
             editable = job_B.copy()
             editable["Available Qty"] = editable["Quantity"].astype(int)
 
@@ -529,7 +507,6 @@ def render():
                         key=f"take_{idx}",
                     )
                     mech_inputs.append((idx, take))
-
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
 
             if confirm:
@@ -542,12 +519,10 @@ def render():
                     remain_qty = avail - take
                     if remain_qty > 0 and str(r.get("No.", "")) != "2185835":
                         remain_rows.append({**r, "Quantity": remain_qty})
-
                 st.session_state["df_mech"] = pd.DataFrame(mech_rows)
                 st.session_state["df_remain"] = pd.DataFrame(remain_rows)
                 st.session_state["mech_confirmed"] = True
 
-                # Jei swing pažymėtas → pridedam tiesiai į mech
                 if inputs["swing_frame"]:
                     swing_row = pd.DataFrame([{
                         "Type": "9030+2970", "Original Type": "9030+2970", "No.": "2185835",
@@ -559,16 +534,11 @@ def render():
                         [st.session_state["df_mech"], swing_row],
                         ignore_index=True
                     )
-
         st.stop()
 
-    # =====================================================
-    # Stage 2 – Full results
-    # =====================================================
     if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
         st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
         st.dataframe(st.session_state["df_mech"], use_container_width=True)
-
     if "df_remain" in st.session_state and not st.session_state["df_remain"].empty:
         st.subheader("📑 Job Journal (CUBIC BOM REMAINING)")
         st.dataframe(st.session_state["df_remain"], use_container_width=True)
@@ -583,7 +553,6 @@ def render():
         st.subheader("🛒 NAV Table (CUBIC BOM)")
         st.dataframe(nav_B, use_container_width=True)
 
-    # --- Calculation ---
     calc = pipeline_4_1_calculation(
         df_bom_proc, df_cub_proc, df_hours,
         inputs["panel_type"], inputs["grounding"], inputs["project_number"], df_instr
@@ -597,4 +566,3 @@ def render():
         st.subheader("⚠️ Missing NAV Numbers")
         if not miss_nav_A.empty: st.dataframe(miss_nav_A, use_container_width=True)
         if not miss_nav_B.empty: st.dataframe(miss_nav_B, use_container_width=True)
-
