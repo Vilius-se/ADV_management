@@ -169,18 +169,15 @@ def pipeline_2_1_user_inputs():
         st.error("Invalid format (must be 1234-567)")
         return None
 
-    panel_type = st.selectbox(
-        "Panel type",
-        ['A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8',
-         'F','F1','F2','F3','F4','F4.1','F5','F6','F7',
-         'G','G1','G2','G3','G4','G5','G6','G7','Custom']
-    )
+    panel_type = st.selectbox("Panel type", [
+        'A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8',
+        'F','F1','F2','F3','F4','F4.1','F5','F6','F7',
+        'G','G1','G2','G3','G4','G5','G6','G7','Custom'
+    ])
     grounding = st.selectbox("Grounding type", ["TT","TN-S","TN-C-S"])
-    main_switch = st.selectbox(
-        "Main switch",
-        ["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111",
-         "31109","31107","C404400S","C634630S"]
-    )
+    main_switch = st.selectbox("Main switch", [
+        "C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"
+    ])
     swing_frame = st.checkbox("Swing frame?")
     ups = st.checkbox("UPS?")
     rittal = st.checkbox("Rittal?")
@@ -192,34 +189,11 @@ def pipeline_2_1_user_inputs():
         "main_switch": main_switch,
         "swing_frame": swing_frame,
         "ups": ups,
-        "rittal": rittal
+        "rittal": rittal,
     }
 
 
-def pipeline_2_2_get_sheet_safe(data_dict, names):
-    if not isinstance(data_dict, dict): 
-        return None
-    for key in data_dict.keys():
-        if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
-            return data_dict[key]
-    return None
-
-
-def pipeline_2_3_normalize_part_no(df_raw):
-    if df_raw is None or df_raw.empty: 
-        return pd.DataFrame()
-    df = df_raw.copy().rename(columns=lambda c:str(c).strip())
-    col_map = {}
-    if df.shape[1]>=1: col_map[df.columns[0]]="PartNo_A"
-    if df.shape[1]>=2: col_map[df.columns[1]]="PartName_B"
-    if df.shape[1]>=3: col_map[df.columns[2]]="Desc_C"
-    if df.shape[1]>=4: col_map[df.columns[3]]="Manufacturer_D"
-    if df.shape[1]>=5: col_map[df.columns[4]]="SupplierNo_E"
-    if df.shape[1]>=6: col_map[df.columns[5]]="UnitPrice_F"
-    return df.rename(columns=col_map)
-
-
-def pipeline_2_4_file_uploads(rittal=False):
+def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("Upload Required Files")
     dfs = {}
 
@@ -239,7 +213,7 @@ def pipeline_2_4_file_uploads(rittal=False):
             df_cubic["No."] = df_cubic["Type"]
             dfs["cubic_bom"] = df_cubic
 
-    # --- BOM ---
+    # --- Project BOM ---
     bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
     if bom:
         df_bom = read_excel_any(bom)
@@ -247,7 +221,7 @@ def pipeline_2_4_file_uploads(rittal=False):
             colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
             df_bom["Original Article"] = colA
-            df_bom["Original Type"] = colB.where(colB!="", colA)
+            df_bom["Original Type"] = colB.where(colB!="",colA)
         else:
             df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = df_bom["Original Article"]
@@ -264,6 +238,29 @@ def pipeline_2_4_file_uploads(rittal=False):
         dfs["ks"] = read_excel_any(ks_file)
 
     return dfs
+
+
+def pipeline_2_3_get_sheet_safe(data_dict, names):
+    if not isinstance(data_dict,dict):
+        return None
+    for key in data_dict.keys():
+        if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
+            return data_dict[key]
+    return None
+
+
+def pipeline_2_4_normalize_part_no(df_raw):
+    if df_raw is None or df_raw.empty:
+        return pd.DataFrame()
+    df = df_raw.copy().rename(columns=lambda c:str(c).strip())
+    col_map = {}
+    if df.shape[1] >= 1: col_map[df.columns[0]] = "PartNo_A"
+    if df.shape[1] >= 2: col_map[df.columns[1]] = "PartName_B"
+    if df.shape[1] >= 3: col_map[df.columns[2]] = "Desc_C"
+    if df.shape[1] >= 4: col_map[df.columns[3]] = "Manufacturer_D"
+    if df.shape[1] >= 5: col_map[df.columns[4]] = "SupplierNo_E"
+    if df.shape[1] >= 6: col_map[df.columns[5]] = "UnitPrice_F"
+    return df.rename(columns=col_map)
 
 
 # =====================================================
@@ -597,14 +594,15 @@ def pipeline_4_2_missing_nav(df, source):
         "NAV No.": missing["No."]
     })
 
-
 def render(debug_flag=False):
     st.header("Stage 3: BOM Management")
 
+    # --- Inputs ---
     inputs = pipeline_2_1_user_inputs()
     if not inputs: 
         return
 
+    # --- File uploads ---
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files: 
         return
@@ -631,13 +629,15 @@ def render(debug_flag=False):
 
     if st.button("🚀 Run Processing"):
         data_book = files.get("data",{})
-        df_stock   = get_sheet_safe(data_book,["Stock"])
-        df_part_no = normalize_part_no(get_sheet_safe(data_book,["Part_no","Parts_no","Part no"]))
-        df_hours   = get_sheet_safe(data_book,["Hours"])
-        df_acc     = get_sheet_safe(data_book,["Accessories"])
-        df_code    = get_sheet_safe(data_book,["Part_code"])
+        df_stock   = pipeline_2_3_get_sheet_safe(data_book,["Stock"])
+        df_part_no = pipeline_2_4_normalize_part_no(
+            pipeline_2_3_get_sheet_safe(data_book,["Part_no","Parts_no","Part no"])
+        )
+        df_hours   = pipeline_2_3_get_sheet_safe(data_book,["Hours"])
+        df_acc     = pipeline_2_3_get_sheet_safe(data_book,["Accessories"])
+        df_code    = pipeline_2_3_get_sheet_safe(data_book,["Part_code"])
 
-        # Extras pagal vartotojo pasirinkimus
+        # --- Extras pagal inputs ---
         extras = []
         if inputs["ups"]:
             extras.append({"type": "LI32111CT01", "qty": 1, "target": "bom"})
@@ -670,8 +670,10 @@ def render(debug_flag=False):
             job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
         # --- Calculation ---
-        calc = pipeline_4_1_calculation(df_bom_proc, df_cub_proc, df_hours,
-                                        inputs["panel_type"], inputs["grounding"], inputs["project_number"])
+        calc = pipeline_4_1_calculation(
+            df_bom_proc, df_cub_proc, df_hours,
+            inputs["panel_type"], inputs["grounding"], inputs["project_number"]
+        )
         miss_nav_A = pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
         miss_nav_B = pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
 
