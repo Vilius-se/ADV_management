@@ -16,7 +16,7 @@ def _dbg(df, label, debug=False):
         st.info("Empty DataFrame")
         return
     st.text(f"Shape: {df.shape}")
-    st.dataframe(df.head(10), use_container_width=True)
+    st.dataframe(df.head(60), use_container_width=True)
 
 
 
