@@ -667,14 +667,16 @@ def render(debug_flag=False):
             df_j = pipeline_3B_4_stock(df_j, files["ks"])
             job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-# --- Stage control ---
+        # =====================================================
+        # Stage control – Mechanics first
+        # =====================================================
         if "mech_confirmed" not in st.session_state:
             st.session_state["mech_confirmed"] = False
 
         if not st.session_state["mech_confirmed"]:
-            # --- Etapas 1: rodom tik CUBIC Job Journal ir allocation ---
+            # --- Etapas 1: rodom tik CUBIC Job Journal ir leidžiam pasirinkti mechaniką ---
             if not job_B.empty:
-                st.subheader("📑 Job Journal (CUBIC BOM)")
+                st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
 
                 with st.form("mech_form", clear_on_submit=False):
                     editable = job_B.copy()
@@ -708,10 +710,12 @@ def render(debug_flag=False):
                     st.session_state["mech_confirmed"] = True
                     st.experimental_rerun()
 
-            st.stop()  # sustabdo app'ą šiame etape
+            st.stop()  # sustabdom, kol nepatvirtinta
 
+        # =====================================================
+        # Stage 2 – Full results
+        # =====================================================
         else:
-            # --- Etapas 2: rodom visas kitas lenteles ---
             if "df_mech" in st.session_state and not st.session_state["df_mech"].empty:
                 st.subheader("📑 Job Journal (CUBIC BOM TO MECH.)")
                 st.dataframe(st.session_state["df_mech"], use_container_width=True)
@@ -739,5 +743,6 @@ def render(debug_flag=False):
             if not miss_nav_A.empty or not miss_nav_B.empty:
                 st.subheader("⚠️ Missing NAV Numbers")
                 if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
-                if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True
+                if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
+
 
