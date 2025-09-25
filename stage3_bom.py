@@ -692,64 +692,66 @@ def render(debug_flag=False):
         )
 
     # =====================================================
-    # Stage control
-    # =====================================================
-    if not st.session_state.get("mech_confirmed", False):
-        if not job_B.empty:
-            st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
-    
-            editable = job_B.copy()
-            editable["Available Qty"] = editable["Quantity"].astype(int)
-    
-            mech_inputs = []
-            with st.form("mech_form", clear_on_submit=False):
-                st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
-            
-                editable = job_B.copy()
-                editable["Avail"] = editable["Quantity"].astype(int)
-                editable["Qty to Mech"] = 0
-            
-                edited = st.data_editor(
-                    editable[["No.", "Original Type", "Description", "Avail", "Qty to Mech"]],
-                    column_config={
-                        "Qty to Mech": st.column_config.NumberColumn(
-                            "",
-                            min_value=0,
-                            max_value=int(editable["Avail"].max()),
-                            step=1,
-                            format="%d"
-                        ),
-                        "Avail": st.column_config.NumberColumn(
-                            "Avail",
-                            format="%d"
-                        )
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key="mech_editor"
-                )
-            
-                confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+# Stage control – Mechanics allocation
+# =====================================================
+if not st.session_state.get("mech_confirmed", False):
+    if not job_B.empty:
+        st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
 
-                
-            if confirm:
-                mech_rows, remain_rows = [], []
-                for idx, take in mech_inputs:
-                    avail = int(editable.loc[idx, "Available Qty"])
-                    r = editable.loc[idx].to_dict()
-    
-                    if take > 0:
-                        mech_rows.append({**r, "Quantity": take})
-    
-                    remain_qty = avail - take
-                    if remain_qty > 0:
-                        remain_rows.append({**r, "Quantity": remain_qty})
-    
-                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
-                st.session_state["df_remain"] = pd.DataFrame(remain_rows)
-                st.session_state["mech_confirmed"] = True
-    
-        st.stop()
+        editable = job_B.copy()
+        editable["Avail"] = editable["Quantity"].astype(int)
+        editable["Qty to Mech"] = 0
+
+        with st.form("mech_form", clear_on_submit=False):
+            edited = st.data_editor(
+                editable[["No.", "Original Type", "Description", "Avail", "Qty to Mech"]],
+                column_config={
+                    "Qty to Mech": st.column_config.NumberColumn(
+                        "Qty to Mech",
+                        min_value=0,
+                        max_value=int(editable["Avail"].max()),
+                        step=1,
+                        format="%d"
+                    ),
+                    "Avail": st.column_config.NumberColumn(
+                        "Avail",
+                        disabled=True,
+                        format="%d"
+                    ),
+                },
+                hide_index=True,
+                use_container_width=True,
+                num_rows="fixed"
+            )
+
+            confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+
+        if confirm:
+            mech_rows, remain_rows = [], []
+            for _, r in edited.iterrows():
+                avail = int(r.get("Avail", 0))
+                take = int(r.get("Qty to Mech", 0))
+                take = min(take, avail)
+
+                base = {
+                    "No.": r.get("No.", ""),
+                    "Original Type": r.get("Original Type", ""),
+                    "Description": r.get("Description", ""),
+                }
+
+                if take > 0:
+                    mech_rows.append({**base, "Quantity": take})
+
+                remain_qty = avail - take
+                if remain_qty > 0:
+                    remain_rows.append({**base, "Quantity": remain_qty})
+
+            st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+            st.session_state["df_remain"] = pd.DataFrame(remain_rows)
+            st.session_state["mech_confirmed"] = True
+            st.experimental_rerun()
+
+    st.stop()
 
     # =====================================================
     # Stage 2 – Full results
