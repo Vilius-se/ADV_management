@@ -706,11 +706,22 @@ def render(debug_flag=False):
                 st.markdown(
                     """
                     <style>
-                    table {width: 100%; border-collapse: collapse;}
-                    th, td {border: 1px solid gray; padding: 4px; text-align: left;}
-                    th {background-color: #333; color: white;}
+                    table.mech-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 13px;
+                    }
+                    table.mech-table th, table.mech-table td {
+                        border: 1px solid #555;
+                        padding: 2px 6px;
+                        text-align: left;
+                    }
+                    table.mech-table th {
+                        background-color: #333;
+                        color: white;
+                    }
                     </style>
-                    <table>
+                    <table class="mech-table">
                     <tr>
                         <th>No.</th>
                         <th>Original Type</th>
@@ -719,7 +730,7 @@ def render(debug_flag=False):
                         <th>Qty to Mech</th>
                     </tr>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
             
                 mech_inputs = []
@@ -730,7 +741,7 @@ def render(debug_flag=False):
                     c3.write(str(row.get("Description", "")))
                     c4.write(int(row["Available Qty"]))
                     take = c5.number_input(
-                        label="",
+                        label="",  # be jokio label
                         min_value=0,
                         max_value=int(row["Available Qty"]),
                         step=1,
@@ -738,8 +749,9 @@ def render(debug_flag=False):
                         key=f"take_{idx}",
                     )
                     mech_inputs.append((idx, take))
-
+            
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+
                 
             if confirm:
                 mech_rows, remain_rows = [], []
