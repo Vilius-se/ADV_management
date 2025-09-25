@@ -551,7 +551,7 @@ def pipeline_3B_5_tables(df_journal,df_nav,project_number,df_part_no):
 # 4.x – Calculation & Missing NAV
 # =====================================================
 
-def pipeline_4_1_calculation(df_bom, df_cubic, df_hours, panel_type, grounding, project_number):
+def pipeline_4_1_calculation(df_bom, df_cubic, df_hours, panel_type, grounding, project_number, df_instr=None):
     if df_bom is None: df_bom = pd.DataFrame()
     if df_cubic is None: df_cubic = pd.DataFrame()
     if df_hours is None: df_hours = pd.DataFrame()
