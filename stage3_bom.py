@@ -274,8 +274,6 @@ def pipeline_3A_1_filter(df_bom, df_stock):
     df = df_bom.copy()
     df["Norm_Type"] = df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
     out = df[~df["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
-
-    _dbg(out, "3A_1 Filtered BOM")
     return out.drop(columns=["Norm_Type"])
 
 
@@ -297,8 +295,6 @@ def pipeline_3A_2_accessories(df_bom, df_acc):
                 df_out = pd.concat([df_out,pd.DataFrame([{
                     "Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"
                 }])],ignore_index=True)
-
-    _dbg(df_out, "3A_2 With Accessories")
     return df_out
 
 
@@ -339,8 +335,6 @@ def pipeline_3A_3_nav(df_bom, df_part_no):
         df = df.drop(columns=[c for c in ["Norm_Type","Norm_B","PartNo_A"] if c in df.columns], errors="ignore")
     else:
         df = df.drop(columns=["Norm_Type"], errors="ignore")
-
-    _dbg(df, "3A_3 With NAV numbers")
     return df
 
 
@@ -359,8 +353,6 @@ def pipeline_3A_4_stock(df_bom, ks_file):
     df_bom["No."]   = df_bom["No."].apply(normalize_no)
     stock_groups = {k:v for k,v in df_stock.groupby("No.")}
     df_bom["Stock Rows"] = df_bom["No."].map(stock_groups)
-
-    _dbg(df_bom, "3A_4 With Stock info")
     return df_bom
 
 
@@ -403,9 +395,6 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
             "Profit":profit,"Discount":0,"Description":r.get("Description","")
         })
     nav_table=pd.DataFrame(nav_rows,columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
-
-    _dbg(job_journal, "3A_5 Job Journal")
-    _dbg(nav_table, "3A_5 NAV Table")
     return job_journal,nav_table,df_bom
     
 # =====================================================
