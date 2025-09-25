@@ -389,6 +389,8 @@ def pipeline_4_2_missing_nav(df, source):
         "Quantity": qty,
         "NAV No.": missing["No."]
     })
+
+
 # =====================================================
 # Stage 3 Render
 # =====================================================
@@ -435,8 +437,8 @@ def render():
 
         if not miss_A:
             st.subheader("📦 Project BOM")
-            df_bom = pipeline_3A_0_rename_columns(files["bom"], df_code)
-            df_bom = pipeline_3A_1_filtering(df_bom, df_stock)
+            df_bom = pipeline_3A_0_rename(files["bom"], df_code)
+            df_bom = pipeline_3A_1_filter(df_bom, df_stock)
             df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
             df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
             df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
