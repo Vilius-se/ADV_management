@@ -7,10 +7,10 @@ import io
 # 1.x – Helpers
 # =====================================================
 
-def norm_name(x):
+def pipeline_1_1_norm_name(x):
     return ''.join(str(x).upper().split())
 
-def parse_qty(x):
+def pipeline_1_2_parse_qty(x):
     if pd.isna(x): return 0.0
     if isinstance(x,(int,float)): return float(x)
     s=str(x).strip().replace('\xa0','').replace(' ','')
@@ -19,12 +19,12 @@ def parse_qty(x):
     try: return float(s)
     except: return 0.0
 
-def safe_filename(s):
+def pipeline_1_3_safe_filename(s):
     s='' if s is None else str(s).strip()
     s=re.sub(r'[\\/:*?"<>|]+','',s)
     return s.replace(' ','_')
 
-def normalize_no(x):
+def pipeline_1_4_normalize_no(x):
     try: return str(int(float(str(x).replace(",","." ).strip())))
     except: return str(x).strip()
 
@@ -55,7 +55,7 @@ def allocate_from_stock(no,qty_needed,stock_rows):
 # 2.x – Inputs & File Uploads
 # =====================================================
 
-def user_inputs():
+def pipeline_2_1_user_inputs():
     st.subheader("Project Information")
     project_number=st.text_input("Project number (1234-567)")
     if project_number and not re.match(r"^\d{4}-\d{3}$",project_number):
@@ -91,13 +91,13 @@ def normalize_part_no(df_raw):
     if df.shape[1]>=6: col_map[df.columns[5]]="UnitPrice_F"
     return df.rename(columns=col_map)
 
-def file_uploads(rittal=False):
+def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("Upload Required Files")
     dfs={}
     if not rittal:
         cubic_bom=st.file_uploader("Insert CUBIC BOM",type=["xls","xlsx","xlsm"],key="cubic_bom")
         if cubic_bom:
-            df_cubic=read_excel_any(cubic_bom,skiprows=13,usecols="B,E:F,G")
+            df_cubic=read_excel_any(cubic_bom,skiprows=13,usecols="B,E:G")
             df_cubic=df_cubic.rename(columns=lambda c:str(c).strip())
             if {"E","F","G"}.issubset(df_cubic.columns):
                 df_cubic["Quantity"]=df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
