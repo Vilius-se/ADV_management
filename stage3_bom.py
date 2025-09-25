@@ -762,5 +762,7 @@ def render(debug_flag=False):
         st.subheader("⚠️ Missing NAV Numbers")
         if not miss_nav_A.empty: st.dataframe(miss_nav_A,use_container_width=True)
         if not miss_nav_B.empty: st.dataframe(miss_nav_B,use_container_width=True)
+            
+
 
 
