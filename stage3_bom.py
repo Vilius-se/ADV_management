@@ -744,7 +744,7 @@ def render(debug_flag=False):
                 st.session_state["df_mech"] = pd.DataFrame(mech_rows)
                 st.session_state["df_remain"] = pd.DataFrame(remain_rows)
                 st.session_state["mech_confirmed"] = True
-                st.experimental_rerun()
+                st.rerun()
 
         st.stop()
 
