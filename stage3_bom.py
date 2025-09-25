@@ -259,22 +259,24 @@ def pipeline_2_4_file_uploads(rittal=False):
 def pipeline_3A_0_rename(df_bom, df_part_code, debug=False):
     if df_bom is None or df_bom.empty:
         return pd.DataFrame()
-    if df_part_code is None or df_part_code.empty:
-        return df_bom
-
     df = df_bom.copy()
 
-    # senas -> naujas (reikšmių pervadinimas, ne tik stulpelių header)
-    replace_map = dict(zip(
-        df_part_code.iloc[:,0].astype(str).str.strip(),
-        df_part_code.iloc[:,1].astype(str).str.strip()
-    ))
+    # Išsaugom original
+    if "Original Type" not in df.columns:
+        if "Type" in df.columns:
+            df["Original Type"] = df["Type"]
+        else:
+            df["Original Type"] = df.iloc[:,0].astype(str)
 
-    # jei BOM turi "Type" stulpelį, pervadinam jo reikšmes
-    if "Type" in df.columns:
-        df["Type"] = df["Type"].replace(replace_map)
+    # Mappingas: senas -> naujas
+    if df_part_code is not None and not df_part_code.empty:
+        replace_map = dict(zip(
+            df_part_code.iloc[:,0].astype(str).str.strip(),
+            df_part_code.iloc[:,1].astype(str).str.strip()
+        ))
+        if "Type" in df.columns:
+            df["Type"] = df["Type"].replace(replace_map)
 
-    # pasitikrinimui – debug
     _dbg(df, "3A_0 BOM after Part_code mapping", debug=debug)
     return df
 
@@ -433,29 +435,42 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug=False):
 # 3B – CUBIC BOM
 # =====================================================
 
-def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code):
-    if df_cubic is None or df_cubic.empty: return pd.DataFrame()
-    df=df_cubic.copy().rename(columns=lambda c:str(c).strip())
+def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, debug=False):
+    if df_cubic is None or df_cubic.empty:
+        return pd.DataFrame()
+    df = df_cubic.copy().rename(columns=lambda c:str(c).strip())
+
+    # Sutvarkom quantity
     if any(col in df.columns for col in ["E","F","G"]):
-        df["Quantity"]=df[["E","F","G"]].bfill(axis=1).iloc[:,0]
-        df["Quantity"]=pd.to_numeric(df["Quantity"],errors="coerce").fillna(0)
+        df["Quantity"] = df[["E","F","G"]].bfill(axis=1).iloc[:,0]
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
     elif "Quantity" in df.columns:
-        df["Quantity"]=pd.to_numeric(df["Quantity"],errors="coerce").fillna(0)
-    else: df["Quantity"]=0
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
+    else:
+        df["Quantity"] = 0
+
+    # Sutvarkom Type / Original Type
     if "Item Id" in df.columns:
-        df["Type"]=df["Item Id"].astype(str).str.strip()
-        df["Original Type"]=df["Type"]
+        df["Type"] = df["Item Id"].astype(str).str.strip()
     elif "Type" not in df.columns:
-        df["Type"]=""
-        df["Original Type"]=""
-    if "No." not in df.columns: df["No."]=df["Type"]
+        df["Type"] = ""
+    df["Original Type"] = df["Type"]
+
+    # Mappingas: senas -> naujas
     if df_part_code is not None and not df_part_code.empty:
-        rename_map=dict(zip(
+        replace_map = dict(zip(
             df_part_code.iloc[:,0].astype(str).str.strip(),
             df_part_code.iloc[:,1].astype(str).str.strip()
         ))
-        df=df.rename(columns=rename_map)
+        df["Type"] = df["Type"].replace(replace_map)
+
+    # Užpildom No. su Type
+    if "No." not in df.columns:
+        df["No."] = df["Type"]
+
+    _dbg(df, "3B_0 CUBIC BOM after Part_code mapping", debug=debug)
     return df
+
 
 def pipeline_3B_1_filtering(df_cubic,df_stock):
     if df_cubic is None or df_cubic.empty: return pd.DataFrame(),pd.DataFrame()
