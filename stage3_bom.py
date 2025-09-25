@@ -7,8 +7,95 @@ import io
 # 1.x – Helpers
 # =====================================================
 
-import pandas as pd
-import re
+
+def _dbg(show, title, obj=None, rows=8):
+    if not show:
+        return
+    import streamlit as st
+    st.caption(f"🧪 {title}")
+    if obj is None:
+        return
+    import pandas as pd
+    if isinstance(obj, pd.DataFrame):
+        st.write(f"shape={obj.shape}")
+        st.dataframe(obj.head(rows), use_container_width=True)
+    elif isinstance(obj, dict):
+        items = list(obj.items())[:rows]
+        st.dataframe(pd.DataFrame(items, columns=["key","value"]))
+    else:
+        st.write(obj)
+
+
+def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame,
+                             label: str = "Project BOM", debug: bool = False) -> pd.DataFrame:
+    _dbg(debug, f"{label} → NAV: input df_bom", df_bom)
+
+    req = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
+    if df_part_no is None or df_part_no.empty or any(c not in df_part_no.columns for c in req):
+        _dbg(debug, f"{label} → NAV: Part_no trūksta reikiamų stulpelių {req}")
+        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+
+    supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
+    manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
+    _dbg(debug, f"{label} → NAV: supplier_map (sample)", supplier_map)
+    _dbg(debug, f"{label} → NAV: manuf_map (sample)", manuf_map)
+
+    tmp = df_bom.copy()
+    if "Quantity" not in tmp.columns: tmp["Quantity"] = 0
+    if "Description" not in tmp.columns: tmp["Description"] = ""
+    if "No." not in tmp.columns: tmp["No."] = ""
+    tmp["No."] = tmp["No."].astype(str)
+    tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
+    _dbg(debug, f"{label} → NAV: normalized tmp", tmp)
+
+    nav_rows = []
+    m_total = len(tmp)
+    m_profit10 = 0
+    m_supplier_default = 0
+    m_missing_no = 0
+
+    for _, r in tmp.iterrows():
+        part_no = str(r["No."]).strip()
+        qty = float(r.get("Quantity", 0) or 0)
+        manuf = manuf_map.get(part_no, "")
+
+        if part_no == "" or part_no.lower() == "nan":
+            m_missing_no += 1
+
+        profit = 10 if "DANFOSS" in str(manuf).upper() else 17
+        if profit == 10:
+            m_profit10 += 1
+
+        supplier = supplier_map.get(part_no, 30093)
+        if part_no not in supplier_map:
+            m_supplier_default += 1
+
+        nav_rows.append({
+            "Type": "Item",
+            "No.": part_no,
+            "Quantity": qty,
+            "Supplier": supplier,
+            "Profit": profit,
+            "Discount": 0,
+            "Description": r.get("Description", "")
+        })
+
+    _dbg(debug, f"{label} → NAV: metrics", {
+        "rows_total": m_total,
+        "profit10_cnt": m_profit10,
+        "supplier_default_cnt": m_supplier_default,
+        "missing_No_cnt": m_missing_no
+    })
+
+    nav_table = pd.DataFrame(
+        nav_rows,
+        columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"]
+    )
+    _dbg(debug, f"{label} → NAV: final table", nav_table)
+    return nav_table
+
+
+
 
 def pipeline_1_1_norm_name(x):
     return ''.join(str(x).upper().split())
@@ -230,7 +317,7 @@ def pipeline_3A_4_stock(df_bom,ks_file):
     df_bom["Stock Rows"]=df_bom["No."].map(stock_groups)
     return df_bom
 
-def pipeline_3A_5_tables(df_bom,project_number,df_part_no):
+def pipeline_3A_5_tables(df_bom, project_number, df_part_no, debug: bool = False):
     rows=[]
     for _,row in df_bom.iterrows():
         no=row.get("No.")
@@ -240,30 +327,25 @@ def pipeline_3A_5_tables(df_bom,project_number,df_part_no):
             stock_rows=pd.DataFrame(columns=["Bin Code","Quantity"])
         allocations=allocate_from_stock(no,qty,stock_rows)
         for alloc in allocations:
-            rows.append({"Type":"Item","No.":no,"Document No.":project_number,"Job No.":project_number,
-                         "Job Task No.":1144,"Quantity":alloc["Allocated Qty"],
-                         "Location Code":"KAUNAS" if alloc["Bin Code"] else "",
-                         "Bin Code":alloc["Bin Code"],
-                         "Description":row.get("Description",""),
-                         "Original Type":row.get("Original Type","")})
+            rows.append({
+                "Type":"Item",
+                "No.":no,
+                "Document No.":project_number,
+                "Job No.":project_number,
+                "Job Task No.":1144,
+                "Quantity":alloc["Allocated Qty"],
+                "Location Code":"KAUNAS" if alloc["Bin Code"] else "",
+                "Bin Code":alloc["Bin Code"],
+                "Description":row.get("Description",""),
+                "Original Type":row.get("Original Type","")
+            })
     job_journal=pd.DataFrame(rows)
-    supplier_map=dict(zip(df_part_no["PartNo_A"].astype(str),df_part_no["SupplierNo_E"]))
-    manuf_map=dict(zip(df_part_no["PartNo_A"].astype(str),df_part_no["Manufacturer_D"].astype(str)))
-    tmp=df_bom.copy()
-    if "Quantity" not in tmp.columns: tmp["Quantity"]=0
-    if "Description" not in tmp.columns: tmp["Description"]=""
-    tmp["No."]=tmp["No."].astype(str)
-    tmp["Quantity"]=pd.to_numeric(tmp["Quantity"],errors="coerce").fillna(0)
-    nav_rows=[]
-    for _,r in tmp.iterrows():
-        part_no=str(r["No."]); qty=float(r.get("Quantity",0) or 0)
-        manuf=manuf_map.get(part_no,"")
-        profit=10 if "DANFOSS" in str(manuf).upper() else 17
-        supplier=supplier_map.get(part_no,30093)
-        nav_rows.append({"Type":"Item","No.":part_no,"Quantity":qty,"Supplier":supplier,
-                         "Profit":profit,"Discount":0,"Description":r.get("Description","")})
-    nav_table=pd.DataFrame(nav_rows,columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
-    return job_journal,nav_table,df_bom
+    _dbg(debug, "Project BOM → Job Journal", job_journal)
+
+    nav_table = build_nav_table_from_bom(df_bom, df_part_no, label="Project BOM", debug=debug)
+
+    return job_journal, nav_table, df_bom
+    
 # =====================================================
 # 3B – CUBIC BOM
 # =====================================================
