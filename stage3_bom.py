@@ -632,53 +632,122 @@ def render():
     show_table(miss_nav_A, "⚠️ Missing NAV Numbers (Project BOM)")
     show_table(miss_nav_B, "⚠️ Missing NAV Numbers (CUBIC BOM)")
 
-    # =====================================================
-    # Export to Excel
-    # =====================================================
-    if st.button("💾 Export Results to Excel"):
-        ts = datetime.datetime.now().strftime("%Y%m%d%H%M")
-        pallet_size = ""
-        try:
-            pallet_size = str(calc[calc["Label"]=="Pallet size"]["Value"].iloc[0])
-        except:
-            pallet_size = ""
-        filename = f"{inputs['project_number']}_{inputs['panel_type']}_{inputs['grounding']}_{pallet_size}_{ts}.xlsx"
+# =====================================================
+# Export to Excel with formatting
+# =====================================================
+if st.button("💾 Export Results to Excel"):
+    ts = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    pallet_size = ""
+    project_size = ""
+    try:
+        project_size = str(calc[calc["Label"]=="Project size"]["Value"].iloc[0])
+        pallet_size = str(calc[calc["Label"]=="Pallet size"]["Value"].iloc[0])
+    except:
+        project_size, pallet_size = "", ""
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Info"
-        ws.append(["Project number", inputs["project_number"]])
-        ws.append(["Panel type", inputs["panel_type"]])
-        ws.append(["Grounding", inputs["grounding"]])
-        ws.append(["Main switch", inputs["main_switch"]])
-        ws.append(["Swing frame", inputs["swing_frame"]])
-        ws.append(["UPS", inputs["ups"]])
-        ws.append(["Rittal", inputs["rittal"]])
+    filename = f"{inputs['project_number']}_{inputs['panel_type']}_{inputs['grounding']}_{pallet_size}_{ts}.xlsx"
 
-        def add_df_to_wb(df, title):
-            if df is None or df.empty: return
-            ws = wb.create_sheet(title)
-            ws.append(df.columns.tolist())
-            for _, row in df.iterrows():
-                ws.append(row.tolist())
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Info"
 
-        add_df_to_wb(job_A, "JobJournal_ProjectBOM")
-        add_df_to_wb(nav_A, "NAV_ProjectBOM")
-        add_df_to_wb(job_B, "JobJournal_CUBICBOM")
-        add_df_to_wb(nav_B, "NAV_CUBICBOM")
-        add_df_to_wb(st.session_state.get("df_mech"), "JobJournal_Mech")
-        add_df_to_wb(st.session_state.get("df_remain"), "JobJournal_Remaining")
-        add_df_to_wb(calc, "Calculation")
-        add_df_to_wb(miss_nav_A, "MissingNAV_ProjectBOM")
-        add_df_to_wb(miss_nav_B, "MissingNAV_CUBICBOM")
+    # INFO sheet
+    info_data = [
+        ["Project number", inputs["project_number"]],
+        ["Panel type", inputs["panel_type"]],
+        ["Grounding", inputs["grounding"]],
+        ["Main switch", inputs["main_switch"]],
+        ["Swing frame", inputs["swing_frame"]],
+        ["UPS", inputs["ups"]],
+        ["Rittal", inputs["rittal"]],
+        ["Project size", project_size],
+        ["Pallet size", pallet_size],
+    ]
+    for row in info_data: ws.append(row)
 
-        save_path = f"/tmp/{filename}"
-        wb.save(save_path)
-        with open(save_path, "rb") as f:
-            st.download_button(
-                label="⬇️ Download Excel",
-                data=f,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 20
+    bold = Font(bold=True)
+    grey_fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+    thin_border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                         top=Side(style="thin"), bottom=Side(style="thin"))
 
+    for row in ws["A1":"A9"]:
+        for cell in row:
+            cell.font = bold
+            cell.fill = grey_fill
+            cell.border = thin_border
+    for row in ws["B1":"B9"]:
+        for cell in row:
+            cell.border = thin_border
+
+    # Helper to add dataframe to workbook
+    def add_df_to_wb(df, title, col_widths=None, nav=False, calc=False):
+        if df is None or df.empty:
+            return
+        ws = wb.create_sheet(title)
+        ws.append(df.columns.tolist())
+        for _, row in df.iterrows():
+            ws.append(row.tolist())
+
+        # Apply column widths
+        if col_widths:
+            for col, width in col_widths.items():
+                ws.column_dimensions[col].width = width
+
+        # Borders
+        max_row, max_col = ws.max_row, ws.max_column
+        for r in ws.iter_rows(min_row=1, max_row=max_row, min_col=1, max_col=max_col):
+            for cell in r:
+                cell.border = thin_border
+
+        # NAV formatting
+        if nav:
+            for row in ws["A1:G1"]:
+                for cell in row:
+                    cell.font = bold
+                    cell.fill = grey_fill
+
+        # Calculation formatting
+        if calc:
+            # Labels column
+            for row in ws["A1":"A10"]:
+                for cell in row:
+                    cell.font = bold
+                    cell.fill = grey_fill
+            # Borders + currency
+            for row in ws["B2":"B10"]:
+                for cell in row:
+                    cell.number_format = '#,##0.00 "DKK"'
+
+    # Export Job Journals
+    job_col_widths = {"A":8,"B":10,"C":12,"D":12,"E":12,"F":12,"G":13,"H":12,"I":40,"J":25}
+    add_df_to_wb(st.session_state.get("df_mech"), "JobJournal_Mech", job_col_widths)
+    add_df_to_wb(st.session_state.get("df_remain"), "JobJournal_Remaining", job_col_widths)
+    add_df_to_wb(job_A, "JobJournal_ProjectBOM", job_col_widths)
+    add_df_to_wb(job_B, "JobJournal_CUBICBOM", job_col_widths)
+
+    # Export NAV tables
+    nav_col_widths = {"A":8,"B":10,"C":9,"D":9,"E":9,"F":9,"G":50}
+    add_df_to_wb(nav_B, "NAV_CUBICBOM", nav_col_widths, nav=True)
+    add_df_to_wb(nav_A, "NAV_ProjectBOM", nav_col_widths, nav=True)
+
+    # Calculation sheet
+    calc_col_widths = {"A":12,"B":18}
+    add_df_to_wb(calc, "Calculation", calc_col_widths, calc=True)
+
+    # Missing NAV
+    add_df_to_wb(miss_nav_A, "MissingNAV_ProjectBOM")
+    add_df_to_wb(miss_nav_B, "MissingNAV_CUBICBOM")
+
+    # Save + Download
+    save_path = f"/tmp/{filename}"
+    wb.save(save_path)
+
+    with open(save_path, "rb") as f:
+        st.download_button(
+            label="⬇️ Download Excel",
+            data=f,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
