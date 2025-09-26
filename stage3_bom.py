@@ -137,12 +137,29 @@ def pipeline_2_2_file_uploads(rittal=False):
     if ks_file: dfs["ks"] = read_excel_any(ks_file)
     return dfs
 
-def pipeline_2_3_get_sheet_safe(data_dict, names):
-    if not isinstance(data_dict,dict): return None
-    for key in data_dict.keys():
-        if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
-            return data_dict[key]
-    return None
+    # --- testas, pažiūrėti kas yra faile ---
+    file_po = "/mnt/data/PurchaseOrder.xls"
+    
+    try:
+        df_test = pd.read_excel(file_po, engine="openpyxl")
+    except Exception as e:
+        print("Nepavyko su openpyxl:", e)
+        try:
+            df_test = pd.read_excel(file_po, engine="xlrd")
+        except Exception as e2:
+            print("Nepavyko ir su xlrd:", e2)
+            df_test = None
+    
+    if df_test is not None:
+        print("Stulpeliai:", df_test.columns.tolist())
+        print(df_test.head())
+    
+    def pipeline_2_3_get_sheet_safe(data_dict, names):
+        if not isinstance(data_dict,dict): return None
+        for key in data_dict.keys():
+            if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
+                return data_dict[key]
+        return None
 
 def pipeline_2_4_normalize_part_no(df_raw):
     if df_raw is None or df_raw.empty: return pd.DataFrame()
