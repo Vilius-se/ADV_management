@@ -130,9 +130,11 @@ def pipeline_2_2_file_uploads(rittal=False):
         else:
             df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = df_bom["Original Article"]
-        # 🔧 FIX: užtikrinam kad 'Type' egzistuotų
+    
+        # 🔧 ČIA FIX: priskiriam 'Type'
         if "Type" not in df_bom.columns:
             df_bom["Type"] = df_bom["Original Type"]
+    
         dfs["bom"] = df_bom
 
     
