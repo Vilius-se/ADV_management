@@ -120,40 +120,27 @@ def pipeline_2_2_file_uploads(rittal=False):
             df_cubic["No."] = df_cubic["Type"]
             dfs["cubic_bom"] = df_cubic
     bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
-    if bom:
-        df_bom = read_excel_any(bom)
-        if df_bom.shape[1] >= 2:
-            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
-            df_bom["Original Article"] = colA
-            df_bom["Original Type"] = colB.where(colB!="",colA)
-        else:
-            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
-            df_bom["Original Type"] = df_bom["Original Article"]
-        dfs["bom"] = df_bom
+if bom:
+    df_bom = read_excel_any(bom)
+    if df_bom.shape[1] >= 2:
+        colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+        colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+        df_bom["Original Article"] = colA
+        df_bom["Original Type"] = colB.where(colB!="",colA)
+    else:
+        df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+        df_bom["Original Type"] = df_bom["Original Article"]
+
+    # 🔧 Užtikrinam, kad būtų 'Type'
+    if "Type" not in df_bom.columns:
+        df_bom["Type"] = df_bom["Original Type"]
+    dfs["bom"] = df_bom
     data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
     if data_file: dfs["data"] = pd.read_excel(data_file, sheet_name=None)
     ks_file = st.file_uploader("Insert Kaunas Stock", type=["xls","xlsx","xlsm"], key="ks")
     if ks_file: dfs["ks"] = read_excel_any(ks_file)
     return dfs
 
-    # --- testas, pažiūrėti kas yra faile ---
-    file_po = "/mnt/data/PurchaseOrder.xls"
-    
-    try:
-        df_test = pd.read_excel(file_po, engine="openpyxl")
-    except Exception as e:
-        print("Nepavyko su openpyxl:", e)
-        try:
-            df_test = pd.read_excel(file_po, engine="xlrd")
-        except Exception as e2:
-            print("Nepavyko ir su xlrd:", e2)
-            df_test = None
-    
-    if df_test is not None:
-        print("Stulpeliai:", df_test.columns.tolist())
-        print(df_test.head())
-    
     def pipeline_2_3_get_sheet_safe(data_dict, names):
         if not isinstance(data_dict,dict): return None
         for key in data_dict.keys():
