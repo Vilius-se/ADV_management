@@ -112,13 +112,16 @@ def pipeline_2_2_file_uploads(rittal=False):
         if cubic_bom:
             df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,E:F,G")
             df_cubic = df_cubic.rename(columns=lambda c:str(c).strip())
-            if {"E","F","G"}.issubset(df_cubic.columns): df_cubic["Quantity"] = df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
-            elif "Quantity" not in df_cubic.columns: df_cubic["Quantity"] = 0
+            if {"E","F","G"}.issubset(df_cubic.columns):
+                df_cubic["Quantity"] = df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
+            elif "Quantity" not in df_cubic.columns:
+                df_cubic["Quantity"] = 0
             df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
             df_cubic = df_cubic.rename(columns={"Item Id":"Type"})
             df_cubic["Original Type"] = df_cubic["Type"]
             df_cubic["No."] = df_cubic["Type"]
             dfs["cubic_bom"] = df_cubic
+
     bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
     if bom:
         df_bom = read_excel_any(bom)
@@ -126,16 +129,27 @@ def pipeline_2_2_file_uploads(rittal=False):
             colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
             df_bom["Original Article"] = colA
-            df_bom["Original Type"] = colB.where(colB!="", colA)
+            df_bom["Original Type"] = colB.where(colB!="",colA)
         else:
             df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = df_bom["Original Article"]
-    
-        # 🔧 ČIA FIX: priskiriam 'Type'
+
+        # 🔧 FIX: visada turime 'Type'
         if "Type" not in df_bom.columns:
             df_bom["Type"] = df_bom["Original Type"]
-    
+
         dfs["bom"] = df_bom
+
+    data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
+    if data_file:
+        dfs["data"] = pd.read_excel(data_file, sheet_name=None)
+
+    ks_file = st.file_uploader("Insert Kaunas Stock", type=["xls","xlsx","xlsm"], key="ks")
+    if ks_file:
+        dfs["ks"] = read_excel_any(ks_file)
+
+    return dfs
+
 
     
     data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
