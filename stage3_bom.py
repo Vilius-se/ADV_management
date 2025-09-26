@@ -126,15 +126,16 @@ def pipeline_2_2_file_uploads(rittal=False):
             colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
             df_bom["Original Article"] = colA
-            df_bom["Original Type"] = colB.where(colB!="",colA)
+            df_bom["Original Type"] = colB.where(colB!="", colA)
         else:
             df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = df_bom["Original Article"]
-    
-        # 🔧 Užtikrinam, kad būtų 'Type'
+        # 🔧 FIX: užtikrinam kad 'Type' egzistuotų
         if "Type" not in df_bom.columns:
             df_bom["Type"] = df_bom["Original Type"]
         dfs["bom"] = df_bom
+
+    
     data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
     if data_file: dfs["data"] = pd.read_excel(data_file, sheet_name=None)
     ks_file = st.file_uploader("Insert Kaunas Stock", type=["xls","xlsx","xlsm"], key="ks")
