@@ -118,8 +118,8 @@ def pipeline_2_2_file_uploads(rittal=False):
             elif "Quantity" not in df_cubic.columns:
                 df_cubic["Quantity"] = 0
             df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
-            df_cubic = df_cubic.rename(columns={"Item Id":"Type"})
-            df_cubic["Original Type"] = df_cubic["Type"]
+            df_cubic = df_cubic.rename(columns={"Item Id": "Original Type"})
+            df_cubic["No."] = df_cubic["Original Type"]
             df_cubic["No."] = df_cubic["Type"]
             dfs["cubic_bom"] = df_cubic
 
@@ -707,10 +707,17 @@ def render():
                 st.session_state["mech_confirmed"] = True
                 if inputs["swing_frame"]:
                     swing_row = pd.DataFrame([{
-                        "Type": "9030+2970","Original Type": "9030+2970","No.": "2185835",
-                        "Quantity": 1,"Document No.": inputs["project_number"],"Job No.": inputs["project_number"],
-                        "Job Task No.": 1144,"Location Code": "KAUNAS","Bin Code": "",
-                        "Description": "Swing frame component","Source": "Extra"
+                        "Entry Type": "Item",
+                        "Original Type": "9030+2970",
+                        "No.": "2185835",
+                        "Quantity": 1,
+                        "Document No.": inputs["project_number"],
+                        "Job No.": inputs["project_number"],
+                        "Job Task No.": 1144,
+                        "Location Code": "KAUNAS",
+                        "Bin Code": "",
+                        "Description": "Swing frame component",
+                        "Source": "Extra"
                     }])
                     st.session_state["df_mech"] = pd.concat([st.session_state["df_mech"], swing_row],ignore_index=True)
         st.stop()
