@@ -134,10 +134,6 @@ def pipeline_2_2_file_uploads(rittal=False):
             df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
             df_bom["Original Type"] = df_bom["Original Article"]
 
-        # 🔧 FIX: visada turime 'Type'
-        if "Type" not in df_bom.columns:
-            df_bom["Type"] = df_bom["Original Type"]
-
         dfs["bom"] = df_bom
 
     data_file = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
@@ -184,8 +180,6 @@ def pipeline_3A_0_rename(df_bom, df_part_code, extras=None):
         rename_map = dict(zip(df_part_code.iloc[:, 0].astype(str).str.strip(), df_part_code.iloc[:, 1].astype(str).str.strip()))
         for col in ["Type", "Original Type"]:
             if col in df.columns: df[col] = df[col].astype(str).str.strip().replace(rename_map)
-    if "Type" not in df.columns: df["Type"] = df.iloc[:, 0].astype(str)
-    if "Original Type" not in df.columns: df["Original Type"] = df["Type"]
     if "Original Article" not in df.columns: df["Original Article"] = df.iloc[:, 0].astype(str)
     if extras: df = add_extra_components(df, [e for e in extras if e.get("target") == "bom"])
     return df
@@ -199,7 +193,7 @@ def pipeline_3A_1_filter(df_bom, df_stock):
     excluded = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip()=="no need"]["Component"].astype(str)
     excluded_norm = excluded.str.upper().str.replace(" ","").str.strip().unique()
     df = df_bom.copy()
-    df["Norm_Type"] = df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+    df["Norm_Type"] = df[col].astype(str).str.upper().str.replace(" ","").str.strip()
     out = df[~df["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
     return out.drop(columns=["Norm_Type"])
 
