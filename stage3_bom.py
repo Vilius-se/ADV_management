@@ -12,7 +12,6 @@ def add_extra_components(df, extras):
     for e in extras:
         extra_row = pd.DataFrame([{
             "Original Type": e["type"],
-            "Type": e["type"],
             "Quantity": e.get("qty", 1),
             "Source": "Extra",
             "No.": e.get("force_no", e["type"])  # <- čia kritinis
