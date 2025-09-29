@@ -173,85 +173,141 @@ def pipeline_2_4_normalize_part_no(df_raw):
     if df.shape[1] >= 6: col_map[df.columns[5]] = "UnitPrice_F"
     return df.rename(columns=col_map)
 
+# =====================================================
+# 3A – Project BOM
+# =====================================================
 def pipeline_3A_0_rename(df_bom, df_part_code, extras=None):
-    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
     df = df_bom.copy()
+
+    # Part_code pervadinimas
     if df_part_code is not None and not df_part_code.empty:
-        rename_map = dict(zip(df_part_code.iloc[:, 0].astype(str).str.strip(), df_part_code.iloc[:, 1].astype(str).str.strip()))
-        for col in ["Type", "Original Type"]:
-            if col in df.columns: df[col] = df[col].astype(str).str.strip().replace(rename_map)
-    if "Original Article" not in df.columns: df["Original Article"] = df.iloc[:, 0].astype(str)
-    if extras: df = add_extra_components(df, [e for e in extras if e.get("target") == "bom"])
+        rename_map = dict(zip(
+            df_part_code.iloc[:, 0].astype(str).str.strip(),
+            df_part_code.iloc[:, 1].astype(str).str.strip()
+        ))
+        if "Original Type" in df.columns:
+            df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
+
+    if "Original Article" not in df.columns:
+        df["Original Article"] = df.iloc[:, 0].astype(str)
+
+    if extras:
+        df = add_extra_components(df, [e for e in extras if e.get("target") == "bom"])
     return df
 
+
 def pipeline_3A_1_filter(df_bom, df_stock):
-    if df_bom is None or df_bom.empty: return pd.DataFrame()
-    if df_stock is None or df_stock.empty: return df_bom.copy()
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
+    if df_stock is None or df_stock.empty:
+        return df_bom.copy()
+
     cols = list(df_stock.columns)
-    if len(cols) < 3: return df_bom.copy()
-    df_stock = df_stock.rename(columns={cols[0]:"Component", cols[2]:"Comment"})
-    excluded = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip()=="no need"]["Component"].astype(str)
-    excluded_norm = excluded.str.upper().str.replace(" ","").str.strip().unique()
+    if len(cols) < 3:
+        return df_bom.copy()
+
+    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
+    excluded = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"].astype(str)
+    excluded_norm = excluded.str.upper().str.replace(" ", "").str.strip().unique()
+
     df = df_bom.copy()
-    df["Norm_Type"] = df[col].astype(str).str.upper().str.replace(" ","").str.strip()
+    df["Norm_Type"] = df["Original Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
     out = df[~df["Norm_Type"].isin(excluded_norm)].reset_index(drop=True)
     return out.drop(columns=["Norm_Type"])
 
+
 def pipeline_3A_2_accessories(df_bom, df_acc):
-    if df_acc is None or df_acc.empty: return df_bom
+    if df_acc is None or df_acc.empty:
+        return df_bom
     df_out = df_bom.copy()
-    for _,row in df_bom.iterrows():
-        main_item = str(row["Type"]).strip()
-        matches = df_acc[df_acc.iloc[:,0].astype(str).str.strip()==main_item]
-        for _,acc_row in matches.iterrows():
+
+    for _, row in df_bom.iterrows():
+        main_item = str(row["Original Type"]).strip()
+        matches = df_acc[df_acc.iloc[:, 0].astype(str).str.strip() == main_item]
+        for _, acc_row in matches.iterrows():
             acc_vals = acc_row.values[1:]
-            for i in range(0,len(acc_vals),3):
-                if i+2 >= len(acc_vals) or pd.isna(acc_vals[i]): break
+            for i in range(0, len(acc_vals), 3):
+                if i + 2 >= len(acc_vals) or pd.isna(acc_vals[i]):
+                    break
                 acc_item = str(acc_vals[i]).strip()
-                try: acc_qty = float(str(acc_vals[i+1]).replace(",",".")) 
-                except: acc_qty = 1
-                acc_manuf = str(acc_vals[i+2]).strip()
-                df_out = pd.concat([df_out,pd.DataFrame([{"Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"}])],ignore_index=True)
+                try:
+                    acc_qty = float(str(acc_vals[i + 1]).replace(",", "."))
+                except:
+                    acc_qty = 1
+                acc_manuf = str(acc_vals[i + 2]).strip()
+                df_out = pd.concat([
+                    df_out,
+                    pd.DataFrame([{
+                        "Original Type": acc_item,
+                        "Quantity": acc_qty,
+                        "Manufacturer": acc_manuf,
+                        "Source": "Accessory"
+                    }])
+                ], ignore_index=True)
     return df_out
 
+
 def pipeline_3A_3_nav(df_bom, df_part_no):
-    if df_bom is None or df_bom.empty: return pd.DataFrame()
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
     if df_part_no is None or df_part_no.empty:
         df_bom["No."] = ""
         return df_bom
-    df_part = df_part_no.copy().reset_index(drop=True).rename(columns=lambda c:str(c).strip())
+
+    df_part = df_part_no.copy().reset_index(drop=True).rename(columns=lambda c: str(c).strip())
     if "PartName_B" not in df_part.columns or "PartNo_A" not in df_part.columns:
         df_bom["No."] = ""
         return df_bom
-    df_part["Norm_B"] = df_part["PartName_B"].astype(str).str.upper().str.replace(" ","").str.strip()
+
+    df_part["Norm_B"] = df_part["PartName_B"].astype(str).str.upper().str.replace(" ", "").str.strip()
+
     def norm_partno(x):
-        try: return str(int(float(str(x).strip().replace(",","."))))
-        except: return str(x).strip()
+        try:
+            return str(int(float(str(x).strip().replace(",", "."))))
+        except:
+            return str(x).strip()
+
     df_part["PartNo_A"] = df_part["PartNo_A"].map(norm_partno).fillna("").astype(str)
-    df_part = df_part.drop_duplicates(subset=["Norm_B"],keep="first").drop_duplicates(subset=["PartNo_A"],keep="first")
+    df_part = df_part.drop_duplicates(subset=["Norm_B"], keep="first").drop_duplicates(subset=["PartNo_A"], keep="first")
+
     df = df_bom.copy()
-    df["Norm_Type"] = df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+    df["Norm_Type"] = df["Original Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
     map_by_type = dict(zip(df_part["Norm_B"], df_part["PartNo_A"]))
     df["No."] = df["Norm_Type"].map(map_by_type).fillna("").astype(str)
-    merge_cols = [c for c in ["PartNo_A","Desc_C","Manufacturer_D","SupplierNo_E","UnitPrice_F","Norm_B"] if c in df_part.columns]
+
+    merge_cols = [c for c in ["PartNo_A", "Desc_C", "Manufacturer_D", "SupplierNo_E", "UnitPrice_F", "Norm_B"] if c in df_part.columns]
     if merge_cols:
         df = df.merge(df_part[merge_cols], left_on="No.", right_on="PartNo_A", how="left")
-        df = df.rename(columns={"Desc_C":"Description","Manufacturer_D":"Supplier","SupplierNo_E":"Supplier No.","UnitPrice_F":"Unit Cost"})
-        df = df.drop(columns=[c for c in ["Norm_Type","Norm_B","PartNo_A"] if c in df.columns], errors="ignore")
+        df = df.rename(columns={
+            "Desc_C": "Description",
+            "Manufacturer_D": "Supplier",
+            "SupplierNo_E": "Supplier No.",
+            "UnitPrice_F": "Unit Cost"
+        })
+        df = df.drop(columns=[c for c in ["Norm_Type", "Norm_B", "PartNo_A"] if c in df.columns], errors="ignore")
     else:
         df = df.drop(columns=["Norm_Type"], errors="ignore")
     return df
 
+
 def pipeline_3A_4_stock(df_bom, ks_file):
-    if df_bom is None or df_bom.empty: return pd.DataFrame()
-    if isinstance(ks_file,pd.DataFrame): df_stock = ks_file.copy()
-    else: df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()),engine="openpyxl")
-    df_stock = df_stock.rename(columns=lambda c:str(c).strip())
-    df_stock = df_stock[[df_stock.columns[2],df_stock.columns[1],df_stock.columns[3]]]
-    df_stock.columns = ["No.","Bin Code","Quantity"]
+    if df_bom is None or df_bom.empty:
+        return pd.DataFrame()
+    if isinstance(ks_file, pd.DataFrame):
+        df_stock = ks_file.copy()
+    else:
+        df_stock = pd.read_excel(io.BytesIO(ks_file.getvalue()), engine="openpyxl")
+
+    df_stock = df_stock.rename(columns=lambda c: str(c).strip())
+    df_stock = df_stock[[df_stock.columns[2], df_stock.columns[1], df_stock.columns[3]]]
+    df_stock.columns = ["No.", "Bin Code", "Quantity"]
+
     df_stock["No."] = df_stock["No."].apply(normalize_no)
-    df_bom["No."]   = df_bom["No."].apply(normalize_no)
-    stock_groups = {k:v for k,v in df_stock.groupby("No.")}
+    df_bom["No."] = df_bom["No."].apply(normalize_no)
+
+    stock_groups = {k: v for k, v in df_stock.groupby("No.")}
     df_bom["Stock Rows"] = df_bom["No."].map(stock_groups)
     return df_bom
 
@@ -323,55 +379,91 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
     nav_table = pd.DataFrame(nav_rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
     return job_journal, nav_table, df_bom
 
+# =====================================================
+# 3B – CUBIC BOM
+# =====================================================
 def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
-    if df_cubic is None or df_cubic.empty: return pd.DataFrame()
+    if df_cubic is None or df_cubic.empty:
+        return pd.DataFrame()
     df = df_cubic.copy().rename(columns=lambda c: str(c).strip())
-    if any(col in df.columns for col in ["E", "F", "G"]): df["Quantity"] = df[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
-    if "Quantity" not in df.columns: df["Quantity"] = 0
+
+    if any(col in df.columns for col in ["E", "F", "G"]):
+        df["Quantity"] = df[["E", "F", "G"]].bfill(axis=1).iloc[:, 0]
+    if "Quantity" not in df.columns:
+        df["Quantity"] = 0
     df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
+
     if "Item Id" in df.columns:
-        df["Type"] = df["Item Id"].astype(str).str.strip()
-        df["Original Type"] = df["Type"]
-    if "Type" not in df.columns: df["Type"] = ""; df["Original Type"] = ""
-    if "No." not in df.columns: df["No."] = df["Type"]
+        df["Original Type"] = df["Item Id"].astype(str).str.strip()
+
+    if "No." not in df.columns:
+        df["No."] = df["Original Type"]
+
     if df_part_code is not None and not df_part_code.empty:
-        rename_map = dict(zip(df_part_code.iloc[:, 0].astype(str).str.strip(), df_part_code.iloc[:, 1].astype(str).str.strip()))
-        for col in ["Type", "Original Type"]:
-            if col in df.columns: df[col] = df[col].astype(str).str.strip().replace(rename_map)
-    if extras: df = add_extra_components(df, [e for e in extras if e.get("target") == "cubic"])
+        rename_map = dict(zip(
+            df_part_code.iloc[:, 0].astype(str).str.strip(),
+            df_part_code.iloc[:, 1].astype(str).str.strip()
+        ))
+        if "Original Type" in df.columns:
+            df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
+
+    if extras:
+        df = add_extra_components(df, [e for e in extras if e.get("target") == "cubic"])
     return df
 
-def pipeline_3B_1_filtering(df_cubic,df_stock):
-    if df_cubic is None or df_cubic.empty: return pd.DataFrame(),pd.DataFrame()
-    if df_stock is None or df_stock.empty: return df_cubic.copy(),df_cubic.copy()
-    cols=list(df_stock.columns)
-    if len(cols)<3: return df_cubic.copy(),df_cubic.copy()
-    df_stock=df_stock.rename(columns={cols[0]:"Component",cols[2]:"Comment"})
-    excluded_all=df_stock[df_stock["Comment"].astype(str).str.strip()!=""]["Component"].astype(str)
-    excluded_no_need=df_stock[df_stock["Comment"].astype(str).str.lower().str.strip()=="no need"]["Component"].astype(str)
-    excluded_all_norm=excluded_all.str.upper().str.replace(" ","").str.strip().unique()
-    excluded_no_need_norm=excluded_no_need.str.upper().str.replace(" ","").str.strip().unique()
-    df=df_cubic.copy()
-    df["Norm_Type"]=df["Type"].astype(str).str.upper().str.replace(" ","").str.strip()
-    df_journal=df[~df["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
-    df_nav=df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
-    return df_journal.drop(columns=["Norm_Type"]),df_nav.drop(columns=["Norm_Type"])
 
-def pipeline_3B_2_accessories(df,df_acc):
-    if df_acc is None or df_acc.empty: return df
-    df_out=df.copy()
-    for _,row in df.iterrows():
-        main_item=str(row["Type"]).strip()
-        matches=df_acc[df_acc.iloc[:,0].astype(str).str.strip()==main_item]
-        for _,acc_row in matches.iterrows():
-            acc_vals=acc_row.values[1:]
-            for i in range(0,len(acc_vals),3):
-                if i+2>=len(acc_vals) or pd.isna(acc_vals[i]): break
-                acc_item=str(acc_vals[i]).strip()
-                try: acc_qty=float(str(acc_vals[i+1]).replace(",",".")) 
-                except: acc_qty=1
-                acc_manuf=str(acc_vals[i+2]).strip()
-                df_out=pd.concat([df_out,pd.DataFrame([{"Type":acc_item,"Quantity":acc_qty,"Manufacturer":acc_manuf,"Source":"Accessory"}])],ignore_index=True)
+def pipeline_3B_1_filtering(df_cubic, df_stock):
+    if df_cubic is None or df_cubic.empty:
+        return pd.DataFrame(), pd.DataFrame()
+    if df_stock is None or df_stock.empty:
+        return df_cubic.copy(), df_cubic.copy()
+
+    cols = list(df_stock.columns)
+    if len(cols) < 3:
+        return df_cubic.copy(), df_cubic.copy()
+
+    df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
+    excluded_all = df_stock[df_stock["Comment"].astype(str).str.strip() != ""]["Component"].astype(str)
+    excluded_no_need = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"].astype(str)
+
+    excluded_all_norm = excluded_all.str.upper().str.replace(" ", "").str.strip().unique()
+    excluded_no_need_norm = excluded_no_need.str.upper().str.replace(" ", "").str.strip().unique()
+
+    df = df_cubic.copy()
+    df["Norm_Type"] = df["Original Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
+    df_journal = df[~df["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
+    df_nav = df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
+    return df_journal.drop(columns=["Norm_Type"]), df_nav.drop(columns=["Norm_Type"])
+
+
+def pipeline_3B_2_accessories(df, df_acc):
+    if df_acc is None or df_acc.empty:
+        return df
+    df_out = df.copy()
+
+    for _, row in df.iterrows():
+        main_item = str(row["Original Type"]).strip()
+        matches = df_acc[df_acc.iloc[:, 0].astype(str).str.strip() == main_item]
+        for _, acc_row in matches.iterrows():
+            acc_vals = acc_row.values[1:]
+            for i in range(0, len(acc_vals), 3):
+                if i + 2 >= len(acc_vals) or pd.isna(acc_vals[i]):
+                    break
+                acc_item = str(acc_vals[i]).strip()
+                try:
+                    acc_qty = float(str(acc_vals[i + 1]).replace(",", "."))
+                except:
+                    acc_qty = 1
+                acc_manuf = str(acc_vals[i + 2]).strip()
+                df_out = pd.concat([
+                    df_out,
+                    pd.DataFrame([{
+                        "Original Type": acc_item,
+                        "Quantity": acc_qty,
+                        "Manufacturer": acc_manuf,
+                        "Source": "Accessory"
+                    }])
+                ], ignore_index=True)
     return df_out
 
 def pipeline_3B_3_nav(df,df_part_no): return pipeline_3A_3_nav(df,df_part_no)
