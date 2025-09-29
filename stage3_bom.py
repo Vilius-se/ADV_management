@@ -23,7 +23,8 @@ def add_extra_components(df, extras):
 def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame, label: str = "Project BOM") -> pd.DataFrame:
     req = ["PartNo_A", "SupplierNo_E", "Manufacturer_D"]
     if df_part_no is None or df_part_no.empty or any(c not in df_part_no.columns for c in req):
-        return pd.DataFrame(columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+        return pd.DataFrame(columns=["Entry Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+    
     supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
     manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
     tmp = df_bom.copy()
@@ -32,6 +33,7 @@ def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame, lab
     if "No." not in tmp.columns: tmp["No."] = ""
     tmp["No."] = tmp["No."].astype(str)
     tmp["Quantity"] = pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
+
     nav_rows = []
     for _, r in tmp.iterrows():
         part_no = str(r["No."]).strip()
@@ -40,7 +42,7 @@ def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame, lab
         profit = 10 if "DANFOSS" in str(manuf).upper() else 17
         supplier = supplier_map.get(part_no, 30093)
         nav_rows.append({
-            "Type": "Item",
+            "Entry Type": "Item",
             "No.": part_no,
             "Quantity": qty,
             "Supplier": supplier,
@@ -48,7 +50,7 @@ def build_nav_table_from_bom(df_bom: pd.DataFrame, df_part_no: pd.DataFrame, lab
             "Discount": 0,
             "Description": r.get("Description", "")
         })
-    nav_table = pd.DataFrame(nav_rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+    nav_table = pd.DataFrame(nav_rows, columns=["Entry Type","No.","Quantity","Supplier","Profit","Discount","Description"])
     return nav_table
 
 def pipeline_1_1_norm_name(x): return ''.join(str(x).upper().split())
@@ -319,7 +321,7 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
 
         if not isinstance(stock_rows, pd.DataFrame) or stock_rows.empty:
             rows.append({
-                "Type": "Item",
+                "Entry Type": "Item",
                 "No.": no,
                 "Document No.": f"{project_number}/N",
                 "Job No.": project_number,
@@ -335,7 +337,7 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
         allocations = allocate_from_stock(no, qty, stock_rows)
         for alloc in allocations:
             rows.append({
-                "Type": "Item",
+                "Entry Type": "Item",
                 "No.": no,
                 "Document No.": project_number,
                 "Job No.": project_number,
@@ -366,7 +368,7 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
         profit = 10 if "DANFOSS" in str(manuf).upper() else 17
         supplier = supplier_map.get(part_no, 30093)
         nav_rows.append({
-            "Type": "Item",
+            "Entry Type": "Item",
             "No.": part_no,
             "Quantity": qty,
             "Supplier": supplier,
@@ -375,7 +377,7 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
             "Description": r.get("Description", "")
         })
 
-    nav_table = pd.DataFrame(nav_rows, columns=["Type","No.","Quantity","Supplier","Profit","Discount","Description"])
+    nav_table = pd.DataFrame(nav_rows, columns=["Entry Type","No.","Quantity","Supplier","Profit","Discount","Description"])
     return job_journal, nav_table, df_bom
 
 # =====================================================
@@ -468,7 +470,6 @@ def pipeline_3B_2_accessories(df, df_acc):
 def pipeline_3B_3_nav(df,df_part_no): return pipeline_3A_3_nav(df,df_part_no)
 def pipeline_3B_4_stock(df_journal,ks_file): return pipeline_3A_4_stock(df_journal,ks_file)
 def pipeline_3B_5_tables(df_journal, df_nav, project_number, df_part_no):
-    # Job Journal su /N logika
     rows = []
     for _, row in df_journal.iterrows():
         no = row.get("No.")
@@ -477,7 +478,7 @@ def pipeline_3B_5_tables(df_journal, df_nav, project_number, df_part_no):
 
         if not isinstance(stock_rows, pd.DataFrame) or stock_rows.empty:
             rows.append({
-                "Type": "Item",
+                "Entry Type": "Item",
                 "No.": no,
                 "Document No.": f"{project_number}/N",
                 "Job No.": project_number,
@@ -493,7 +494,7 @@ def pipeline_3B_5_tables(df_journal, df_nav, project_number, df_part_no):
         allocations = allocate_from_stock(no, qty, stock_rows)
         for alloc in allocations:
             rows.append({
-                "Type": "Item",
+                "Entry Type": "Item",
                 "No.": no,
                 "Document No.": project_number,
                 "Job No.": project_number,
@@ -507,7 +508,7 @@ def pipeline_3B_5_tables(df_journal, df_nav, project_number, df_part_no):
 
     job_journal = pd.DataFrame(rows)
 
-    # NAV table iš Project BOM logikos
+    # NAV lentelė pagal 3A logiką
     _, nav_table, _ = pipeline_3A_5_tables(df_nav, project_number, df_part_no)
     return job_journal, nav_table, df_nav
 
