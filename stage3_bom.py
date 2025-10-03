@@ -450,6 +450,15 @@ def pipeline_3B_1_filtering(df_cubic, df_stock):
     # NAV: tik be no need
     df_nav = df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
 
+
+    st.write("📊 CUBIC BOM after upload", df_cubic.shape, df_cubic.head(20))
+    st.write("📊 Stock file after normalization", df_stock.shape, df_stock.head(20))
+    st.write("📊 Excluded by no need/Qx", len(excluded_no_need_norm), len(excluded_q_norm))
+    st.write("📊 df_journal (Mechanics)", df_j.shape)
+    st.write("📊 df_nav (NAV)", df_n.shape)
+
+    
+
     return df_journal.drop(columns=["Norm_Type"]), df_nav.drop(columns=["Norm_Type"])
 
 
