@@ -430,16 +430,18 @@ def pipeline_3B_1_filtering(df_cubic, df_stock):
         return df_cubic.copy(), df_cubic.copy()
 
     df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
-    excluded_all = df_stock[df_stock["Comment"].astype(str).str.strip() != ""]["Component"].astype(str)
     excluded_no_need = df_stock[df_stock["Comment"].astype(str).str.lower().str.strip() == "no need"]["Component"].astype(str)
-
-    excluded_all_norm = excluded_all.str.upper().str.replace(" ", "").str.strip().unique()
     excluded_no_need_norm = excluded_no_need.str.upper().str.replace(" ", "").str.strip().unique()
 
     df = df_cubic.copy()
     df["Norm_Type"] = df["Original Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
-    df_journal = df[~df["Norm_Type"].isin(excluded_all_norm)].reset_index(drop=True)
-    df_nav = df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
+
+    # Mechanics journal – visi, išskyrus "no need"
+    df_journal = df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
+
+    # NAV – irgi išskyrus "no need"
+    df_nav = df_journal.copy()
+
     return df_journal.drop(columns=["Norm_Type"]), df_nav.drop(columns=["Norm_Type"])
 
 
