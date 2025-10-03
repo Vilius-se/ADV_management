@@ -161,7 +161,7 @@ def pipeline_2_2_file_uploads(rittal=False):
     if ks_file: dfs["ks"] = read_excel_any(ks_file)
     return dfs
 
-    def pipeline_2_3_get_sheet_safe(data_dict, names):
+def pipeline_2_3_get_sheet_safe(data_dict, names):
         if not isinstance(data_dict,dict): return None
         for key in data_dict.keys():
             if str(key).strip().upper().replace(" ","_") in [n.upper().replace(" ","_") for n in names]:
