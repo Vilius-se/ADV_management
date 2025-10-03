@@ -423,6 +423,7 @@ def pipeline_3B_1_filtering(df_cubic, df_stock):
     if df_cubic is None or df_cubic.empty:
         return pd.DataFrame(), pd.DataFrame()
     if df_stock is None or df_stock.empty:
+        # jei nėra stock, grąžinam abu pilnus
         return df_cubic.copy(), df_cubic.copy()
 
     cols = list(df_stock.columns)
@@ -432,25 +433,21 @@ def pipeline_3B_1_filtering(df_cubic, df_stock):
     df_stock = df_stock.rename(columns={cols[0]: "Component", cols[2]: "Comment"})
     df_stock["Comment"] = df_stock["Comment"].astype(str).str.strip()
 
-    # --- no need ---
+    # --- NAV filtravimas: tik „no need“ atmetam ---
     excluded_no_need = df_stock[df_stock["Comment"].str.lower() == "no need"]["Component"].astype(str)
     excluded_no_need_norm = excluded_no_need.str.upper().str.replace(" ", "").str.strip().unique()
-
-    # --- Q1, Q2, Q3... ---
-    excluded_q = df_stock[df_stock["Comment"].str.upper().str.match(r"Q\d+")]["Component"].astype(str)
-    excluded_q_norm = excluded_q.str.upper().str.replace(" ", "").str.strip().unique()
 
     df = df_cubic.copy()
     df["Norm_Type"] = df["Original Type"].astype(str).str.upper().str.replace(" ", "").str.strip()
 
-    # Mechanics: be no need ir Q1/Q2...
-    df_journal = df[~df["Norm_Type"].isin(excluded_no_need_norm) &
-                    ~df["Norm_Type"].isin(excluded_q_norm)].reset_index(drop=True)
+    # Mechanics → rodom VISKĄ
+    df_journal = df.reset_index(drop=True)
 
-    # NAV: tik be no need
+    # NAV → atmetam tik „no need“
     df_nav = df[~df["Norm_Type"].isin(excluded_no_need_norm)].reset_index(drop=True)
 
     return df_journal.drop(columns=["Norm_Type"]), df_nav.drop(columns=["Norm_Type"])
+
 
 
 
