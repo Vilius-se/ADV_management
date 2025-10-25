@@ -48,9 +48,6 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-<div id="elcor-logo">elcor.</div>
-
-<style>
 #elcor-logo {
   position: absolute;
   top: 18px;
