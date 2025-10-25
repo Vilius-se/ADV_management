@@ -38,23 +38,49 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
 .stApp {
-  font-family: 'Inter', sans-serif;
   background-color: #0f3d33;
   background-image: 
     radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
     radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
     url("data:image/svg+xml;utf8,\
     <svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'>\
-      <path d='M0 300 Q150 250 300 300 T600 300 T900 300 T1200 300' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.08'/>\
-      <path d='M0 340 Q150 290 300 340 T600 340 T900 340 T1200 340' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.07'/>\
-      <path d='M0 380 Q150 330 300 380 T600 380 T900 380 T1200 380' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.06'/>\
-      <path d='M0 420 Q150 370 300 420 T600 420 T900 420 T1200 420' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.05'/>\
-      <path d='M0 460 Q150 410 300 460 T600 460 T900 460 T1200 460' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.05'/>\
+      <defs>\
+        <linearGradient id='grad1' x1='0%' y1='0%' x2='100%' y2='0%'>\
+          <stop offset='0%' stop-color='%2300d4aa'/>\
+          <stop offset='100%' stop-color='%2300a3ff'/>\
+        </linearGradient>\
+        <filter id='glow'>\
+          <feGaussianBlur stdDeviation='2.5' result='coloredBlur'/>\
+          <feMerge><feMergeNode in='coloredBlur'/><feMergeNode in='SourceGraphic'/></feMerge>\
+        </filter>\
+      </defs>\
+      <g filter='url(%23glow)' opacity='0.25'>\
+        <path d='M0 320 Q200 280 400 320 T800 320 T1200 320 T1600 320' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
+        <path d='M0 360 Q200 310 400 360 T800 360 T1200 360 T1600 360' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
+        <path d='M0 400 Q200 350 400 400 T800 400 T1200 400 T1600 400' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
+        <path d='M0 440 Q200 390 400 440 T800 440 T1200 440 T1600 440' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
+      </g>\
+      <g>\
+        <circle r='2' fill='%2300ffcc'>\
+          <animateMotion dur='6s' repeatCount='indefinite' path='M0 320 Q200 280 400 320 T800 320 T1200 320 T1600 320'/>\
+        </circle>\
+        <circle r='2' fill='%2300b3ff'>\
+          <animateMotion dur='7s' begin='2s' repeatCount='indefinite' path='M0 360 Q200 310 400 360 T800 360 T1200 360 T1600 360'/>\
+        </circle>\
+        <circle r='2' fill='%2300ffcc'>\
+          <animateMotion dur='8s' begin='1s' repeatCount='indefinite' path='M0 400 Q200 350 400 400 T800 400 T1200 400 T1600 400'/>\
+        </circle>\
+        <circle r='2' fill='%2300b3ff'>\
+          <animateMotion dur='9s' begin='3s' repeatCount='indefinite' path='M0 440 Q200 390 400 440 T800 440 T1200 440 T1600 440'/>\
+        </circle>\
+      </g>\
     </svg>");
   background-repeat: no-repeat;
   background-size: cover;
   background-position: bottom right;
+  font-family: 'Inter', sans-serif;
 }
+
 
 /* elcor logo top-left */
 #elcor-logo {
