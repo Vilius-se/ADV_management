@@ -32,45 +32,94 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS + INLINE ELCOR SVG (floating + glowing) ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
 
 .stApp {
   background-color: #081d19;
   background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.03) 0%, transparent 80%),
-    radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.02) 0%, transparent 80%);
+    radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.02) 0%, transparent 80%),
+    url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>\
+      <defs>\
+        <linearGradient id='wireGrad' x1='0%' y1='0%' x2='100%' y2='0%'>\
+          <stop offset='0%' stop-color='%23007360'/>\
+          <stop offset='100%' stop-color='%23006284'/>\
+        </linearGradient>\
+        <filter id='softGlow'>\
+          <feGaussianBlur stdDeviation='1.4' result='blur'/>\
+          <feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge>\
+        </filter>\
+      </defs>\
+      <rect width='1600' height='900' fill='none'/>\
+      <g filter='url(%23softGlow)' stroke='url(%23wireGrad)' stroke-width='1' fill='none' opacity='0.08'>\
+        <path d='M0 850 Q400 600 800 850 T1600 850'/>\
+        <path d='M0 700 Q400 500 800 700 T1600 700'/>\
+        <path d='M0 550 Q400 400 800 550 T1600 550'/>\
+        <path d='M0 400 Q400 300 800 400 T1600 400'/>\
+        <path d='M0 250 Q400 200 800 250 T1600 250'/>\
+        <path d='M0 100 Q400 150 800 100 T1600 100'/>\
+        <path d='M200 0 Q600 300 1000 600 T1600 800'/>\
+        <path d='M0 0 Q300 200 600 500 T1200 900'/>\
+      </g>\
+      <g fill='%2300ffcc' opacity='0.04'>\
+        <circle cx='200' cy='750' r='2'/>\
+        <circle cx='450' cy='580' r='2'/>\
+        <circle cx='650' cy='420' r='2'/>\
+        <circle cx='950' cy='250' r='2'/>\
+        <circle cx='1200' cy='450' r='2'/>\
+        <circle cx='1400' cy='650' r='2'/>\
+        <circle cx='1550' cy='300' r='2'/>\
+        <circle cx='800' cy='800' r='1.5'/>\
+        <circle cx='1000' cy='100' r='1.5'/>\
+        <circle cx='300' cy='200' r='1.5'/>\
+      </g>\
+    </svg>");
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center center;
   font-family: 'Inter', sans-serif;
 }
 
+
+
+[data-testid="stMarkdownContainer"] {
+  background: transparent !important;
+}
+
+/* elcor logo - clean text, no background box */
 #elcor-logo {
   position: absolute;
   top: 18px;
   left: 30px;
-  font-family: 'Inter', sans-serif;
-  font-size: 4.6rem;
+  font-size: 4.4rem;
   font-weight: 700;
   color: #00d4aa;
-  animation: floatUpDown 5s ease-in-out infinite, elcorGlow 3s ease-in-out infinite;
+  animation: pulse 2.5s infinite ease-in-out;
   text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
-  letter-spacing: -0.02em;
+  background: none !important;
+  box-shadow: none !important;
 }
 
-@keyframes floatUpDown {
-  0%   { transform: translateY(0px); }
-  50%  { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+/* elcor logo top-left */
+#elcor-logo {
+  position: absolute;
+  top: 18px;
+  left: 30px;
+  font-size: 4.4rem;
+  font-weight: 700;
+  color: #00d4aa;
+  animation: pulse 2.5s infinite ease-in-out;
+  text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
 }
-
-@keyframes elcorGlow {
-  0%   { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
-  50%  { text-shadow: 0 0 26px rgba(0,255,204,1); opacity: 1; }
-  100% { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
+@keyframes pulse {
+  0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
+  50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.8); opacity: 1; }
+  100% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
 }
 
 /* Main title */
@@ -87,7 +136,7 @@ st.markdown("""
   text-shadow: 0 0 20px rgba(0, 212, 170, 0.25);
 }
 
-/* Electric line */
+/* Animated glowing line with reflection */
 .electric-line {
   height: 3px;
   width: 65%;
@@ -138,32 +187,8 @@ st.markdown("""
 /* Hide Streamlit menu/footer */
 #MainMenu, footer, header {visibility: hidden;}
 </style>
+<div id="elcor-logo">elcor.</div>
 
-<!-- INLINE ELCOR SVG -->
-<svg id="elcor-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <path d="M90 280 Q60 250 80 200 Q100 150 160 120 Q220 90 280 100 Q340 110 390 160 Q440 210 450 270 Q460 330 420 370 Q380 410 320 420 Q260 430 210 410 Q160 390 130 350 Q110 320 90 280Z"
-        fill="#4A4033" stroke="#00d4aa" stroke-width="4" />
-  <path d="M140 190 Q200 150 280 160 Q360 170 400 210 Q410 260 370 290 Q320 310 260 300 Q200 290 160 250 Q150 220 140 190Z"
-        fill="#5a5042" stroke="#00ffcc" stroke-width="3" opacity="0.85"/>
-  <path d="M200 140 Q230 110 270 110 Q310 115 340 150 Q330 170 290 180 Q250 190 210 170 Q200 155 200 140Z"
-        fill="#3c3328" stroke="#00ffcc" stroke-width="3"/>
-  <circle cx="310" cy="155" r="8" fill="#00ffee" filter="url(#neonGlow)" />
-  <path d="M170 380 Q160 440 190 460 Q220 470 240 430 Q250 400 230 370Z"
-        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
-  <path d="M330 390 Q320 440 350 460 Q380 470 400 430 Q410 400 390 370Z"
-        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
-  <path d="M90 280 Q130 370 240 410 Q350 440 420 370 Q460 330 450 270"
-        fill="none" stroke="#00ffee" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
-  <defs>
-    <filter id="neonGlow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-</svg>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
@@ -178,6 +203,7 @@ if "stage" not in st.session_state:
 st.markdown("<div style='text-align:center; margin-bottom:2rem;'>", unsafe_allow_html=True)
 col_left, col_center, col_right = st.columns([4, 2, 4])
 with col_center:
+    # Stage 1 button
     if processing_ok:
         if st.button("🚀 Convert for EPLAN", key="btn_eplan", use_container_width=True):
             st.session_state.stage = "eplan"
@@ -186,6 +212,7 @@ with col_center:
 
     st.write("")
 
+    # Stage 2 button
     if processing_ok:
         if st.button("🔧 Convert for KOMAX", key="btn_komax", use_container_width=True):
             st.session_state.stage = "komax"
@@ -194,6 +221,7 @@ with col_center:
 
     st.write("")
 
+    # Stage 3 button
     if bom_ok:
         if st.button("📦 BOM", key="btn_bom", use_container_width=True):
             st.session_state.stage = "bom"
