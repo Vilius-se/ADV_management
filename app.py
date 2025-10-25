@@ -45,18 +45,18 @@ st.markdown("""
 /* elcor logo top-right */
 #elcor-logo {
   position: absolute;
-  top: 15px;
-  right: 40px;
-  font-size: 2.2rem;
+  top: 10px;
+  right: 25px;
+  font-size: 4.4rem;             /* doubled size */
   font-weight: 700;
   color: #00d4aa;
   animation: pulse 2.5s infinite ease-in-out;
-  text-shadow: 0 0 10px rgba(0, 212, 170, 0.4);
+  text-shadow: 0 0 12px rgba(0, 212, 170, 0.5);
 }
 @keyframes pulse {
-  0% { text-shadow: 0 0 5px rgba(0, 212, 170, 0.2); opacity: 0.9; }
-  50% { text-shadow: 0 0 18px rgba(0, 212, 170, 0.7); opacity: 1; }
-  100% { text-shadow: 0 0 5px rgba(0, 212, 170, 0.2); opacity: 0.9; }
+  0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.4); opacity: 0.9; }
+  50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.9); opacity: 1; }
+  100% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.4); opacity: 0.9; }
 }
 
 /* Main title */
@@ -70,20 +70,21 @@ st.markdown("""
   margin-bottom: 0.5rem;
 }
 
-/* Animated glowing line */
+/* Animated glowing line (with back-and-forth motion) */
 .electric-line {
   height: 3px;
   width: 65%;
-  margin: 1rem auto 2rem auto;
-  background: linear-gradient(90deg, transparent, #00d4aa, #0ea5e9, #00d4aa, transparent);
+  margin: 1rem auto 2.2rem auto;
+  background: linear-gradient(90deg, transparent, #00d4aa, #00ffcc, #00d4aa, transparent);
   background-size: 300% 100%;
-  animation: moveLine 3s linear infinite;
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.6);
-  border-radius: 2px;
+  animation: moveLine 4s ease-in-out infinite alternate;
+  box-shadow: 0 0 18px rgba(0, 255, 204, 0.6);
+  border-radius: 3px;
 }
 @keyframes moveLine {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
+  0% { background-position: 0% 50%; opacity: 0.85; }
+  50% { background-position: 100% 50%; opacity: 1; }
+  100% { background-position: 0% 50%; opacity: 0.85; }
 }
 
 /* Subtitle */
