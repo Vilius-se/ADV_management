@@ -34,6 +34,10 @@ st.set_page_config(
 
 # --- CUSTOM CSS ---
 st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+
 .stApp {
   background-color: #0f3d33;
   background-image:
@@ -47,30 +51,32 @@ st.markdown("""
           <stop offset='100%' stop-color='%2300a3ff'/>\
         </linearGradient>\
         <filter id='softGlow'>\
-          <feGaussianBlur stdDeviation='2.5' result='blur'/>\
+          <feGaussianBlur stdDeviation='1.6' result='blur'/>\
           <feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge>\
         </filter>\
       </defs>\
       <rect width='1600' height='900' fill='none'/>\
-      <g stroke='url(%23wireGrad)' stroke-width='1.3' fill='none' filter='url(%23softGlow)' opacity='0.25'>\
-        <path d='M0,700 Q300,500 600,720 T1200,740 T1600,600'/>\
-        <path d='M0,600 Q300,400 600,640 T1200,660 T1600,520'/>\
-        <path d='M0,500 Q400,350 800,580 T1400,600 T1600,460'/>\
-        <path d='M0,400 Q500,250 1000,500 T1600,520'/>\
-        <path d='M0,300 Q550,200 1100,420 T1600,440'/>\
-        <path d='M200,0 Q600,200 1000,400 T1600,420'/>\
-        <path d='M400,0 Q700,250 1200,380 T1600,400'/>\
-        <path d='M800,0 Q1100,200 1400,350 T1600,360'/>\
+      <g filter='url(%23softGlow)' stroke='url(%23wireGrad)' stroke-width='1' fill='none' opacity='0.25'>\
+        <path d='M0 850 Q400 600 800 850 T1600 850'/>\
+        <path d='M0 700 Q400 500 800 700 T1600 700'/>\
+        <path d='M0 550 Q400 400 800 550 T1600 550'/>\
+        <path d='M0 400 Q400 300 800 400 T1600 400'/>\
+        <path d='M0 250 Q400 200 800 250 T1600 250'/>\
+        <path d='M0 100 Q400 150 800 100 T1600 100'/>\
+        <path d='M200 0 Q600 300 1000 600 T1600 800'/>\
+        <path d='M0 0 Q300 200 600 500 T1200 900'/>\
       </g>\
-      <g fill='%2300ffcc' opacity='0.12'>\
-        <circle cx='300' cy='450' r='2'/>\
-        <circle cx='600' cy='300' r='2'/>\
-        <circle cx='950' cy='500' r='2'/>\
-        <circle cx='1250' cy='400' r='2'/>\
-        <circle cx='1450' cy='550' r='2'/>\
-        <circle cx='800' cy='250' r='1.5'/>\
-        <circle cx='1000' cy='150' r='1.5'/>\
-        <circle cx='1200' cy='200' r='1.5'/>\
+      <g fill='%2300ffcc' opacity='0.1'>\
+        <circle cx='200' cy='750' r='2'/>\
+        <circle cx='450' cy='580' r='2'/>\
+        <circle cx='650' cy='420' r='2'/>\
+        <circle cx='950' cy='250' r='2'/>\
+        <circle cx='1200' cy='450' r='2'/>\
+        <circle cx='1400' cy='650' r='2'/>\
+        <circle cx='1550' cy='300' r='2'/>\
+        <circle cx='800' cy='800' r='1.5'/>\
+        <circle cx='1000' cy='100' r='1.5'/>\
+        <circle cx='300' cy='200' r='1.5'/>\
       </g>\
     </svg>");
   background-repeat: no-repeat;
@@ -78,6 +84,8 @@ st.markdown("""
   background-position: center center;
   font-family: 'Inter', sans-serif;
 }
+
+
 
 /* elcor logo top-left */
 #elcor-logo {
