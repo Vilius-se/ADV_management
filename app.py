@@ -14,8 +14,8 @@ bom_err = ""
 try:
     import processing
 except Exception as e:
-    processing_ok = False
-    processing_err = str(e)
+        processing_ok = False
+        processing_err = str(e)
 
 stage3_bom = None
 try:
@@ -32,11 +32,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS ---
+# --- CUSTOM CSS + FLOATING LOGOS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
 
 .stApp {
   background-color: #081d19;
@@ -55,7 +54,6 @@ st.markdown("""
           <feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge>\
         </filter>\
       </defs>\
-      <rect width='1600' height='900' fill='none'/>\
       <g filter='url(%23softGlow)' stroke='url(%23wireGrad)' stroke-width='1' fill='none' opacity='0.08'>\
         <path d='M0 850 Q400 600 800 850 T1600 850'/>\
         <path d='M0 700 Q400 500 800 700 T1600 700'/>\
@@ -85,30 +83,18 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-
-
-[data-testid="stMarkdownContainer"] {
-  background: transparent !important;
-}
-
-/* elcor logo - clean text, no background box */
-#elcor-logo {
+/* FLOATING LOGO BLOCK */
+.elcor-block {
   position: absolute;
   top: 18px;
   left: 30px;
-  font-size: 4.4rem;
-  font-weight: 700;
-  color: #00d4aa;
-  animation: pulse 2.5s infinite ease-in-out;
-  text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
-  background: none !important;
-  box-shadow: none !important;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
+/* ELCOR text */
 #elcor-logo {
-  position: absolute;
-  top: 18px;
-  left: 30px;
   font-family: 'Inter', sans-serif;
   font-size: 4.6rem;
   font-weight: 700;
@@ -116,18 +102,40 @@ st.markdown("""
   animation: floatUpDown 5s ease-in-out infinite, elcorGlow 3s ease-in-out infinite;
   text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
   letter-spacing: -0.02em;
-  background: none !important;
-  box-shadow: none !important;
+  margin-bottom: 10px;
 }
 
-/* floating animation (hovering effect) */
+/* ADVANSOR image */
+#advansor-logo {
+  width: 150px;
+  animation: floatUpDown 5s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(0,255,204,0.3));
+  position: relative;
+}
+
+/* Reflection under Advansor logo */
+#advansor-logo::after {
+  content: "";
+  position: absolute;
+  bottom: -70px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: url("https://raw.githubusercontent.com/Vilius-se/Advansor-Tool/main/logo_Advansor.png") no-repeat center;
+  background-size: contain;
+  opacity: 0.25;
+  transform: scaleY(-1);
+  mask-image: linear-gradient(to bottom, rgba(255,255,255,0.8), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(255,255,255,0.8), transparent);
+}
+
+/* Animations */
 @keyframes floatUpDown {
   0%   { transform: translateY(0px); }
   50%  { transform: translateY(-10px); }
   100% { transform: translateY(0px); }
 }
 
-/* subtle glow animation */
 @keyframes elcorGlow {
   0%   { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
   50%  { text-shadow: 0 0 26px rgba(0,255,204,1); opacity: 1; }
@@ -148,7 +156,7 @@ st.markdown("""
   text-shadow: 0 0 20px rgba(0, 212, 170, 0.25);
 }
 
-/* Animated glowing line with reflection */
+/* Glowing line */
 .electric-line {
   height: 3px;
   width: 65%;
@@ -160,6 +168,7 @@ st.markdown("""
   border-radius: 3px;
   opacity: 0.95;
 }
+
 @keyframes moveLine {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -168,7 +177,6 @@ st.markdown("""
 
 /* Subtitle */
 .subtitle {
-  font-family: 'Inter', sans-serif;
   text-align: center;
   color: #b6cfc8;
   font-size: 1.2rem;
@@ -196,11 +204,15 @@ st.markdown("""
   cursor: not-allowed !important;
 }
 
-/* Hide Streamlit menu/footer */
+/* Hide menu/footer */
 #MainMenu, footer, header {visibility: hidden;}
 </style>
-<div id="elcor-logo">elcor.</div>
 
+<!-- FLOATING BLOCK -->
+<div class="elcor-block">
+  <div id="elcor-logo">elcor.</div>
+  <img id="advansor-logo" src="https://raw.githubusercontent.com/Vilius-se/Advansor-Tool/main/logo_Advansor.png" alt="Advansor Logo">
+</div>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
@@ -215,7 +227,6 @@ if "stage" not in st.session_state:
 st.markdown("<div style='text-align:center; margin-bottom:2rem;'>", unsafe_allow_html=True)
 col_left, col_center, col_right = st.columns([4, 2, 4])
 with col_center:
-    # Stage 1 button
     if processing_ok:
         if st.button("🚀 Convert for EPLAN", key="btn_eplan", use_container_width=True):
             st.session_state.stage = "eplan"
@@ -224,7 +235,6 @@ with col_center:
 
     st.write("")
 
-    # Stage 2 button
     if processing_ok:
         if st.button("🔧 Convert for KOMAX", key="btn_komax", use_container_width=True):
             st.session_state.stage = "komax"
@@ -233,7 +243,6 @@ with col_center:
 
     st.write("")
 
-    # Stage 3 button
     if bom_ok:
         if st.button("📦 BOM", key="btn_bom", use_container_width=True):
             st.session_state.stage = "bom"
