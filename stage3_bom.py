@@ -479,6 +479,7 @@ def render():
         df_j = pipeline_3B_4_stock(df_j, files["ks"])
         job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
+    # ——— Mechanics allocation gate ———
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
@@ -502,8 +503,7 @@ def render():
                     with cols[1]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Original Type',''))}</p></div>", unsafe_allow_html=True)
                     with cols[2]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Description',''))}</p></div>", unsafe_allow_html=True)
                     with cols[3]:
-                        key = f"take_{idx}"
-                        max_qty = float(row["Available Qty"])
+                        key = f"take_{idx}"; max_qty = float(row["Available Qty"])
                         cur = float(st.session_state["mech_take"].get(key, 0.0))
                         mcols = st.columns([1,2,1])
                         with mcols[0]:
@@ -522,11 +522,15 @@ def render():
                     if take>0: mech_rows.append({**r,"Quantity":take})
                     remain_qty = max(avail-take, 0.0)
                     if remain_qty>0 and str(r.get("No.",""))!="2185835": remain_rows.append({**r,"Quantity":remain_qty})
-                st.session_state["df_mech"] = pd.DataFrame(mech_rows); st.session_state["df_remain"] = pd.DataFrame(remain_rows); st.session_state["mech_confirmed"] = True
+                st.session_state["df_mech"] = pd.DataFrame(mech_rows)
+                st.session_state["df_remain"] = pd.DataFrame(remain_rows)
+                st.session_state["mech_confirmed"] = True
                 if inputs["swing_frame"]:
                     swing_row = pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
                     st.session_state["df_mech"] = pd.concat([st.session_state["df_mech"], swing_row], ignore_index=True)
-        st.stop()
+            st.stop()  # stop ONLY when mechanics form is displayed
+        else:
+            st.session_state["mech_confirmed"] = True  # no mechanics to allocate → continue
 
     def show_table(df, title):
         if df is not None and not df.empty: st.subheader(title); st.data_editor(df, use_container_width=True, hide_index=True, height=300)
@@ -597,5 +601,3 @@ def render():
         add_df_to_wb(b["miss_nav_B"], "MissingNAV_CUBICBOM")
         save_xlsx_path = f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
         st.download_button("⬇️ Download Excel", data=open(save_xlsx_path,"rb"), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-if __name__ == "__main__":
-    render()
