@@ -217,7 +217,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
-st.markdown('<h1 class="main-title">Advansor Project Preparation Tool</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-title">Project Preparation Tool</h1>', unsafe_allow_html=True)
 st.markdown('<div class="electric-line"></div>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Intelligent Excel Processing • Sustainable Data Solutions • The Future is Electric</p>', unsafe_allow_html=True)
 
