@@ -48,9 +48,6 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-div id="elcor-logo">elcor.</div>
-
-<style>
 #elcor-logo {
   position: absolute;
   top: 18px;
@@ -75,7 +72,7 @@ div id="elcor-logo">elcor.</div>
   50%  { text-shadow: 0 0 26px rgba(0,255,204,1); opacity: 1; }
   100% { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
 }
-</style>
+
 /* Main title */
 .main-title {
   font-family: 'Inter', sans-serif;
