@@ -62,10 +62,7 @@ def build_nav_table_from_bom(df_bom, df_part_no, label="Project BOM"):
 
 def pipeline_1_1_norm_name(x): return "".join(str(x).upper().split())
 def pipeline_1_2_parse_qty(x): return safe_parse_qty(x)
-def pipeline_1_3_safe_filename(s):
-    s = "" if s is None else str(s).strip()
-    s = re.sub(r'[\\/:*?"<>|]+','',s)
-    return s.replace(' ','_')
+
 def pipeline_1_4_normalize_no(x):
     try: return str(int(float(str(x).replace(",","." ).strip())))
     except Exception: return str(x).strip()
@@ -255,11 +252,11 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
     if df_part_no is not None and not df_part_no.empty:
         if {"PartNo_A","SupplierNo_E"}.issubset(df_part_no.columns): supplier_map = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["SupplierNo_E"]))
         if {"PartNo_A","Manufacturer_D"}.issubset(df_part_no.columns): manuf_map    = dict(zip(df_part_no["PartNo_A"].astype(str), df_part_no["Manufacturer_D"].astype(str)))
-    tmp = df_bom.copy(); 
+    tmp = df_bom.copy()
     if "Quantity" not in tmp: tmp["Quantity"]=0
     if "Description" not in tmp: tmp["Description"]=""
     tmp["No."]=tmp["No."].astype(str); tmp["Quantity"]=pd.to_numeric(tmp["Quantity"], errors="coerce").fillna(0)
-    nav_rows=[]; 
+    nav_rows=[]
     for _, r in tmp.iterrows():
         part_no=str(r["No."]); qty=float(r.get("Quantity",0) or 0); manuf = (manuf_map or {}).get(part_no,"")
         profit=10 if "DANFOSS" in str(manuf).upper() else 17; supplier=(supplier_map or {}).get(part_no,30093)
@@ -287,7 +284,8 @@ def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
 def pipeline_3B_1_filtering(df_cubic, df_stock):
     if df_cubic is None or df_cubic.empty: return pd.DataFrame(), pd.DataFrame()
     if df_stock is None or df_stock.empty: return df_cubic.copy(), df_cubic.copy()
-    cols=list(df_stock.columns); if len(cols)<3: return df_cubic.copy(), df_cubic.copy()
+    cols=list(df_stock.columns)
+    if len(cols)<3: return df_cubic.copy(), df_cubic.copy()
     df_stock = df_stock.rename(columns={cols[0]:"Component", cols[2]:"Comment"}); df_stock["Comment"]=df_stock["Comment"].astype(str).str.strip()
     excluded_norm = df_stock[df_stock["Comment"].str.lower()=="no need"]["Component"].astype(str).str.upper().str.replace(" ","").str.strip().unique()
     df = df_cubic.copy(); df["Norm_Type"]=df["Original Type"].astype(str).str.upper().str.replace(" ","").str.strip()
@@ -471,7 +469,7 @@ def render():
                     if remain_qty>0 and str(r.get("No.",""))!="2185835": remain_rows.append({**r,"Quantity":remain_qty})
                 st.session_state["df_mech"] = pd.DataFrame(mech_rows); st.session_state["df_remain"] = pd.DataFrame(remain_rows); st.session_state["mech_confirmed"] = True
                 if inputs["swing_frame"]:
-                    swing_row = pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":ALLOC_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
+                    swing_row = pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
                     st.session_state["df_mech"] = pd.concat([st.session_state["df_mech"], swing_row], ignore_index=True)
         st.stop()
 
@@ -547,11 +545,6 @@ def render():
         add_df_to_wb(b["miss_nav_B"], "MissingNAV_CUBICBOM")
 
         save_xlsx_path = f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
-
-        # also dump code to txt for reference
-        code_path = "/mnt/data/streamlit_bom_manager_compact.txt"
-        with open(code_path, "w", encoding="utf-8") as f: f.write(open(__file__, "r", encoding="utf-8").read() if '__file__' in globals() else '')
-
         st.download_button("⬇️ Download Excel", data=open(save_xlsx_path,"rb"), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 if __name__ == "__main__":
