@@ -42,49 +42,53 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-/* elcor logo top-right */
+/* elcor logo top-left */
 #elcor-logo {
   position: absolute;
-  top: 10px;
-  right: 25px;
-  font-size: 4.4rem;             /* doubled size */
+  top: 18px;
+  left: 30px;
+  font-size: 4.4rem;
   font-weight: 700;
   color: #00d4aa;
   animation: pulse 2.5s infinite ease-in-out;
-  text-shadow: 0 0 12px rgba(0, 212, 170, 0.5);
+  text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
 }
 @keyframes pulse {
-  0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.4); opacity: 0.9; }
-  50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.9); opacity: 1; }
-  100% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.4); opacity: 0.9; }
+  0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
+  50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.8); opacity: 1; }
+  100% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
 }
 
 /* Main title */
 .main-title {
   font-family: 'Inter', sans-serif;
-  font-size: 3.2rem;
+  font-size: 3.4rem;
   font-weight: 700;
   text-align: center;
-  color: #00d4aa;
-  letter-spacing: 1px;
-  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #00d4aa 0%, #00b4d8 30%, #00a693 60%, #00ffcc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.04em;
+  margin-top: 1.5rem;
+  text-shadow: 0 0 20px rgba(0, 212, 170, 0.25);
 }
 
-/* Animated glowing line (with back-and-forth motion) */
+/* Animated glowing line with reflection */
 .electric-line {
   height: 3px;
   width: 65%;
-  margin: 1rem auto 2.2rem auto;
+  margin: 1rem auto 2.5rem auto;
   background: linear-gradient(90deg, transparent, #00d4aa, #00ffcc, #00d4aa, transparent);
   background-size: 300% 100%;
   animation: moveLine 4s ease-in-out infinite alternate;
-  box-shadow: 0 0 18px rgba(0, 255, 204, 0.6);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.7), 0 4px 10px rgba(0, 255, 204, 0.2);
   border-radius: 3px;
+  opacity: 0.95;
 }
 @keyframes moveLine {
-  0% { background-position: 0% 50%; opacity: 0.85; }
-  50% { background-position: 100% 50%; opacity: 1; }
-  100% { background-position: 0% 50%; opacity: 0.85; }
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* Subtitle */
@@ -121,6 +125,7 @@ st.markdown("""
 #MainMenu, footer, header {visibility: hidden;}
 </style>
 <div id="elcor-logo">elcor.</div>
+
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
