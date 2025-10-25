@@ -105,21 +105,33 @@ st.markdown("""
   box-shadow: none !important;
 }
 
-/* elcor logo top-left */
 #elcor-logo {
   position: absolute;
   top: 18px;
   left: 30px;
-  font-size: 4.4rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 4.6rem;
   font-weight: 700;
   color: #00d4aa;
-  animation: pulse 2.5s infinite ease-in-out;
+  animation: floatUpDown 5s ease-in-out infinite, elcorGlow 3s ease-in-out infinite;
   text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
+  letter-spacing: -0.02em;
+  background: none !important;
+  box-shadow: none !important;
 }
-@keyframes pulse {
-  0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
-  50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.8); opacity: 1; }
-  100% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
+
+/* floating animation (hovering effect) */
+@keyframes floatUpDown {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+/* subtle glow animation */
+@keyframes elcorGlow {
+  0%   { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
+  50%  { text-shadow: 0 0 26px rgba(0,255,204,1); opacity: 1; }
+  100% { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
 }
 
 /* Main title */
