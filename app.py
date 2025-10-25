@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS + INLINE ELCOR SVG ---
+# --- CUSTOM CSS + INLINE AVENGERS LOGO ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -48,23 +48,27 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-[data-testid="stMarkdownContainer"] {
-  background: transparent !important;
+/* AVENGERS "A" LOGO */
+#avengers-logo {
+  position: absolute;
+  top: 18px;
+  left: 30px;
+  width: 100px;
+  height: 100px;
+  animation: floatUpDown 4s ease-in-out infinite, glowPulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 15px rgba(0,255,204,0.6));
 }
 
-/* --- INLINE ELCOR LOGO --- */
-#elcor-logo {
-  position: absolute;
-  top: 14px;
-  left: 22px;
-  width: 120px;
-  height: 120px;
-  animation: elcorGlow 3.5s ease-in-out infinite alternate;
-  filter: drop-shadow(0 0 12px rgba(0,255,204,0.7));
+@keyframes floatUpDown {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+  100% { transform: translateY(0px); }
 }
-@keyframes elcorGlow {
-  0% { filter: drop-shadow(0 0 6px rgba(0,255,204,0.3)); }
-  100% { filter: drop-shadow(0 0 22px rgba(0,255,204,1)); }
+
+@keyframes glowPulse {
+  0% { filter: drop-shadow(0 0 8px rgba(0,255,204,0.3)); }
+  50% { filter: drop-shadow(0 0 20px rgba(0,255,204,1)); }
+  100% { filter: drop-shadow(0 0 8px rgba(0,255,204,0.3)); }
 }
 
 /* Main title */
@@ -81,7 +85,7 @@ st.markdown("""
   text-shadow: 0 0 20px rgba(0, 212, 170, 0.25);
 }
 
-/* Animated glowing line */
+/* Electric line */
 .electric-line {
   height: 3px;
   width: 65%;
@@ -133,30 +137,18 @@ st.markdown("""
 #MainMenu, footer, header {visibility: hidden;}
 </style>
 
-<!-- ELCOR SVG LOGO -->
-<svg id="elcor-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <path d="M90 280 Q60 250 80 200 Q100 150 160 120 Q220 90 280 100 Q340 110 390 160 Q440 210 450 270 Q460 330 420 370 Q380 410 320 420 Q260 430 210 410 Q160 390 130 350 Q110 320 90 280Z"
-        fill="#4A4033" stroke="#00d4aa" stroke-width="4" />
-  <path d="M140 190 Q200 150 280 160 Q360 170 400 210 Q410 260 370 290 Q320 310 260 300 Q200 290 160 250 Q150 220 140 190Z"
-        fill="#5a5042" stroke="#00ffcc" stroke-width="3" opacity="0.85"/>
-  <path d="M200 140 Q230 110 270 110 Q310 115 340 150 Q330 170 290 180 Q250 190 210 170 Q200 155 200 140Z"
-        fill="#3c3328" stroke="#00ffcc" stroke-width="3"/>
-  <circle cx="310" cy="155" r="8" fill="#00ffee" filter="url(#neonGlow)" />
-  <path d="M170 380 Q160 440 190 460 Q220 470 240 430 Q250 400 230 370Z"
-        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
-  <path d="M330 390 Q320 440 350 460 Q380 470 400 430 Q410 400 390 370Z"
-        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
-  <path d="M90 280 Q130 370 240 410 Q350 440 420 370 Q460 330 450 270"
-        fill="none" stroke="#00ffee" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+<!-- INLINE AVENGERS "A" SVG -->
+<svg id="avengers-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <filter id="neonGlow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+    <linearGradient id="aGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d4aa"/>
+      <stop offset="100%" stop-color="#00ffcc"/>
+    </linearGradient>
   </defs>
+  <circle cx="256" cy="256" r="248" fill="none" stroke="url(#aGrad)" stroke-width="12" opacity="0.6"/>
+  <path d="M195 380 L250 190 L305 380 Z M260 150 L390 370 L330 370 L265 210 L200 370 L140 370 Z"
+        fill="url(#aGrad)" stroke="#00ffcc" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M240 170 L270 170 L260 200 Z" fill="#00ffcc" opacity="0.8"/>
 </svg>
 """, unsafe_allow_html=True)
 
