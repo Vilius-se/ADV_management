@@ -336,17 +336,48 @@ def render():
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
             st.markdown("""
             <style>
-            .mech-zone{margin-top:2px}
+            .mech-table{margin-top:4px}
+            .mech-table *{font-family:system-ui,Segoe UI,Arial,sans-serif!important;color:#fff!important;font-weight:500!important}
             .mech-row{display:flex;align-items:center}
-            .mech-cell{display:flex;align-items:center;min-height:52px;padding:6px 10px}
-            .mech-label{margin:0;line-height:1.2;font-weight:700;color:#fff}
-            .mech-hr{border:0;border-top:1px solid rgba(255,255,255,.28);margin:2px 0 0}
+            .mech-cell{display:flex;align-items:center;min-height:40px;padding:4px 8px}
+            .mech-hr{border:0;border-top:1px solid rgba(255,255,255,.25);margin:2px 0 0}
             .qty-box{display:flex;align-items:center;justify-content:center;gap:8px}
-            .qty-display{min-width:72px;text-align:center;font-weight:800;font-size:22px;padding:4px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px;color:#fff}
-            .mech-zone .stButton>button{background:#0a5a2a!important;color:#fff!important;font-weight:800!important;font-size:20px!important;border-radius:10px!important;height:44px!important;width:44px!important;min-width:44px!important;padding:0!important}
-            .mech-zone .btn-placeholder{display:inline-block;height:44px;width:44px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.22)}
+            .qty-display{min-width:60px;text-align:center;font-weight:800!important;font-size:18px;padding:2px 10px;border:1px solid rgba(255,255,255,.35);border-radius:8px}
+            .btn-darkgreen .stButton>button{background:#074b22!important;color:#fff!important;border:none!important;height:38px!important;width:38px!important;min-width:38px!important;border-radius:8px!important;padding:0!important;line-height:36px!important;font-size:18px!important;font-weight:800!important;box-shadow:none!important}
+            .btn-placeholder{display:inline-block;height:38px;width:38px;border-radius:8px;border:1px solid rgba(255,255,255,.22)}
             </style>
             """, unsafe_allow_html=True)
+            st.session_state.setdefault("mech_take",{})
+            editable=_apply_excl(job_B.copy()); editable["Available Qty"]=editable["Quantity"].astype(float)
+            if editable.empty:
+                st.info("No selectable items (filtered by Stock comments: No need/Q1)."); st.session_state["mech_confirmed"]=True; st.stop()
+            # header
+            h=st.columns([3,3,6,1.0,3])
+            h[0].markdown("**No.**"); h[1].markdown("**Original Type**"); h[2].markdown("**Description**"); h[3].markdown("**Qty**"); h[4].markdown("**Allocate**")
+            st.markdown("<div class='mech-table'>", unsafe_allow_html=True)
+            def _inc(k,mx): st.session_state["mech_take"][k]=min(st.session_state["mech_take"].get(k,0.0)+1,mx)
+            def _dec(k): st.session_state["mech_take"][k]=max(st.session_state["mech_take"].get(k,0.0)-1,0.0)
+            for idx,row in editable.iterrows():
+                cols=st.columns([3,3,6,1.0,3])
+                with cols[0]: st.markdown(f"<div class='mech-cell'>{str(row.get('No.',''))}</div>", unsafe_allow_html=True)
+                with cols[1]: st.markdown(f"<div class='mech-cell'>{str(row.get('Original Type',''))}</div>", unsafe_allow_html=True)
+                with cols[2]: st.markdown(f"<div class='mech-cell'>{str(row.get('Description',''))}</div>", unsafe_allow_html=True)
+                with cols[3]: st.markdown(f"<div class='mech-cell'>{int(row.get('Quantity',0))}</div>", unsafe_allow_html=True)
+                with cols[4]:
+                    key=f"take_{idx}"; mx=float(row["Available Qty"]); cur=float(st.session_state["mech_take"].get(key,0.0))
+                    b=st.columns([1,2,1])
+                    with b[0]:
+                        if cur>0:
+                            with st.container(): st.markdown("<div class='btn-darkgreen'>", unsafe_allow_html=True); st.button("−", key=f"minus_{idx}", on_click=_dec, args=(key,), use_container_width=True); st.markdown("</div>", unsafe_allow_html=True)
+                        else: st.markdown("<span class='btn-placeholder'></span>", unsafe_allow_html=True)
+                    with b[1]: st.markdown(f"<div class='mech-cell qty-box'><div class='qty-display'>{cur:.0f}</div></div>", unsafe_allow_html=True)
+                    with b[2]:
+                        if cur<mx:
+                            with st.container(): st.markdown("<div class='btn-darkgreen'>", unsafe_allow_html=True); st.button("+", key=f"plus_{idx}", on_click=_inc, args=(key,mx), use_container_width=True); st.markdown("</div>", unsafe_allow_html=True)
+                        else: st.markdown("<span class='btn-placeholder'></span>", unsafe_allow_html=True)
+                st.markdown("<hr class='mech-hr'/>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            # (confirm button logic below remains unchanged)
             st.session_state.setdefault("mech_take",{})
             editable=_apply_excl(job_B.copy()); editable["Available Qty"]=editable["Quantity"].astype(float)
             if editable.empty:
