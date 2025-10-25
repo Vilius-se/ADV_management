@@ -42,6 +42,16 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
+.stApp {
+  background-color: #0f3d33;
+  background-image: url("f4fcca4c-60fd-42e3-9968-48459ea255f2.png");
+  background-repeat: no-repeat;
+  background-position: bottom right;
+  background-attachment: fixed;
+  background-size: 800px auto;
+  font-family: 'Inter', sans-serif;
+}
+
 /* elcor logo top-left */
 #elcor-logo {
   position: absolute;
