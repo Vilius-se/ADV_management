@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS + INLINE AVENGERS SVG ---
+# --- CUSTOM CSS + INLINE ELCOR SVG (floating + glowing) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -48,26 +48,26 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-/* Avengers A logo floating + glow */
-#avengers-logo {
+/* ELCOR LOGO floating + glow */
+#elcor-logo {
   position: absolute;
   top: 18px;
-  left: 30px;
-  width: 100px;
-  height: 100px;
-  animation: floatUpDown 4.5s ease-in-out infinite, logoGlow 3.5s ease-in-out infinite;
+  left: 28px;
+  width: 115px;
+  height: 115px;
+  animation: floatUpDown 5s ease-in-out infinite, elcorGlow 3s ease-in-out infinite;
 }
 
 @keyframes floatUpDown {
   0%   { transform: translateY(0px); }
-  50%  { transform: translateY(-12px); }
+  50%  { transform: translateY(-10px); }
   100% { transform: translateY(0px); }
 }
 
-@keyframes logoGlow {
-  0%   { filter: drop-shadow(0 0 3px rgba(255,255,255,0.2)); }
-  50%  { filter: drop-shadow(0 0 16px rgba(255,255,255,0.8)); }
-  100% { filter: drop-shadow(0 0 3px rgba(255,255,255,0.2)); }
+@keyframes elcorGlow {
+  0%   { filter: drop-shadow(0 0 6px rgba(0,255,204,0.2)); }
+  50%  { filter: drop-shadow(0 0 18px rgba(0,255,204,0.9)); }
+  100% { filter: drop-shadow(0 0 6px rgba(0,255,204,0.2)); }
 }
 
 /* Main title */
@@ -136,9 +136,30 @@ st.markdown("""
 #MainMenu, footer, header {visibility: hidden;}
 </style>
 
-<!-- INLINE AVENGERS "A" SVG -->
-<svg id="avengers-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <path fill="#000000" d="M384.4 160.8h-66.5L337 96H272l-11.5 38.7h-71.7l5.8-19.5h49.6L248 38h125.4l-15.2 49.7h57.8c17.5 0 31.7 14.2 31.7 31.7v229c0 17.5-14.2 31.7-31.7 31.7H148.6l-14.5 47.5H63l14.4-47.5H43.6l15.1-50h48.3l14.5-47.5h252.4l10.5-34.5H166.2l-15.1 50h-48.2l-14.5 47.5h59.2L78.5 480H157l14.4-47.5h223.3c40.1 0 72.6-32.5 72.6-72.6v-229c0-40.1-32.5-72.6-72.6-72.6zM256 426.7c-94.3 0-170.7-76.4-170.7-170.7S161.7 85.3 256 85.3 426.7 161.7 426.7 256 350.3 426.7 256 426.7z"/>
+<!-- INLINE ELCOR SVG -->
+<svg id="elcor-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <path d="M90 280 Q60 250 80 200 Q100 150 160 120 Q220 90 280 100 Q340 110 390 160 Q440 210 450 270 Q460 330 420 370 Q380 410 320 420 Q260 430 210 410 Q160 390 130 350 Q110 320 90 280Z"
+        fill="#4A4033" stroke="#00d4aa" stroke-width="4" />
+  <path d="M140 190 Q200 150 280 160 Q360 170 400 210 Q410 260 370 290 Q320 310 260 300 Q200 290 160 250 Q150 220 140 190Z"
+        fill="#5a5042" stroke="#00ffcc" stroke-width="3" opacity="0.85"/>
+  <path d="M200 140 Q230 110 270 110 Q310 115 340 150 Q330 170 290 180 Q250 190 210 170 Q200 155 200 140Z"
+        fill="#3c3328" stroke="#00ffcc" stroke-width="3"/>
+  <circle cx="310" cy="155" r="8" fill="#00ffee" filter="url(#neonGlow)" />
+  <path d="M170 380 Q160 440 190 460 Q220 470 240 430 Q250 400 230 370Z"
+        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
+  <path d="M330 390 Q320 440 350 460 Q380 470 400 430 Q410 400 390 370Z"
+        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
+  <path d="M90 280 Q130 370 240 410 Q350 440 420 370 Q460 330 450 270"
+        fill="none" stroke="#00ffee" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+  <defs>
+    <filter id="neonGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
 </svg>
 """, unsafe_allow_html=True)
 
