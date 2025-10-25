@@ -39,24 +39,24 @@ st.markdown("""
 
 
 .stApp {
-  background-color: #0f3d33;
+  background-color: #081d19;
   background-image:
-    radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
-    radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
+    radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.03) 0%, transparent 80%),
+    radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.02) 0%, transparent 80%),
     url("data:image/svg+xml;utf8,\
     <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>\
       <defs>\
         <linearGradient id='wireGrad' x1='0%' y1='0%' x2='100%' y2='0%'>\
-          <stop offset='0%' stop-color='%2300bfa5'/>\
-          <stop offset='100%' stop-color='%2300a3ff'/>\
+          <stop offset='0%' stop-color='%23007360'/>\
+          <stop offset='100%' stop-color='%23006284'/>\
         </linearGradient>\
         <filter id='softGlow'>\
-          <feGaussianBlur stdDeviation='1.6' result='blur'/>\
+          <feGaussianBlur stdDeviation='1.4' result='blur'/>\
           <feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge>\
         </filter>\
       </defs>\
       <rect width='1600' height='900' fill='none'/>\
-      <g filter='url(%23softGlow)' stroke='url(%23wireGrad)' stroke-width='1' fill='none' opacity='0.25'>\
+      <g filter='url(%23softGlow)' stroke='url(%23wireGrad)' stroke-width='1' fill='none' opacity='0.08'>\
         <path d='M0 850 Q400 600 800 850 T1600 850'/>\
         <path d='M0 700 Q400 500 800 700 T1600 700'/>\
         <path d='M0 550 Q400 400 800 550 T1600 550'/>\
@@ -66,7 +66,7 @@ st.markdown("""
         <path d='M200 0 Q600 300 1000 600 T1600 800'/>\
         <path d='M0 0 Q300 200 600 500 T1200 900'/>\
       </g>\
-      <g fill='%2300ffcc' opacity='0.1'>\
+      <g fill='%2300ffcc' opacity='0.04'>\
         <circle cx='200' cy='750' r='2'/>\
         <circle cx='450' cy='580' r='2'/>\
         <circle cx='650' cy='420' r='2'/>\
@@ -84,6 +84,7 @@ st.markdown("""
   background-position: center center;
   font-family: 'Inter', sans-serif;
 }
+
 
 
 
