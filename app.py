@@ -47,37 +47,29 @@ st.markdown("""
       <defs>\
         <linearGradient id='grad1' x1='0%' y1='0%' x2='100%' y2='0%'>\
           <stop offset='0%' stop-color='%2300d4aa'/>\
-          <stop offset='100%' stop-color='%2300a3ff'/>\
+          <stop offset='100%' stop-color='%2300b4ff'/>\
         </linearGradient>\
         <filter id='glow'>\
-          <feGaussianBlur stdDeviation='2.5' result='coloredBlur'/>\
+          <feGaussianBlur stdDeviation='1.2' result='coloredBlur'/>\
           <feMerge><feMergeNode in='coloredBlur'/><feMergeNode in='SourceGraphic'/></feMerge>\
         </filter>\
       </defs>\
-      <g filter='url(%23glow)' opacity='0.25'>\
-        <path d='M0 320 Q200 280 400 320 T800 320 T1200 320 T1600 320' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
-        <path d='M0 360 Q200 310 400 360 T800 360 T1200 360 T1600 360' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
-        <path d='M0 400 Q200 350 400 400 T800 400 T1200 400 T1600 400' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
-        <path d='M0 440 Q200 390 400 440 T800 440 T1200 440 T1600 440' stroke='url(%23grad1)' stroke-width='1.5' fill='none'/>\
-      </g>\
-      <g>\
-        <circle r='2' fill='%2300ffcc'>\
-          <animateMotion dur='6s' repeatCount='indefinite' path='M0 320 Q200 280 400 320 T800 320 T1200 320 T1600 320'/>\
-        </circle>\
-        <circle r='2' fill='%2300b3ff'>\
-          <animateMotion dur='7s' begin='2s' repeatCount='indefinite' path='M0 360 Q200 310 400 360 T800 360 T1200 360 T1600 360'/>\
-        </circle>\
-        <circle r='2' fill='%2300ffcc'>\
-          <animateMotion dur='8s' begin='1s' repeatCount='indefinite' path='M0 400 Q200 350 400 400 T800 400 T1200 400 T1600 400'/>\
-        </circle>\
-        <circle r='2' fill='%2300b3ff'>\
-          <animateMotion dur='9s' begin='3s' repeatCount='indefinite' path='M0 440 Q200 390 400 440 T800 440 T1200 440 T1600 440'/>\
-        </circle>\
+      <g filter='url(%23glow)' opacity='0.18'>\
+        <path d='M0 80 Q300 40 600 80 T1200 80 T1800 80 T2400 80' stroke='url(%23grad1)' stroke-width='1.2' fill='none'/>\
+        <path d='M0 160 Q250 120 500 160 T1000 160 T1500 160 T2000 160' stroke='url(%23grad1)' stroke-width='1.1' fill='none'/>\
+        <path d='M0 240 Q200 200 400 240 T800 240 T1200 240 T1600 240' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 320 Q350 280 700 320 T1400 320 T2100 320 T2800 320' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 400 Q300 360 600 400 T1200 400 T1800 400 T2400 400' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 480 Q250 440 500 480 T1000 480 T1500 480 T2000 480' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 560 Q200 520 400 560 T800 560 T1200 560 T1600 560' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 640 Q350 600 700 640 T1400 640 T2100 640 T2800 640' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 720 Q300 680 600 720 T1200 720 T1800 720 T2400 720' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+        <path d='M0 800 Q250 760 500 800 T1000 800 T1500 800 T2000 800' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
       </g>\
     </svg>");
   background-repeat: no-repeat;
   background-size: cover;
-  background-position: bottom right;
+  background-position: center center;
   font-family: 'Inter', sans-serif;
 }
 
