@@ -3,6 +3,7 @@ import pandas as pd
 import re, io, datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side
+import os, subprocess
 
 # =============================
 # CONFIG
@@ -15,6 +16,15 @@ ALLOC_LOCATION_CODE = "KAUNAS"
 # =============================
 # Utils / Helpers
 # =============================
+def get_app_version():
+    # try git (commit count + short sha), then env, then fallback
+    try:
+        cnt = subprocess.check_output(["git","rev-list","--count","HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        sha = subprocess.check_output(["git","rev-parse","--short","HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        return f"v{int(cnt):03d} ({sha})"
+    except Exception:
+        env_ver = os.getenv("APP_VERSION") or os.getenv("COMMIT_SHA")
+        return env_ver if env_ver else "v000"
 def safe_parse_qty(x):
     if pd.isna(x): return 0.0
     if isinstance(x, (int, float)): return float(x)
@@ -398,7 +408,7 @@ def pipeline_4_2_missing_nav(df, source):
 # Render App
 # =============================
 def render():
-    st.header("Stage 3: BOM Management")
+    st.header(f"Stage 3: BOM Management · {get_app_version()}")
     inputs = pipeline_2_1_user_inputs()
     if not inputs: return
     st.session_state["inputs"] = inputs
