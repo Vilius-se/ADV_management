@@ -107,14 +107,24 @@ def pipeline_2_2_file_uploads(rittal=False):
     if not rittal:
         cubic_bom = st.file_uploader("Insert CUBIC BOM", type=["xls","xlsx","xlsm"], key="cubic_bom")
         if cubic_bom:
-            try: df_cubic = read_excel_any(cubic_bom, skiprows=13, usecols="B,E:F,G")
+            # read skipping 15 rows; allow merged E+F+G column
+            try: df_cubic = read_excel_any(cubic_bom, skiprows=15)
             except Exception: df_cubic = read_excel_any(cubic_bom)
             df_cubic = df_cubic.rename(columns=lambda c: str(c).strip())
-            if {"E","F","G"}.issubset(df_cubic.columns): df_cubic["Quantity"] = df_cubic[["E","F","G"]].bfill(axis=1).iloc[:,0]
-            elif "Quantity" not in df_cubic.columns: df_cubic["Quantity"] = 0
+            # Quantity from E/F/G or merged "E+F+G" text
+            qty_cols = [c for c in df_cubic.columns if str(c).strip() in {"E","F","G"}]
+            combo_cols = [c for c in df_cubic.columns if re.sub(r"\s+","",str(c)).upper() in {"E+F+G","E+F","F+G","E+G"} or (("E" in str(c).upper()) and ("F" in str(c).upper()) and ("G" in str(c).upper()))]
+            if qty_cols:
+                df_cubic["Quantity"] = df_cubic[qty_cols].bfill(axis=1).iloc[:,0]
+            elif combo_cols:
+                cc = combo_cols[0]
+                df_cubic["Quantity"] = df_cubic[cc].apply(lambda v: safe_parse_qty(re.search(r"([0-9]+[.,]?[0-9]*)", str(v)).group(1)) if (pd.notna(v) and re.search(r"([0-9]+[.,]?[0-9]*)", str(v))) else 0.0)
+            else:
+                if "Quantity" not in df_cubic.columns: df_cubic["Quantity"] = 0
             df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
-            if "Item Id" in df_cubic.columns: df_cubic = df_cubic.rename(columns={"Item Id": "Original Type"})
-            else: df_cubic["Original Type"] = df_cubic.iloc[:,0].astype(str)
+            # Original Type / No.
+            if "Item Id" in df_cubic.columns: df_cubic = df_cubic.rename(columns={"Item Id":"Original Type"})
+            else: df_cubic["Original Type"] = df_cubic[df_cubic.columns[0]].astype(str)
             if "No." not in df_cubic.columns: df_cubic["No."] = df_cubic["Original Type"]
             dfs["cubic_bom"] = df_cubic
     bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
@@ -270,14 +280,25 @@ def pipeline_3A_5_tables(df_bom, project_number, df_part_no):
 def pipeline_3B_0_prepare_cubic(df_cubic, df_part_code, extras=None):
     if df_cubic is None or df_cubic.empty: return pd.DataFrame()
     df = df_cubic.copy().rename(columns=lambda c: str(c).strip())
-    if any(col in df.columns for col in ["E","F","G"]): df["Quantity"]=df[["E","F","G"]].bfill(axis=1).iloc[:,0]
-    if "Quantity" not in df.columns: df["Quantity"]=0
-    df["Quantity"]=pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
-    if "Item Id" in df.columns: df["Original Type"]=df["Item Id"].astype(str).str.strip()
-    if "No." not in df.columns: df["No."]=df["Original Type"]
+    # Quantity from E/F/G or merged "E+F+G" text
+    qty_cols = [c for c in df.columns if str(c).strip() in {"E","F","G"}]
+    combo_cols = [c for c in df.columns if re.sub(r"\s+","",str(c)).upper() in {"E+F+G","E+F","F+G","E+G"} or (("E" in str(c).upper()) and ("F" in str(c).upper()) and ("G" in str(c).upper()))]
+    if qty_cols: df["Quantity"] = df[qty_cols].bfill(axis=1).iloc[:,0]
+    elif combo_cols:
+        cc = combo_cols[0]
+        df["Quantity"] = df[cc].apply(lambda v: safe_parse_qty(re.search(r"([0-9]+[.,]?[0-9]*)", str(v)).group(1)) if (pd.notna(v) and re.search(r"([0-9]+[.,]?[0-9]*)", str(v))) else 0.0)
+    else:
+        if "Quantity" not in df.columns: df["Quantity"] = 0
+    df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
+    # Original Type / No.
+    if "Item Id" in df.columns: df["Original Type"] = df["Item Id"].astype(str).str.strip()
+    elif "Original Type" not in df.columns: df["Original Type"] = df[df.columns[0]].astype(str)
+    if "No." not in df.columns: df["No."] = df["Original Type"]
+    # Apply part code renames if provided
     if df_part_code is not None and not df_part_code.empty:
         rename_map = dict(zip(df_part_code.iloc[:,0].astype(str).str.strip(), df_part_code.iloc[:,1].astype(str).str.strip()))
-        if "Original Type" in df.columns: df["Original Type"]=df["Original Type"].astype(str).str.strip().replace(rename_map)
+        df["Original Type"] = df["Original Type"].astype(str).str.strip().replace(rename_map)
+    # Append extras targeted to "cubic"
     if extras: df = add_extra_components(df, [e for e in extras if e.get("target")=="cubic"])
     return df
 
