@@ -415,8 +415,7 @@ def render():
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files: return
 
-    required_A = ["bom", "data", "ks"]
-    required_B = ["cubic_bom", "data", "ks"] if not inputs["rittal"] else []
+    required_A = ["bom","data","ks"]; required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
     miss_A = [k for k in required_A if k not in files]; miss_B = [k for k in required_B if k not in files]
 
     st.subheader("📋 Required files")
@@ -483,13 +482,38 @@ def render():
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
+            st.markdown("""
+            <style>
+              .mech-row{border-bottom:1px solid rgba(255,255,255,.25);padding:6px 0;margin:2px 0;}
+              .mech-row *{color:#fff !important;font-family:system-ui,Segoe UI,Arial,sans-serif !important;}
+              .mech-row .label{margin:0;line-height:1.2;font-weight:600;}
+              .qty-box{display:flex;align-items:flex-start;gap:8px;}
+              .qty-display{min-width:64px;text-align:center;font-weight:800;font-size:22px;padding:2px 10px;border:1px solid rgba(255,255,255,.35);border-radius:8px;}
+              .mech-row button{color:#fff !important;font-weight:800 !important;font-size:20px !important;border-radius:8px !important;padding:2px 10px !important;}
+            </style>
+            """, unsafe_allow_html=True)
+            if "mech_take" not in st.session_state: st.session_state["mech_take"] = {}
             editable = job_B.copy(); editable["Available Qty"] = editable["Quantity"].astype(float)
             mech_inputs = []
             with st.form("mech_form", clear_on_submit=False):
                 for idx, row in editable.iterrows():
-                    cols = st.columns([2,3,4,2,2]); cols[0].write(str(row.get("No.",""))); cols[1].write(str(row.get("Original Type",""))); cols[2].write(str(row.get("Description",""))); cols[3].write(row["Available Qty"])
-                    take = cols[4].number_input("", min_value=0.0, max_value=float(row["Available Qty"]), step=1.0, format="%0.0f", key=f"take_{idx}")
-                    mech_inputs.append((idx, float(take)))
+                    cols = st.columns([2,3,4,3])
+                    with cols[0]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('No.',''))}</p></div>", unsafe_allow_html=True)
+                    with cols[1]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Original Type',''))}</p></div>", unsafe_allow_html=True)
+                    with cols[2]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Description',''))}</p></div>", unsafe_allow_html=True)
+                    with cols[3]:
+                        key = f"take_{idx}"
+                        max_qty = float(row["Available Qty"])
+                        cur = float(st.session_state["mech_take"].get(key, 0.0))
+                        mcols = st.columns([1,2,1])
+                        with mcols[0]:
+                            if st.button("–", key=f"minus_{idx}") and cur>0: cur = max(cur-1, 0.0)
+                        with mcols[1]:
+                            st.markdown(f"<div class='mech-row qty-box'><div class='qty-display'>{cur:.0f}</div></div>", unsafe_allow_html=True)
+                        with mcols[2]:
+                            if st.button("+", key=f"plus_{idx}") and cur<max_qty: cur = min(cur+1, max_qty)
+                        st.session_state["mech_take"][key] = cur
+                    mech_inputs.append((idx, float(st.session_state["mech_take"][key])))
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
             if confirm:
                 mech_rows, remain_rows = [], []
@@ -505,8 +529,7 @@ def render():
         st.stop()
 
     def show_table(df, title):
-        if df is not None and not df.empty:
-            st.subheader(title); st.data_editor(df, use_container_width=True, hide_index=True, height=300)
+        if df is not None and not df.empty: st.subheader(title); st.data_editor(df, use_container_width=True, hide_index=True, height=300)
 
     show_table(st.session_state.get("df_mech"), "📑 Job Journal (CUBIC BOM TO MECH.)")
     show_table(st.session_state.get("df_remain"), "📑 Job Journal (CUBIC BOM REMAINING)")
@@ -544,7 +567,6 @@ def render():
             for c in row: c.font = bold; c.fill = grey; c.border = thin
         for row in ws["B1":"B9"]:
             for c in row: c.border = thin
-
         def add_df_to_wb(df, title, col_widths=None, nav=False, calc=False):
             if df is None or df.empty: return
             w = wb.create_sheet(title); w.append(df.columns.tolist())
@@ -562,7 +584,6 @@ def render():
                     for c in row: c.font = bold; c.fill = grey
                 for row in w["B2":"B10"]:
                     for c in row: c.number_format = CURRENCY_FORMAT
-
         job_w = {"A":8,"B":10,"C":12,"D":12,"E":12,"F":12,"G":13,"H":12,"I":40,"J":25}
         add_df_to_wb(b["df_mech"], "JobJournal_Mech", job_w)
         add_df_to_wb(b["df_remain"], "JobJournal_Remaining", job_w)
@@ -574,9 +595,7 @@ def render():
         add_df_to_wb(b["calc"], "Calculation", {"A":12,"B":18}, calc=True)
         add_df_to_wb(b["miss_nav_A"], "MissingNAV_ProjectBOM")
         add_df_to_wb(b["miss_nav_B"], "MissingNAV_CUBICBOM")
-
         save_xlsx_path = f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
         st.download_button("⬇️ Download Excel", data=open(save_xlsx_path,"rb"), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 if __name__ == "__main__":
     render()
