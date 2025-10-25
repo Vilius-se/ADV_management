@@ -285,6 +285,76 @@ def pipeline_4_2_missing_nav(df,source):
     if missing.empty: return pd.DataFrame()
     qty=pd.to_numeric(missing.get("Quantity",0),errors="coerce").fillna(0).astype(float) if "Quantity" in missing else 0
     return pd.DataFrame({"Source":source,"Original Article":missing.get("Original Article",""),"Original Type":missing.get("Original Type",""),"Quantity":qty,"NAV No.":missing["No."]})
+
+# ADD THIS HELPER (place it above render())
+def run_processing(files, inputs):
+    data_book = files.get("data", {})
+    df_stock   = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
+    df_part_no = pipeline_2_4_normalize_part_no(pipeline_2_3_get_sheet_safe(data_book, ["Part_no","Parts_no","Part no"]))
+    df_hours   = pipeline_2_3_get_sheet_safe(data_book, ["Hours"])
+    df_acc     = pipeline_2_3_get_sheet_safe(data_book, ["Accessories"])
+    df_code    = pipeline_2_3_get_sheet_safe(data_book, ["Part_code"])
+    df_instr   = pipeline_2_3_get_sheet_safe(data_book, ["Instructions"])
+    extras=[]
+    if inputs["ups"]:
+        extras.extend([{"type":"LI32111CT01","qty":1,"target":"bom","force_no":"2214036"},
+                       {"type":"ADV UPS holder V3","qty":1,"target":"bom","force_no":"2214035"},
+                       {"type":"268-2610","qty":1,"target":"bom","force_no":"1865206"}])
+    if inputs["swing_frame"]:
+        extras.append({"type":"9030+2970","qty":1,"target":"cubic","force_no":"2185835"})
+    if df_instr is not None and not df_instr.empty:
+        row = df_instr[df_instr.iloc[:,0].astype(str).str.upper()==str(inputs["panel_type"]).upper()]
+        if not row.empty:
+            if inputs["panel_type"][0] not in ["F","G"]:
+                try: qty_sdd = int(pd.to_numeric(row.iloc[0,4], errors="coerce").fillna(0))
+                except Exception: qty_sdd = 0
+                if qty_sdd>0: extras.append({"type":"SDD07550","qty":qty_sdd,"target":"cubic","force_no":"SDD07550"})
+            for col_idx in range(5,10):
+                if col_idx < row.shape[1]:
+                    val = str(row.iloc[0,col_idx]).strip()
+                    if val and val.lower()!="nan": extras.append({"type":val,"qty":1,"target":"cubic"})
+    # Project BOM
+    job_A = nav_A = df_bom_proc = pd.DataFrame()
+    if all(k in files for k in ["bom","data","ks"]):
+        df_bom = pipeline_3A_0_rename(files["bom"], df_code, extras)
+        df_bom = pipeline_3A_1_filter(df_bom, df_stock)
+        df_bom = pipeline_3A_2_accessories(df_bom, df_acc)
+        df_bom = pipeline_3A_3_nav(df_bom, df_part_no)
+        df_bom = pipeline_3A_4_stock(df_bom, files["ks"])
+        job_A, nav_A, df_bom_proc = pipeline_3A_5_tables(df_bom, inputs["project_number"], df_part_no)
+    # CUBIC BOM
+    job_B = nav_B = df_cub_proc = pd.DataFrame()
+    if (not inputs["rittal"]) and all(k in files for k in ["cubic_bom","data","ks"]):
+        df_cubic = pipeline_3B_0_prepare_cubic(files["cubic_bom"], df_code, extras)
+        df_j, df_n = pipeline_3B_1_filtering(df_cubic, df_stock)
+        df_j = pipeline_3B_2_accessories(df_j, df_acc); df_n = pipeline_3B_2_accessories(df_n, df_acc)
+        df_j = pipeline_3B_3_nav(df_j, df_part_no); df_n = pipeline_3B_3_nav(df_n, df_part_no)
+        df_j = pipeline_3B_4_stock(df_j, files["ks"])
+        job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
+    # Save once; later +/– clicks reuse this and avoid recompute
+    st.session_state["proc"] = {"data_book":data_book,"df_stock":df_stock,"df_part_no":df_part_no,"df_hours":df_hours,"df_acc":df_acc,"df_code":df_code,"df_instr":df_instr,
+                                "extras":extras,"job_A":job_A,"nav_A":nav_A,"df_bom_proc":df_bom_proc,"job_B":job_B,"nav_B":nav_B,"df_cub_proc":df_cub_proc}
+
+# IN render(), REPLACE the block from the Run Processing button down to the end of "3B" processing with this:
+    if st.button("🚀 Run Processing"):
+        st.session_state["processing_started"] = True
+        st.session_state["mech_confirmed"] = False
+        st.session_state["df_mech"] = pd.DataFrame()
+        st.session_state["df_remain"] = pd.DataFrame()
+        run_processing(files, inputs)
+    if not st.session_state.get("processing_started", False): st.stop()
+    # Reuse cached processing; prevents app “reset” on +/– clicks
+    if "proc" not in st.session_state: run_processing(files, inputs)
+    proc = st.session_state["proc"]
+    df_stock = proc["df_stock"]; df_part_no = proc["df_part_no"]; df_hours = proc["df_hours"]; df_acc = proc["df_acc"]; df_code = proc["df_code"]; df_instr = proc["df_instr"]
+    job_A = proc["job_A"]; nav_A = proc["nav_A"]; df_bom_proc = proc["df_bom_proc"]
+    job_B = proc["job_B"]; nav_B = proc["nav_B"]; df_cub_proc = proc["df_cub_proc"]
+    # inject CSS only once to avoid duplicate headers/logos feeling
+    if not st.session_state.get("css_injected"):
+        st.markdown("<style>.app {font-family:system-ui}</style>", unsafe_allow_html=True)
+        st.session_state["css_injected"] = True
+
+
 def render():
     st.header(f"BOM Management · {get_app_version()}")
     inputs=pipeline_2_1_user_inputs()
