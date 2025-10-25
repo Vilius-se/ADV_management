@@ -409,15 +409,39 @@ def pipeline_4_2_missing_nav(df, source):
 # =============================
 def render():
     st.header(f"Stage 3: BOM Management · {get_app_version()}")
+
+    # init state
+    st.session_state.setdefault("processing_started", False)
+    st.session_state.setdefault("mech_confirmed", False)
+    st.session_state.setdefault("df_mech", pd.DataFrame())
+    st.session_state.setdefault("df_remain", pd.DataFrame())
+
+    # inputs + uploads
     inputs = pipeline_2_1_user_inputs()
     if not inputs: return
     st.session_state["inputs"] = inputs
     files = pipeline_2_2_file_uploads(inputs["rittal"])
     if not files: return
 
+    # reset gate when files change
+    def _files_sig(d):
+        parts=[]; 
+        for k,v in (d or {}).items():
+            name = getattr(v, "name", k)
+            parts.append(f"{k}:{name}")
+        return "|".join(sorted(parts))
+    cur_sig = _files_sig(files)
+    if st.session_state.get("files_sig") != cur_sig:
+        st.session_state["files_sig"] = cur_sig
+        st.session_state["processing_started"] = False
+        st.session_state["mech_confirmed"] = False
+        st.session_state["df_mech"] = pd.DataFrame()
+        st.session_state["df_remain"] = pd.DataFrame()
+        st.session_state.pop("export_bundle", None)
+
+    # required files status
     required_A = ["bom","data","ks"]; required_B = ["cubic_bom","data","ks"] if not inputs["rittal"] else []
     miss_A = [k for k in required_A if k not in files]; miss_B = [k for k in required_B if k not in files]
-
     st.subheader("📋 Required files")
     c1, c2 = st.columns(2)
     with c1: st.success("Project BOM: OK") if not miss_A else st.warning(f"Project BOM missing: {miss_A}")
@@ -425,12 +449,17 @@ def render():
         if not inputs["rittal"]: st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
         else: st.info("CUBIC BOM skipped (Rittal)")
 
+    # explicit processing gate
     if st.button("🚀 Run Processing"):
-        st.session_state["processing_started"] = True; st.session_state["mech_confirmed"] = False
-        st.session_state["df_mech"] = pd.DataFrame(); st.session_state["df_remain"] = pd.DataFrame()
+        st.session_state["processing_started"] = True
+        st.session_state["mech_confirmed"] = False
+        st.session_state["df_mech"] = pd.DataFrame()
+        st.session_state["df_remain"] = pd.DataFrame()
         st.session_state.pop("export_bundle", None)
-    if not st.session_state.get("processing_started", False): st.stop()
+    if not st.session_state["processing_started"]:
+        st.info("Upload required files and click **Run Processing** to generate tables."); return
 
+    # data sheets
     data_book = files.get("data", {})
     df_stock   = pipeline_2_3_get_sheet_safe(data_book, ["Stock"])
     df_part_no = pipeline_2_4_normalize_part_no(pipeline_2_3_get_sheet_safe(data_book, ["Part_no","Parts_no","Part no"]))
@@ -440,7 +469,8 @@ def render():
     df_instr   = pipeline_2_3_get_sheet_safe(data_book, ["Instructions"])
     df_main_sw = pipeline_2_3_get_sheet_safe(data_book, ["main_switch"])
 
-    extras = []
+    # extras
+    extras=[]
     if inputs["ups"]:
         extras.extend([
             {"type":"LI32111CT01","qty":1,"target":"bom","force_no":"2214036"},
@@ -460,6 +490,7 @@ def render():
                     val = str(row.iloc[0,col_idx]).strip()
                     if val and val.lower()!="nan": extras.append({"type":val,"qty":1,"target":"cubic"})
 
+    # pipelines
     job_A = nav_A = df_bom_proc = pd.DataFrame()
     job_B = nav_B = df_cub_proc = pd.DataFrame()
 
@@ -479,7 +510,7 @@ def render():
         df_j = pipeline_3B_4_stock(df_j, files["ks"])
         job_B, nav_B, df_cub_proc = pipeline_3B_5_tables(df_j, df_n, inputs["project_number"], df_part_no)
 
-    # ——— Mechanics allocation gate ———
+    # mechanics allocation (gate)
     if not st.session_state.get("mech_confirmed", False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
@@ -495,8 +526,9 @@ def render():
             """, unsafe_allow_html=True)
             if "mech_take" not in st.session_state: st.session_state["mech_take"] = {}
             editable = job_B.copy(); editable["Available Qty"] = editable["Quantity"].astype(float)
-            mech_inputs = []
+
             with st.form("mech_form", clear_on_submit=False):
+                clicked = None
                 for idx, row in editable.iterrows():
                     cols = st.columns([2,3,4,3])
                     with cols[0]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('No.',''))}</p></div>", unsafe_allow_html=True)
@@ -507,31 +539,45 @@ def render():
                         cur = float(st.session_state["mech_take"].get(key, 0.0))
                         mcols = st.columns([1,2,1])
                         with mcols[0]:
-                            if st.button("–", key=f"minus_{idx}") and cur>0: cur = max(cur-1, 0.0)
+                            if st.form_submit_button("–", key=f"minus_{idx}"): clicked = ("minus", idx)
                         with mcols[1]:
                             st.markdown(f"<div class='mech-row qty-box'><div class='qty-display'>{cur:.0f}</div></div>", unsafe_allow_html=True)
                         with mcols[2]:
-                            if st.button("+", key=f"plus_{idx}") and cur<max_qty: cur = min(cur+1, max_qty)
-                        st.session_state["mech_take"][key] = cur
-                    mech_inputs.append((idx, float(st.session_state["mech_take"][key])))
+                            if st.form_submit_button("+", key=f"plus_{idx}"): clicked = ("plus", idx)
                 confirm = st.form_submit_button("✅ Confirm Mechanics Allocation")
+
+            if clicked:
+                action, i = clicked; k = f"take_{i}"
+                mx = float(editable.loc[i, "Available Qty"]); cur = float(st.session_state["mech_take"].get(k, 0.0))
+                cur = max(cur-1, 0.0) if action=="minus" else min(cur+1, mx)
+                st.session_state["mech_take"][k] = cur
+                try: st.rerun()
+                except Exception: st.experimental_rerun()
+
             if confirm:
                 mech_rows, remain_rows = [], []
-                for idx, take in mech_inputs:
+                for idx, row in editable.iterrows():
+                    k = f"take_{idx}"; take = float(st.session_state["mech_take"].get(k, 0.0))
                     avail = float(editable.loc[idx,"Available Qty"]); r = editable.loc[idx].to_dict()
                     if take>0: mech_rows.append({**r,"Quantity":take})
-                    remain_qty = max(avail-take, 0.0)
-                    if remain_qty>0 and str(r.get("No.",""))!="2185835": remain_rows.append({**r,"Quantity":remain_qty})
+                    rem = max(avail-take, 0.0)
+                    if rem>0 and str(r.get("No.",""))!="2185835": remain_rows.append({**r,"Quantity":rem})
                 st.session_state["df_mech"] = pd.DataFrame(mech_rows)
                 st.session_state["df_remain"] = pd.DataFrame(remain_rows)
                 st.session_state["mech_confirmed"] = True
                 if inputs["swing_frame"]:
-                    swing_row = pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
+                    swing_row = pd.DataFrame([{
+                        "Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,
+                        "Document No.":inputs["project_number"],"Job No.":inputs["project_number"],
+                        "Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"",
+                        "Description":"Swing frame component","Source":"Extra"
+                    }])
                     st.session_state["df_mech"] = pd.concat([st.session_state["df_mech"], swing_row], ignore_index=True)
-            st.stop()  # stop ONLY when mechanics form is displayed
+            st.stop()
         else:
-            st.session_state["mech_confirmed"] = True  # no mechanics to allocate → continue
+            st.session_state["mech_confirmed"] = True  # nothing to allocate → continue
 
+    # results
     def show_table(df, title):
         if df is not None and not df.empty: st.subheader(title); st.data_editor(df, use_container_width=True, hide_index=True, height=300)
 
@@ -549,8 +595,13 @@ def render():
     show_table(miss_nav_A, "⚠️ Missing NAV Numbers (Project BOM)")
     show_table(miss_nav_B, "⚠️ Missing NAV Numbers (CUBIC BOM)")
 
-    st.session_state["export_bundle"] = {"inputs":inputs,"calc":calc,"job_A":job_A,"nav_A":nav_A,"job_B":job_B,"nav_B":nav_B,"miss_nav_A":miss_nav_A,"miss_nav_B":miss_nav_B,"df_mech":st.session_state.get("df_mech"),"df_remain":st.session_state.get("df_remain")}
+    st.session_state["export_bundle"] = {
+        "inputs":inputs,"calc":calc,"job_A":job_A,"nav_A":nav_A,"job_B":job_B,"nav_B":nav_B,
+        "miss_nav_A":miss_nav_A,"miss_nav_B":miss_nav_B,
+        "df_mech":st.session_state.get("df_mech"),"df_remain":st.session_state.get("df_remain")
+    }
 
+    # export
     st.subheader("💾 Export")
     if st.button("💾 Export Results to Excel"):
         b = st.session_state.get("export_bundle", {})
@@ -562,7 +613,10 @@ def render():
         except Exception: project_size = pallet_size = ""
         filename = f"{b['inputs']['project_number']}_{b['inputs']['panel_type']}_{b['inputs']['grounding']}_{pallet_size}_{ts}.xlsx"
         wb = Workbook(); ws = wb.active; ws.title = "Info"
-        info_data = [["Project number", b["inputs"]["project_number"]],["Panel type", b["inputs"]["panel_type"]],["Grounding", b["inputs"]["grounding"]],["Main switch", b["inputs"]["main_switch"]],["Swing frame", b["inputs"]["swing_frame"]],["UPS", b["inputs"]["ups"]],["Rittal", b["inputs"]["rittal"]],["Project size", project_size],["Pallet size", pallet_size]]
+        info_data = [["Project number", b["inputs"]["project_number"]],["Panel type", b["inputs"]["panel_type"]],
+                     ["Grounding", b["inputs"]["grounding"]],["Main switch", b["inputs"]["main_switch"]],
+                     ["Swing frame", b["inputs"]["swing_frame"]],["UPS", b["inputs"]["ups"]],
+                     ["Rittal", b["inputs"]["rittal"]],["Project size", project_size],["Pallet size", pallet_size]]
         for row in info_data: ws.append(row)
         ws.column_dimensions["A"].width = 20; ws.column_dimensions["B"].width = 20
         bold = Font(bold=True); grey = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
@@ -601,3 +655,6 @@ def render():
         add_df_to_wb(b["miss_nav_B"], "MissingNAV_CUBICBOM")
         save_xlsx_path = f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
         st.download_button("⬇️ Download Excel", data=open(save_xlsx_path,"rb"), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+if __name__ == "__main__":
+    render()
