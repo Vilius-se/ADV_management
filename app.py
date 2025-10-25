@@ -38,13 +38,22 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
 .stApp {
-  background-color: #0f3d33;
-  background-image: url("f4fcca4c-60fd-42e3-9968-48459ea255f2.png");
-  background-repeat: no-repeat;
-  background-position: bottom right;
-  background-attachment: fixed;
-  background-size: 800px auto;
   font-family: 'Inter', sans-serif;
+  background-color: #0f3d33;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
+    radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
+    url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'>\
+      <path d='M0 300 Q150 250 300 300 T600 300 T900 300 T1200 300' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.08'/>\
+      <path d='M0 340 Q150 290 300 340 T600 340 T900 340 T1200 340' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.07'/>\
+      <path d='M0 380 Q150 330 300 380 T600 380 T900 380 T1200 380' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.06'/>\
+      <path d='M0 420 Q150 370 300 420 T600 420 T900 420 T1200 420' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.05'/>\
+      <path d='M0 460 Q150 410 300 460 T600 460 T900 460 T1200 460' stroke='%2300d4aa' stroke-width='1' fill='none' opacity='0.05'/>\
+    </svg>");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: bottom right;
 }
 
 /* elcor logo top-left */
