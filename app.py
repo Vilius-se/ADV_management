@@ -48,16 +48,20 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
+div id="elcor-logo">elcor.</div>
+
+<style>
 #elcor-logo {
   position: absolute;
   top: 18px;
   left: 30px;
   font-family: 'Inter', sans-serif;
-  font-size: 4.4rem;
+  font-size: 4.6rem;
   font-weight: 700;
   color: #00d4aa;
   animation: floatUpDown 5s ease-in-out infinite, elcorGlow 3s ease-in-out infinite;
   text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
+  letter-spacing: -0.02em;
 }
 
 @keyframes floatUpDown {
@@ -67,11 +71,11 @@ st.markdown("""
 }
 
 @keyframes elcorGlow {
-  0%   { text-shadow: 0 0 6px rgba(0,255,204,0.2); }
-  50%  { text-shadow: 0 0 24px rgba(0,255,204,0.9); }
-  100% { text-shadow: 0 0 6px rgba(0,255,204,0.2); }
+  0%   { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
+  50%  { text-shadow: 0 0 26px rgba(0,255,204,1); opacity: 1; }
+  100% { text-shadow: 0 0 6px rgba(0,255,204,0.2); opacity: 0.9; }
 }
-
+</style>
 /* Main title */
 .main-title {
   font-family: 'Inter', sans-serif;
