@@ -211,7 +211,8 @@ st.markdown("""
 <!-- FLOATING BLOCK -->
 <div class="elcor-block">
   <div id="elcor-logo">elcor.</div>
-  <img id="advansor-logo" src="https://raw.githubusercontent.com/Vilius-se/Advansor-Tool/main/logo_Advansor.png" alt="Advansor Logo">
+  <img <img id="advansor-logo" src="https://raw.githubusercontent.com/Vilius-se/ADV_management/main/logo_Advansor.png" alt="Advansor Logo">
+
 </div>
 """, unsafe_allow_html=True)
 
