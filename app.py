@@ -38,11 +38,6 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
 .stApp {
-  background: linear-gradient(135deg, #0b2f28 0%, #0f3d33 100%);
-  font-family: 'Inter', sans-serif;
-}
-
-.stApp {
   background-color: #0f3d33;
   background-image: url("f4fcca4c-60fd-42e3-9968-48459ea255f2.png");
   background-repeat: no-repeat;
