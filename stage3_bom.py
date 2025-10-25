@@ -327,7 +327,7 @@ def _process_all(files,inputs):
     ex_t,ex_n=_excluded_sets(df_stock)
     return {"hours":df_hours,"instr":df_instr,"job_A":job_A,"nav_A":nav_A,"bom_proc":df_bom_proc,"job_B":job_B,"nav_B":nav_B,"cub_proc":df_cub_proc,"ex_t":ex_t,"ex_n":ex_n}
 def render():
-    st.header(f"Stage 3: BOM Management · {get_app_version()}")
+    st.header(f"BOM Management · {get_app_version()}")
     inputs=pipeline_2_1_user_inputs()
     if not inputs: return
     st.session_state["inputs"]=inputs
