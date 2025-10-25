@@ -105,17 +105,6 @@ st.markdown("""
   box-shadow: none !important;
 }
 
-/* elcor logo top-left */
-#elcor-logo {
-  position: absolute;
-  top: 18px;
-  left: 30px;
-  font-size: 4.4rem;
-  font-weight: 700;
-  color: #00d4aa;
-  animation: pulse 2.5s infinite ease-in-out;
-  text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
-}
 @keyframes pulse {
   0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
   50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.8); opacity: 1; }
