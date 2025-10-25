@@ -34,37 +34,43 @@ st.set_page_config(
 
 # --- CUSTOM CSS ---
 st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
 .stApp {
   background-color: #0f3d33;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
     radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.04) 0%, transparent 80%),
     url("data:image/svg+xml;utf8,\
-    <svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'>\
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900'>\
       <defs>\
-        <linearGradient id='grad1' x1='0%' y1='0%' x2='100%' y2='0%'>\
-          <stop offset='0%' stop-color='%2300d4aa'/>\
-          <stop offset='100%' stop-color='%2300b4ff'/>\
+        <linearGradient id='wireGrad' x1='0%' y1='0%' x2='100%' y2='0%'>\
+          <stop offset='0%' stop-color='%2300bfa5'/>\
+          <stop offset='100%' stop-color='%2300a3ff'/>\
         </linearGradient>\
-        <filter id='glow'>\
-          <feGaussianBlur stdDeviation='1.2' result='coloredBlur'/>\
-          <feMerge><feMergeNode in='coloredBlur'/><feMergeNode in='SourceGraphic'/></feMerge>\
+        <filter id='softGlow'>\
+          <feGaussianBlur stdDeviation='2.5' result='blur'/>\
+          <feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge>\
         </filter>\
       </defs>\
-      <g filter='url(%23glow)' opacity='0.18'>\
-        <path d='M0 80 Q300 40 600 80 T1200 80 T1800 80 T2400 80' stroke='url(%23grad1)' stroke-width='1.2' fill='none'/>\
-        <path d='M0 160 Q250 120 500 160 T1000 160 T1500 160 T2000 160' stroke='url(%23grad1)' stroke-width='1.1' fill='none'/>\
-        <path d='M0 240 Q200 200 400 240 T800 240 T1200 240 T1600 240' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 320 Q350 280 700 320 T1400 320 T2100 320 T2800 320' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 400 Q300 360 600 400 T1200 400 T1800 400 T2400 400' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 480 Q250 440 500 480 T1000 480 T1500 480 T2000 480' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 560 Q200 520 400 560 T800 560 T1200 560 T1600 560' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 640 Q350 600 700 640 T1400 640 T2100 640 T2800 640' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 720 Q300 680 600 720 T1200 720 T1800 720 T2400 720' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
-        <path d='M0 800 Q250 760 500 800 T1000 800 T1500 800 T2000 800' stroke='url(%23grad1)' stroke-width='1' fill='none'/>\
+      <rect width='1600' height='900' fill='none'/>\
+      <g stroke='url(%23wireGrad)' stroke-width='1.3' fill='none' filter='url(%23softGlow)' opacity='0.25'>\
+        <path d='M0,700 Q300,500 600,720 T1200,740 T1600,600'/>\
+        <path d='M0,600 Q300,400 600,640 T1200,660 T1600,520'/>\
+        <path d='M0,500 Q400,350 800,580 T1400,600 T1600,460'/>\
+        <path d='M0,400 Q500,250 1000,500 T1600,520'/>\
+        <path d='M0,300 Q550,200 1100,420 T1600,440'/>\
+        <path d='M200,0 Q600,200 1000,400 T1600,420'/>\
+        <path d='M400,0 Q700,250 1200,380 T1600,400'/>\
+        <path d='M800,0 Q1100,200 1400,350 T1600,360'/>\
+      </g>\
+      <g fill='%2300ffcc' opacity='0.12'>\
+        <circle cx='300' cy='450' r='2'/>\
+        <circle cx='600' cy='300' r='2'/>\
+        <circle cx='950' cy='500' r='2'/>\
+        <circle cx='1250' cy='400' r='2'/>\
+        <circle cx='1450' cy='550' r='2'/>\
+        <circle cx='800' cy='250' r='1.5'/>\
+        <circle cx='1000' cy='150' r='1.5'/>\
+        <circle cx='1200' cy='200' r='1.5'/>\
       </g>\
     </svg>");
   background-repeat: no-repeat;
@@ -72,7 +78,6 @@ st.markdown("""
   background-position: center center;
   font-family: 'Inter', sans-serif;
 }
-
 
 /* elcor logo top-left */
 #elcor-logo {
