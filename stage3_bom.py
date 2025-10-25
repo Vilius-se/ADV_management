@@ -286,7 +286,8 @@ def render():
     inputs=pipeline_2_1_user_inputs()
     if not inputs: return
     st.session_state["inputs"]=inputs
-    files=pipeline_2_2_file_uploads(inputs["rittal"]); if not files: return
+    files=pipeline_2_2_file_uploads(inputs["rittal"]); 
+    if not files: return
     reqA=["bom","data","ks"]; reqB=["cubic_bom","data","ks"] if not inputs["rittal"] else []; missA=[k for k in reqA if k not in files]; missB=[k for k in reqB if k not in files]
     st.subheader("📋 Required files"); c1,c2=st.columns(2)
     with c1: st.success("Project BOM: OK") if not missA else st.warning(f"Project BOM missing: {missA}")
