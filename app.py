@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS + INLINE AVENGERS LOGO ---
+# --- CUSTOM CSS + INLINE AVENGERS SVG ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -48,27 +48,26 @@ st.markdown("""
   font-family: 'Inter', sans-serif;
 }
 
-/* AVENGERS "A" LOGO */
+/* Avengers A logo floating + glow */
 #avengers-logo {
   position: absolute;
   top: 18px;
   left: 30px;
   width: 100px;
   height: 100px;
-  animation: floatUpDown 4s ease-in-out infinite, glowPulse 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 15px rgba(0,255,204,0.6));
+  animation: floatUpDown 4.5s ease-in-out infinite, logoGlow 3.5s ease-in-out infinite;
 }
 
 @keyframes floatUpDown {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-12px); }
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-12px); }
   100% { transform: translateY(0px); }
 }
 
-@keyframes glowPulse {
-  0% { filter: drop-shadow(0 0 8px rgba(0,255,204,0.3)); }
-  50% { filter: drop-shadow(0 0 20px rgba(0,255,204,1)); }
-  100% { filter: drop-shadow(0 0 8px rgba(0,255,204,0.3)); }
+@keyframes logoGlow {
+  0%   { filter: drop-shadow(0 0 3px rgba(255,255,255,0.2)); }
+  50%  { filter: drop-shadow(0 0 16px rgba(255,255,255,0.8)); }
+  100% { filter: drop-shadow(0 0 3px rgba(255,255,255,0.2)); }
 }
 
 /* Main title */
@@ -139,16 +138,7 @@ st.markdown("""
 
 <!-- INLINE AVENGERS "A" SVG -->
 <svg id="avengers-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="aGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00d4aa"/>
-      <stop offset="100%" stop-color="#00ffcc"/>
-    </linearGradient>
-  </defs>
-  <circle cx="256" cy="256" r="248" fill="none" stroke="url(#aGrad)" stroke-width="12" opacity="0.6"/>
-  <path d="M195 380 L250 190 L305 380 Z M260 150 L390 370 L330 370 L265 210 L200 370 L140 370 Z"
-        fill="url(#aGrad)" stroke="#00ffcc" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M240 170 L270 170 L260 200 Z" fill="#00ffcc" opacity="0.8"/>
+  <path fill="#000000" d="M384.4 160.8h-66.5L337 96H272l-11.5 38.7h-71.7l5.8-19.5h49.6L248 38h125.4l-15.2 49.7h57.8c17.5 0 31.7 14.2 31.7 31.7v229c0 17.5-14.2 31.7-31.7 31.7H148.6l-14.5 47.5H63l14.4-47.5H43.6l15.1-50h48.3l14.5-47.5h252.4l10.5-34.5H166.2l-15.1 50h-48.2l-14.5 47.5h59.2L78.5 480H157l14.4-47.5h223.3c40.1 0 72.6-32.5 72.6-72.6v-229c0-40.1-32.5-72.6-72.6-72.6zM256 426.7c-94.3 0-170.7-76.4-170.7-170.7S161.7 85.3 256 85.3 426.7 161.7 426.7 256 350.3 426.7 256 426.7z"/>
 </svg>
 """, unsafe_allow_html=True)
 
