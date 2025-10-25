@@ -468,26 +468,39 @@ def render():
     proc=st.session_state["proc"]; job_A,nav_A,job_B,nav_B,df_bom_proc,df_cub_proc,df_hours,df_instr = proc["job_A"],proc["nav_A"],proc["job_B"],proc["nav_B"],proc["df_bom_proc"],proc["df_cub_proc"],proc["df_hours"],proc["df_instr"]
 
     # ---- fast plus/minus UI (no forms)
+    # --- Mechanics allocation UI (replace the old block) ---
     if not st.session_state.get("mech_confirmed",False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
-            st.markdown("""<style>.mech-row{border-bottom:1px solid rgba(255,255,255,.25);padding:6px 0;margin:2px 0}.mech-row *{color:#fff!important;font-family:system-ui,Segoe UI,Arial,sans-serif!important}.mech-row .label{margin:0;line-height:1.2;font-weight:600}.qty-box{display:flex;align-items:flex-start;gap:8px}.qty-display{min-width:64px;text-align:center;font-weight:800;font-size:22px;padding:2px 10px;border:1px solid rgba(255,255,255,.35);border-radius:8px}.mech-btn{color:#fff!important;font-weight:800!important;font-size:20px!important;border-radius:8px!important;padding:2px 10px!important}</style>""",unsafe_allow_html=True)
+            st.markdown("""<style>
+              .mech-row{border-bottom:1px solid rgba(255,255,255,.25);padding:6px 0;margin:2px 0}
+              .mech-row *{color:#fff!important;font-family:system-ui,Segoe UI,Arial,sans-serif!important}
+              .mech-row .label{margin:0;line-height:1.2;font-weight:600}
+              .qty-box{display:flex;align-items:flex-start;gap:8px;justify-content:center}
+              .qty-display{min-width:72px;text-align:center;font-weight:800;font-size:22px;padding:4px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px}
+              .stButton>button{background:#0a7f3f!important;color:#fff!important;font-weight:800!important;font-size:18px!important;border-radius:10px!important;padding:6px 0!important}
+            </style>""",unsafe_allow_html=True)
             st.session_state.setdefault("mech_take",{})
             editable=job_B.copy(); editable["Available Qty"]=editable["Quantity"].astype(float)
             def _inc(k,mx): st.session_state["mech_take"][k]=min(st.session_state["mech_take"].get(k,0.0)+1,mx)
             def _dec(k): st.session_state["mech_take"][k]=max(st.session_state["mech_take"].get(k,0.0)-1,0.0)
-            head=st.columns([2,3,4,3]); head[0].markdown("**No.**"); head[1].markdown("**Original Type**"); head[2].markdown("**Description**"); head[3].markdown("**Allocate**")
+            head=st.columns([4,4,4,3]); head[0].markdown("**No.**"); head[1].markdown("**Original Type**"); head[2].markdown("**Description**"); head[3].markdown("**Allocate**")
             for idx,row in editable.iterrows():
-                cols=st.columns([2,3,4,3])
+                cols=st.columns([4,4,4,3])
                 with cols[0]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('No.',''))}</p></div>",unsafe_allow_html=True)
                 with cols[1]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Original Type',''))}</p></div>",unsafe_allow_html=True)
                 with cols[2]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('Description',''))}</p></div>",unsafe_allow_html=True)
                 with cols[3]:
                     key=f"take_{idx}"; mx=float(row["Available Qty"]); cur=float(st.session_state["mech_take"].get(key,0.0))
                     m=st.columns([1,2,1])
-                    m[0].button("–",key=f"minus_{idx}",on_click=_dec,args=(key,),use_container_width=True)
-                    m[1].markdown(f"<div class='mech-row qty-box'><div class='qty-display'>{cur:.0f}</div></div>",unsafe_allow_html=True)
-                    m[2].button("+",key=f"plus_{idx}",on_click=_inc,args=(key,mx),use_container_width=True)
+                    with m[0]:
+                        if cur>0: st.button("–",key=f"minus_{idx}",on_click=_dec,args=(key,),use_container_width=True)
+                        else: st.markdown("<div style='height:40px'></div>",unsafe_allow_html=True)
+                    with m[1]: st.markdown(f"<div class='mech-row qty-box'><div class='qty-display'>{cur:.0f}</div></div>",unsafe_allow_html=True)
+                    with m[2]:
+                        if cur<mx: st.button("+",key=f"plus_{idx}",on_click=_inc,args=(key,mx),use_container_width=True)
+                        else: st.markdown("<div style='height:40px'></div>",unsafe_allow_html=True)
+                    st.session_state["mech_take"][key]=cur
             if st.button("✅ Confirm Mechanics Allocation"):
                 mech_rows,remain_rows=[],[]
                 for idx,row in editable.iterrows():
@@ -500,6 +513,7 @@ def render():
                     swing=pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
                     st.session_state["df_mech"]=pd.concat([st.session_state["df_mech"],swing],ignore_index=True)
             st.stop()
+
         else:
             st.session_state["mech_confirmed"]=True
 
