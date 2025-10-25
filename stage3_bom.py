@@ -333,6 +333,7 @@ def render():
         df_cubic=pipeline_3B_0_prepare_cubic(files["cubic_bom"],df_code,extras); df_j,df_n=pipeline_3B_1_filtering(df_cubic,df_stock); df_j=pipeline_3B_2_accessories(df_j,df_acc); df_n=pipeline_3B_2_accessories(df_n,df_acc); df_j=pipeline_3B_3_nav(df_j,df_part_no); df_n=pipeline_3B_3_nav(df_n,df_part_no); df_j=pipeline_3B_4_stock(df_j,files["ks"]); job_B,nav_B,df_cub_proc=pipeline_3B_5_tables(df_j,df_n,inputs["project_number"],df_part_no)
     if not st.session_state.get("mech_confirmed",False):
         if not job_B.empty:
+           # --- REPLACE the mechanics UI style + header + loop block with this (compact, aligned, uniform font) ---
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
             st.markdown("""
             <style>
@@ -377,7 +378,6 @@ def render():
                         else: st.markdown("<span class='btn-placeholder'></span>", unsafe_allow_html=True)
                 st.markdown("<hr class='mech-hr'/>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
-            # (confirm button logic below remains unchanged)
             st.session_state.setdefault("mech_take",{})
             editable=_apply_excl(job_B.copy()); editable["Available Qty"]=editable["Quantity"].astype(float)
             if editable.empty:
