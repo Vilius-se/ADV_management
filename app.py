@@ -32,40 +32,43 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- LOAD LOGO ---
-logo_path = "A_vector_logo_showcases_an_elephant-like_creature_.png"
-
-# --- CUSTOM CSS ---
-st.markdown(f"""
+# --- CUSTOM CSS + INLINE ELCOR SVG ---
+st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
-.stApp {{
+.stApp {
   background-color: #081d19;
   background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.03) 0%, transparent 80%),
     radial-gradient(circle at 90% 80%, rgba(0, 255, 204, 0.02) 0%, transparent 80%);
   background-repeat: no-repeat;
   background-size: cover;
+  background-position: center center;
   font-family: 'Inter', sans-serif;
-}}
+}
 
-#elcor-logo {{
+[data-testid="stMarkdownContainer"] {
+  background: transparent !important;
+}
+
+/* --- INLINE ELCOR LOGO --- */
+#elcor-logo {
   position: absolute;
-  top: 20px;
-  left: 30px;
-  width: 90px;
-  height: 90px;
-  animation: glow 3s ease-in-out infinite alternate;
-  filter: drop-shadow(0 0 10px rgba(0,255,204,0.6));
-}}
+  top: 14px;
+  left: 22px;
+  width: 120px;
+  height: 120px;
+  animation: elcorGlow 3.5s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 12px rgba(0,255,204,0.7));
+}
+@keyframes elcorGlow {
+  0% { filter: drop-shadow(0 0 6px rgba(0,255,204,0.3)); }
+  100% { filter: drop-shadow(0 0 22px rgba(0,255,204,1)); }
+}
 
-@keyframes glow {{
-  0% {{ filter: drop-shadow(0 0 5px rgba(0,255,204,0.2)); }}
-  100% {{ filter: drop-shadow(0 0 18px rgba(0,255,204,0.8)); }}
-}}
-
-.main-title {{
+/* Main title */
+.main-title {
   font-family: 'Inter', sans-serif;
   font-size: 3.4rem;
   font-weight: 700;
@@ -76,8 +79,10 @@ st.markdown(f"""
   letter-spacing: 0.04em;
   margin-top: 1.5rem;
   text-shadow: 0 0 20px rgba(0, 212, 170, 0.25);
-}}
-.electric-line {{
+}
+
+/* Animated glowing line */
+.electric-line {
   height: 3px;
   width: 65%;
   margin: 1rem auto 2.5rem auto;
@@ -87,21 +92,25 @@ st.markdown(f"""
   box-shadow: 0 0 20px rgba(0, 255, 204, 0.7), 0 4px 10px rgba(0, 255, 204, 0.2);
   border-radius: 3px;
   opacity: 0.95;
-}}
-@keyframes moveLine {{
-  0% {{ background-position: 0% 50%; }}
-  50% {{ background-position: 100% 50%; }}
-  100% {{ background-position: 0% 50%; }}
-}}
-.subtitle {{
+}
+@keyframes moveLine {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Subtitle */
+.subtitle {
   font-family: 'Inter', sans-serif;
   text-align: center;
   color: #b6cfc8;
   font-size: 1.2rem;
   font-weight: 400;
   margin-bottom: 2.5rem;
-}}
-.stButton > button {{
+}
+
+/* Buttons */
+.stButton > button {
   background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
   color: white;
   border: none;
@@ -110,16 +119,45 @@ st.markdown(f"""
   font-size: 1.1rem;
   font-weight: 700;
   transition: all 0.3s ease;
-}}
-.stButton > button:hover {{
+}
+.stButton > button:hover {
   transform: translateY(-2px);
   box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
-}}
-#MainMenu, footer, header {{visibility: hidden;}}
+}
+.stButton > button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Hide Streamlit menu/footer */
+#MainMenu, footer, header {visibility: hidden;}
 </style>
 
-<!-- ELCOR LOGO -->
-<img id="elcor-logo" src="data:image/png;base64,{st.image(logo_path, output_format='PNG').data}" />
+<!-- ELCOR SVG LOGO -->
+<svg id="elcor-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <path d="M90 280 Q60 250 80 200 Q100 150 160 120 Q220 90 280 100 Q340 110 390 160 Q440 210 450 270 Q460 330 420 370 Q380 410 320 420 Q260 430 210 410 Q160 390 130 350 Q110 320 90 280Z"
+        fill="#4A4033" stroke="#00d4aa" stroke-width="4" />
+  <path d="M140 190 Q200 150 280 160 Q360 170 400 210 Q410 260 370 290 Q320 310 260 300 Q200 290 160 250 Q150 220 140 190Z"
+        fill="#5a5042" stroke="#00ffcc" stroke-width="3" opacity="0.85"/>
+  <path d="M200 140 Q230 110 270 110 Q310 115 340 150 Q330 170 290 180 Q250 190 210 170 Q200 155 200 140Z"
+        fill="#3c3328" stroke="#00ffcc" stroke-width="3"/>
+  <circle cx="310" cy="155" r="8" fill="#00ffee" filter="url(#neonGlow)" />
+  <path d="M170 380 Q160 440 190 460 Q220 470 240 430 Q250 400 230 370Z"
+        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
+  <path d="M330 390 Q320 440 350 460 Q380 470 400 430 Q410 400 390 370Z"
+        fill="#3d3429" stroke="#00d4aa" stroke-width="3"/>
+  <path d="M90 280 Q130 370 240 410 Q350 440 420 370 Q460 330 450 270"
+        fill="none" stroke="#00ffee" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+  <defs>
+    <filter id="neonGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
