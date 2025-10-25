@@ -90,39 +90,57 @@ def pipeline_2_1_user_inputs():
     types=["A","B","B1","B2","C","C1","C2","C3","C4","C4.1","C5","C6","C7","C8","F","F1","F2","F3","F4","F4.1","F5","F6","F7","G","G1","G2","G3","G4","G5","G6","G7","Custom"]
     switches=["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"]
     return {"project_number":norm_pn,"panel_type":st.selectbox("Panel type",types),"grounding":st.selectbox("Grounding type",["TT","TN-S","TN-C-S"]),"main_switch":st.selectbox("Main switch",switches),"swing_frame":st.checkbox("Swing frame?"),"ups":st.checkbox("UPS?"),"rittal":st.checkbox("Rittal?")}
+# REPLACE pipeline_2_2_file_uploads(...) WITH THIS VERSION
 def pipeline_2_2_file_uploads(rittal=False):
-    st.subheader("Upload Required Files"); dfs={}
+    st.subheader("Upload Required Files")
+    uploads = st.session_state.setdefault("uploads", {})
+    dfs = {}
+    def _read_cached(key, *, skiprows=None):
+        if key in uploads and uploads[key]:
+            try: return read_excel_any(io.BytesIO(uploads[key]), skiprows=skiprows) if skiprows is not None else read_excel_any(io.BytesIO(uploads[key]))
+            except Exception: return read_excel_any(io.BytesIO(uploads[key]))
+        return None
     if not rittal:
-        cubic_bom=st.file_uploader("Insert CUBIC BOM",type=["xls","xlsx","xlsm"],key="cubic_bom")
-        if cubic_bom:
-            try: df_cubic=read_excel_any(cubic_bom,skiprows=15)
-            except Exception: df_cubic=read_excel_any(cubic_bom)
-            df_cubic=df_cubic.rename(columns=lambda c:str(c).strip())
-            qty_cols=[c for c in df_cubic.columns if str(c).strip() in {"E","F","G"}]
-            combo=[c for c in df_cubic.columns if re.sub(r"\\s+","",str(c)).upper() in {"E+F+G","E+F","F+G","E+G"} or (("E" in str(c).upper()) and ("F" in str(c).upper()) and ("G" in str(c).upper()))]
-            if qty_cols: df_cubic["Quantity"]=df_cubic[qty_cols].bfill(axis=1).iloc[:,0]
-            elif combo:
-                cc=combo[0]; df_cubic["Quantity"]=df_cubic[cc].apply(lambda v: safe_parse_qty(re.search(r"([0-9]+[.,]?[0-9]*)",str(v)).group(1)) if (pd.notna(v) and re.search(r"([0-9]+[.,]?[0-9]*)",str(v))) else 0.0)
+        up_cubic = st.file_uploader("Insert CUBIC BOM", type=["xls","xlsx","xlsm"], key="cubic_bom")
+        if up_cubic: uploads["cubic_bom"] = up_cubic.getvalue()
+        df_cubic = _read_cached("cubic_bom", skiprows=15)
+        if df_cubic is not None:
+            df_cubic = df_cubic.rename(columns=lambda c: str(c).strip())
+            qty_cols = [c for c in df_cubic.columns if str(c).strip() in {"E","F","G"}]
+            combo_cols = [c for c in df_cubic.columns if re.sub(r"\s+","",str(c)).upper() in {"E+F+G","E+F","F+G","E+G"} or (("E" in str(c).upper()) and ("F" in str(c).upper()) and ("G" in str(c).upper()))]
+            if qty_cols: df_cubic["Quantity"] = df_cubic[qty_cols].bfill(axis=1).iloc[:,0]
+            elif combo_cols:
+                cc = combo_cols[0]
+                df_cubic["Quantity"] = df_cubic[cc].apply(lambda v: safe_parse_qty(re.search(r"([0-9]+[.,]?[0-9]*)", str(v)).group(1)) if (pd.notna(v) and re.search(r"([0-9]+[.,]?[0-9]*)", str(v))) else 0.0)
             else:
-                if "Quantity" not in df_cubic.columns: df_cubic["Quantity"]=0
-            df_cubic["Quantity"]=pd.to_numeric(df_cubic["Quantity"],errors="coerce").fillna(0)
-            if "Item Id" in df_cubic.columns: df_cubic=df_cubic.rename(columns={"Item Id":"Original Type"})
-            else: df_cubic["Original Type"]=df_cubic[df_cubic.columns[0]].astype(str)
-            if "No." not in df_cubic.columns: df_cubic["No."]=df_cubic["Original Type"]
-            dfs["cubic_bom"]=df_cubic
-    bom=st.file_uploader("Insert BOM",type=["xls","xlsx","xlsm"],key="bom")
-    if bom:
-        df_bom=read_excel_any(bom)
-        if df_bom.shape[1]>=2:
-            colA=df_bom.iloc[:,0].fillna("").astype(str).str.strip(); colB=df_bom.iloc[:,1].fillna("").astype(str).str.strip(); df_bom["Original Article"]=colA; df_bom["Original Type"]=colB.where(colB!="",colA)
+                if "Quantity" not in df_cubic.columns: df_cubic["Quantity"] = 0
+            df_cubic["Quantity"] = pd.to_numeric(df_cubic["Quantity"], errors="coerce").fillna(0)
+            if "Item Id" in df_cubic.columns: df_cubic = df_cubic.rename(columns={"Item Id":"Original Type"})
+            else: df_cubic["Original Type"] = df_cubic[df_cubic.columns[0]].astype(str)
+            if "No." not in df_cubic.columns: df_cubic["No."] = df_cubic["Original Type"]
+            dfs["cubic_bom"] = df_cubic
+    up_bom = st.file_uploader("Insert BOM", type=["xls","xlsx","xlsm"], key="bom")
+    if up_bom: uploads["bom"] = up_bom.getvalue()
+    df_bom = _read_cached("bom")
+    if df_bom is not None:
+        if df_bom.shape[1] >= 2:
+            colA = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            colB = df_bom.iloc[:,1].fillna("").astype(str).str.strip()
+            df_bom["Original Article"] = colA; df_bom["Original Type"] = colB.where(colB!="", colA)
         else:
-            df_bom["Original Article"]=df_bom.iloc[:,0].fillna("").astype(str).str.strip(); df_bom["Original Type"]=df_bom["Original Article"]
-        dfs["bom"]=df_bom
-    data_file=st.file_uploader("Insert DATA",type=["xls","xlsx","xlsm"],key="data")
-    if data_file: dfs["data"]=pd.read_excel(data_file,sheet_name=None)
-    ks_file=st.file_uploader("Insert Kaunas Stock",type=["xls","xlsx","xlsm"],key="ks")
-    if ks_file: dfs["ks"]=read_excel_any(ks_file)
+            df_bom["Original Article"] = df_bom.iloc[:,0].fillna("").astype(str).str.strip()
+            df_bom["Original Type"] = df_bom["Original Article"]
+        dfs["bom"] = df_bom
+    up_data = st.file_uploader("Insert DATA", type=["xls","xlsx","xlsm"], key="data")
+    if up_data: uploads["data"] = up_data.getvalue()
+    if "data" in uploads and uploads["data"]:
+        dfs["data"] = pd.read_excel(io.BytesIO(uploads["data"]), sheet_name=None)
+    up_ks = st.file_uploader("Insert Kaunas Stock", type=["xls","xlsx","xlsm"], key="ks")
+    if up_ks: uploads["ks"] = up_ks.getvalue()
+    df_ks = _read_cached("ks")
+    if df_ks is not None: dfs["ks"] = df_ks
     return dfs
+
 def pipeline_2_3_get_sheet_safe(data_dict,names):
     if not isinstance(data_dict,dict): return None
     targets=[n.upper().replace(" ","_") for n in names]
@@ -361,6 +379,20 @@ def render():
     if not inputs: return
     st.session_state["inputs"]=inputs
     files=pipeline_2_2_file_uploads(inputs["rittal"]); 
+    # keep uploads cached; do not reset on +/- reruns
+    if "processing_started" not in st.session_state: st.session_state["processing_started"] = False
+    if "mech_confirmed" not in st.session_state: st.session_state["mech_confirmed"] = False
+    if "df_mech" not in st.session_state: st.session_state["df_mech"] = pd.DataFrame()
+    if "df_remain" not in st.session_state: st.session_state["df_remain"] = pd.DataFrame()
+    # launch processing once; do not clear cached uploads on rerun
+    if st.button("🚀 Run Processing"):
+        st.session_state["processing_started"] = True
+        st.session_state["mech_confirmed"] = False
+        st.session_state["df_mech"] = pd.DataFrame()
+        st.session_state["df_remain"] = pd.DataFrame()
+        st.session_state.pop("export_bundle", None)
+    if not st.session_state["processing_started"]:
+        st.stop()
     if not files: return
     reqA=["bom","data","ks"]; reqB=["cubic_bom","data","ks"] if not inputs["rittal"] else []; missA=[k for k in reqA if k not in files]; missB=[k for k in reqB if k not in files]
     st.subheader("📋 Required files"); c1,c2=st.columns(2)
