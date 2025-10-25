@@ -354,11 +354,12 @@ def run_processing(files, inputs):
                                 "extras":extras,"job_A":job_A,"nav_A":nav_A,"df_bom_proc":df_bom_proc,"job_B":job_B,"nav_B":nav_B,"df_cub_proc":df_cub_proc}
 
 # IN render(), REPLACE the block from the Run Processing button down to the end of "3B" processing with this:
-    if st.button("🚀 Run Processing"):
-        st.session_state["processing_started"] = True
-        st.session_state["mech_confirmed"] = False
-        st.session_state["df_mech"] = pd.DataFrame()
-        st.session_state["df_remain"] = pd.DataFrame()
+    if st.button("🚀 Run Processing", key="run_processing"):
+        st.session_state["processing_started"]=True
+        st.session_state["mech_confirmed"]=False
+        st.session_state["df_mech"]=pd.DataFrame()
+        st.session_state["df_remain"]=pd.DataFrame()
+        st.session_state.pop("export_bundle",None)
         run_processing(files, inputs)
     if not st.session_state.get("processing_started", False): st.stop()
     # Reuse cached processing; prevents app “reset” on +/– clicks
@@ -512,7 +513,7 @@ def render():
                         else: st.markdown("<span class='btn-placeholder'></span>", unsafe_allow_html=True)
                 st.markdown("<hr class='mech-hr'/>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
-            if st.button("✅ Confirm Mechanics Allocation"):
+            if st.button("✅ Confirm Mechanics Allocation", key="confirm_mech"):
                 mech_rows,remain_rows=[],[]
                 for idx,row in editable.iterrows():
                     k=f"take_{idx}"; take=float(st.session_state["mech_take"].get(k,0.0)); avail=float(row["Available Qty"]); r=row.to_dict()
@@ -567,5 +568,6 @@ def render():
         add_df_to_wb(b["df_mech"],"JobJournal_Mech",job_w); add_df_to_wb(b["df_remain"],"JobJournal_Remaining",job_w); add_df_to_wb(b["job_A"],"JobJournal_ProjectBOM",job_w); add_df_to_wb(b["job_B"],"JobJournal_CUBICBOM",job_w)
         nav_w={"A":8,"B":10,"C":9,"D":9,"E":9,"F":9,"G":50}
         add_df_to_wb(b["nav_B"],"NAV_CUBICBOM",nav_w,nav=True); add_df_to_wb(b["nav_A"],"NAV_ProjectBOM",nav_w,nav=True); add_df_to_wb(b["calc"],"Calculation",{"A":12,"B":18},calc=True); add_df_to_wb(b["miss_nav_A"],"MissingNAV_ProjectBOM"); add_df_to_wb(b["miss_nav_B"],"MissingNAV_CUBICBOM")
-        path=f"/mnt/data/{filename}"; wb.save(path); st.download_button("⬇️ Download Excel",data=open(path,"rb"),file_name=filename,mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-if __name__=="__main__": render()
+        save_xlsx_path = f"/mnt/data/{filename}"
+        wb.save(save_xlsx_path)
+        path=f"/mnt/data/{filename}"; wb.save(path); st.download_button("⬇️ Download Excel", data=open(save_xlsx_path,"rb"),file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="download_xlsx")
