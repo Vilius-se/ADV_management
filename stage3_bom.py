@@ -36,6 +36,15 @@ def safe_parse_qty(x):
     try: return float(s)
     except Exception: return 0.0
 
+def get_excluded_from_stock(df_stock):
+    if df_stock is None or df_stock.empty: return set()
+    cols=list(df_stock.columns)
+    if len(cols)<3: return set()
+    s=df_stock.rename(columns={cols[0]:"Component",cols[2]:"Comment"})
+    m=s["Comment"].astype(str).str.strip().str.lower().isin(["no need","q1"])
+    return set(s.loc[m,"Component"].astype(str).str.upper().str.replace(" ","").str.strip())
+
+
 def add_extra_components(df, extras):
     if df is None: df = pd.DataFrame()
     out = df.copy()
@@ -405,22 +414,15 @@ def pipeline_4_2_missing_nav(df, source):
     return pd.DataFrame({"Source": source,"Original Article": missing.get("Original Article",""),"Original Type": missing.get("Original Type",""),"Quantity": qty,"NAV No.": missing["No."]})
 
 # =============================
-# Render App (fast +/−, cached results)
+# Render App
 # =============================
 def render():
     st.header(f"Stage 3: BOM Management · {get_app_version()}")
-    st.session_state.setdefault("processing_started", False); st.session_state.setdefault("mech_confirmed", False)
-    st.session_state.setdefault("df_mech", pd.DataFrame()); st.session_state.setdefault("df_remain", pd.DataFrame()); st.session_state.setdefault("proc", None)
-    inputs = pipeline_2_1_user_inputs()
+    inputs=pipeline_2_1_user_inputs()
     if not inputs: return
-    st.session_state["inputs"] = inputs
-    files = pipeline_2_2_file_uploads(inputs["rittal"])
+    st.session_state["inputs"]=inputs
+    files=pipeline_2_2_file_uploads(inputs["rittal"])
     if not files: return
-    def _files_sig(d): return "|".join(sorted(f"{k}:{getattr(v,'name',k)}" for k,v in (d or {}).items()))
-    sig=_files_sig(files)
-    if st.session_state.get("files_sig")!=sig:
-        st.session_state["files_sig"]=sig; st.session_state["processing_started"]=False; st.session_state["mech_confirmed"]=False
-        st.session_state["df_mech"]=pd.DataFrame(); st.session_state["df_remain"]=pd.DataFrame(); st.session_state["proc"]=None
     required_A=["bom","data","ks"]; required_B=["cubic_bom","data","ks"] if not inputs["rittal"] else []
     miss_A=[k for k in required_A if k not in files]; miss_B=[k for k in required_B if k not in files]
     st.subheader("📋 Required files")
@@ -430,61 +432,60 @@ def render():
         if not inputs["rittal"]: st.success("CUBIC BOM: OK") if not miss_B else st.warning(f"CUBIC BOM missing: {miss_B}")
         else: st.info("CUBIC BOM skipped (Rittal)")
     if st.button("🚀 Run Processing"):
-        st.session_state["processing_started"]=True; st.session_state["mech_confirmed"]=False
-        st.session_state["df_mech"]=pd.DataFrame(); st.session_state["df_remain"]=pd.DataFrame(); st.session_state["proc"]=None
-    if not st.session_state["processing_started"]:
-        st.info("Upload required files and click **Run Processing**."); return
-
-    # ---- compute once and cache
-    if st.session_state["proc"] is None:
-        data_book=files.get("data",{})
-        df_stock=pipeline_2_3_get_sheet_safe(data_book,["Stock"]); df_part_no=pipeline_2_4_normalize_part_no(pipeline_2_3_get_sheet_safe(data_book,["Part_no","Parts_no","Part no"]))
-        df_hours=pipeline_2_3_get_sheet_safe(data_book,["Hours"]); df_acc=pipeline_2_3_get_sheet_safe(data_book,["Accessories"])
-        df_code=pipeline_2_3_get_sheet_safe(data_book,["Part_code"]); df_instr=pipeline_2_3_get_sheet_safe(data_book,["Instructions"]); df_main_sw=pipeline_2_3_get_sheet_safe(data_book,["main_switch"])
-        extras=[]
-        if inputs["ups"]:
-            extras.extend([{"type":"LI32111CT01","qty":1,"target":"bom","force_no":"2214036"},{"type":"ADV UPS holder V3","qty":1,"target":"bom","force_no":"2214035"},{"type":"268-2610","qty":1,"target":"bom","force_no":"1865206"}])
-        if inputs["swing_frame"]: extras.append({"type":"9030+2970","qty":1,"target":"cubic","force_no":"2185835"})
-        if df_instr is not None and not df_instr.empty:
-            row=df_instr[df_instr.iloc[:,0].astype(str).str.upper()==str(inputs["panel_type"]).upper()]
-            if not row.empty:
-                if inputs["panel_type"][0] not in ["F","G"]:
-                    try: qty_sdd=int(pd.to_numeric(row.iloc[0,4],errors="coerce").fillna(0))
-                    except Exception: qty_sdd=0
-                    if qty_sdd>0: extras.append({"type":"SDD07550","qty":qty_sdd,"target":"cubic","force_no":"SDD07550"})
-                for col_idx in range(5,10):
-                    if col_idx<row.shape[1]:
-                        val=str(row.iloc[0,col_idx]).strip()
-                        if val and val.lower()!="nan": extras.append({"type":val,"qty":1,"target":"cubic"})
-        job_A=nav_A=df_bom_proc=pd.DataFrame(); job_B=nav_B=df_cub_proc=pd.DataFrame()
-        if not miss_A:
-            df_bom=pipeline_3A_0_rename(files["bom"],df_code,extras); df_bom=pipeline_3A_1_filter(df_bom,df_stock); df_bom=pipeline_3A_2_accessories(df_bom,df_acc)
-            df_bom=pipeline_3A_3_nav(df_bom,df_part_no); df_bom=pipeline_3A_4_stock(df_bom,files["ks"]); job_A,nav_A,df_bom_proc=pipeline_3A_5_tables(df_bom,inputs["project_number"],df_part_no)
-        if not inputs["rittal"] and not miss_B:
-            df_cubic=pipeline_3B_0_prepare_cubic(files["cubic_bom"],df_code,extras); df_j,df_n=pipeline_3B_1_filtering(df_cubic,df_stock)
-            df_j=pipeline_3B_2_accessories(df_j,df_acc); df_n=pipeline_3B_2_accessories(df_n,df_acc); df_j=pipeline_3B_3_nav(df_j,df_part_no); df_n=pipeline_3B_3_nav(df_n,df_part_no)
-            df_j=pipeline_3B_4_stock(df_j,files["ks"]); job_B,nav_B,df_cub_proc=pipeline_3B_5_tables(df_j,df_n,inputs["project_number"],df_part_no)
-        st.session_state["proc"]={"df_hours":df_hours,"df_instr":df_instr,"job_A":job_A,"nav_A":nav_A,"job_B":job_B,"nav_B":nav_B,"df_bom_proc":df_bom_proc,"df_cub_proc":df_cub_proc,"df_part_no":df_part_no}
-    proc=st.session_state["proc"]; job_A,nav_A,job_B,nav_B,df_bom_proc,df_cub_proc,df_hours,df_instr = proc["job_A"],proc["nav_A"],proc["job_B"],proc["nav_B"],proc["df_bom_proc"],proc["df_cub_proc"],proc["df_hours"],proc["df_instr"]
-
-    # ---- fast plus/minus UI (no forms)
-    # --- Mechanics allocation UI (replace the old block) ---
+        st.session_state["processing_started"]=True; st.session_state["mech_confirmed"]=False; st.session_state["df_mech"]=pd.DataFrame(); st.session_state["df_remain"]=pd.DataFrame(); st.session_state.pop("export_bundle",None)
+    if not st.session_state.get("processing_started",False): st.stop()
+    data_book=files.get("data",{})
+    df_stock=pipeline_2_3_get_sheet_safe(data_book,["Stock"])
+    df_part_no=pipeline_2_4_normalize_part_no(pipeline_2_3_get_sheet_safe(data_book,["Part_no","Parts_no","Part no"]))
+    df_hours=pipeline_2_3_get_sheet_safe(data_book,["Hours"])
+    df_acc=pipeline_2_3_get_sheet_safe(data_book,["Accessories"])
+    df_code=pipeline_2_3_get_sheet_safe(data_book,["Part_code"])
+    df_instr=pipeline_2_3_get_sheet_safe(data_book,["Instructions"])
+    df_main_sw=pipeline_2_3_get_sheet_safe(data_book,["main_switch"])
+    extras=[]
+    if inputs["ups"]:
+        extras.extend([{"type":"LI32111CT01","qty":1,"target":"bom","force_no":"2214036"},{"type":"ADV UPS holder V3","qty":1,"target":"bom","force_no":"2214035"},{"type":"268-2610","qty":1,"target":"bom","force_no":"1865206"}])
+    if inputs["swing_frame"]: extras.append({"type":"9030+2970","qty":1,"target":"cubic","force_no":"2185835"})
+    if df_instr is not None and not df_instr.empty:
+        row=df_instr[df_instr.iloc[:,0].astype(str).str.upper()==str(inputs["panel_type"]).upper()]
+        if not row.empty:
+            if inputs["panel_type"][0] not in ["F","G"]:
+                try: qty_sdd=int(pd.to_numeric(row.iloc[0,4],errors="coerce").fillna(0))
+                except Exception: qty_sdd=0
+                if qty_sdd>0: extras.append({"type":"SDD07550","qty":qty_sdd,"target":"cubic","force_no":"SDD07550"})
+            for col_idx in range(5,10):
+                if col_idx<row.shape[1]:
+                    val=str(row.iloc[0,col_idx]).strip()
+                    if val and val.lower()!="nan": extras.append({"type":val,"qty":1,"target":"cubic"})
+    job_A=nav_A=df_bom_proc=pd.DataFrame(); job_B=nav_B=df_cub_proc=pd.DataFrame()
+    if not miss_A:
+        df_bom=pipeline_3A_0_rename(files["bom"],df_code,extras)
+        df_bom=pipeline_3A_1_filter(df_bom,df_stock)
+        df_bom=pipeline_3A_2_accessories(df_bom,df_acc)
+        df_bom=pipeline_3A_3_nav(df_bom,df_part_no)
+        df_bom=pipeline_3A_4_stock(df_bom,files["ks"])
+        job_A,nav_A,df_bom_proc=pipeline_3A_5_tables(df_bom,inputs["project_number"],df_part_no)
+    if not inputs["rittal"] and not miss_B:
+        df_cubic=pipeline_3B_0_prepare_cubic(files["cubic_bom"],df_code,extras)
+        df_j,df_n=pipeline_3B_1_filtering(df_cubic,df_stock)
+        df_j=pipeline_3B_2_accessories(df_j,df_acc); df_n=pipeline_3B_2_accessories(df_n,df_acc)
+        df_j=pipeline_3B_3_nav(df_j,df_part_no); df_n=pipeline_3B_3_nav(df_n,df_part_no)
+        df_j=pipeline_3B_4_stock(df_j,files["ks"])
+        job_B,nav_B,df_cub_proc=pipeline_3B_5_tables(df_j,df_n,inputs["project_number"],df_part_no)
+    ex_set=get_excluded_from_stock(df_stock)
     if not st.session_state.get("mech_confirmed",False):
         if not job_B.empty:
             st.subheader("📑 Job Journal (CUBIC BOM → allocate to Mechanics)")
-            st.markdown("""<style>
-              .mech-row{border-bottom:1px solid rgba(255,255,255,.25);padding:6px 0;margin:2px 0}
-              .mech-row *{color:#fff!important;font-family:system-ui,Segoe UI,Arial,sans-serif!important}
-              .mech-row .label{margin:0;line-height:1.2;font-weight:600}
-              .qty-box{display:flex;align-items:flex-start;gap:8px;justify-content:center}
-              .qty-display{min-width:72px;text-align:center;font-weight:800;font-size:22px;padding:4px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px}
-              .stButton>button{background:#0a7f3f!important;color:#fff!important;font-weight:800!important;font-size:18px!important;border-radius:10px!important;padding:6px 0!important}
-            </style>""",unsafe_allow_html=True)
+            st.markdown("""<style>.mech-row{border-bottom:1px solid rgba(255,255,255,.25);padding:6px 0;margin:2px 0}.mech-row *{color:#fff!important;font-family:system-ui,Segoe UI,Arial,sans-serif!important}.mech-row .label{margin:0;line-height:1.2;font-weight:600}.qty-box{display:flex;align-items:flex-start;gap:8px;justify-content:center}.qty-display{min-width:72px;text-align:center;font-weight:800;font-size:22px;padding:4px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px}.mech-zone .stButton>button{background:#0a7f3f!important;color:#fff!important;font-weight:800!important;font-size:18px!important;border-radius:10px!important;padding:6px 0!important}</style>""",unsafe_allow_html=True)
             st.session_state.setdefault("mech_take",{})
-            editable=job_B.copy(); editable["Available Qty"]=editable["Quantity"].astype(float)
+            _norm=lambda s: str(s).upper().replace(" ","").strip()
+            editable=job_B[~job_B["Original Type"].map(_norm).isin(ex_set)].copy()
+            if editable.empty: st.info("No selectable items (filtered by Stock comments: No need/Q1)."); st.session_state["mech_confirmed"]=True; st.stop()
+            editable["Available Qty"]=editable["Quantity"].astype(float)
             def _inc(k,mx): st.session_state["mech_take"][k]=min(st.session_state["mech_take"].get(k,0.0)+1,mx)
             def _dec(k): st.session_state["mech_take"][k]=max(st.session_state["mech_take"].get(k,0.0)-1,0.0)
             head=st.columns([4,4,4,3]); head[0].markdown("**No.**"); head[1].markdown("**Original Type**"); head[2].markdown("**Description**"); head[3].markdown("**Allocate**")
+            st.markdown("<div class='mech-zone'>",unsafe_allow_html=True)
             for idx,row in editable.iterrows():
                 cols=st.columns([4,4,4,3])
                 with cols[0]: st.markdown(f"<div class='mech-row'><p class='label'>{str(row.get('No.',''))}</p></div>",unsafe_allow_html=True)
@@ -501,6 +502,7 @@ def render():
                         if cur<mx: st.button("+",key=f"plus_{idx}",on_click=_inc,args=(key,mx),use_container_width=True)
                         else: st.markdown("<div style='height:40px'></div>",unsafe_allow_html=True)
                     st.session_state["mech_take"][key]=cur
+            st.markdown("</div>",unsafe_allow_html=True)
             if st.button("✅ Confirm Mechanics Allocation"):
                 mech_rows,remain_rows=[],[]
                 for idx,row in editable.iterrows():
@@ -510,44 +512,58 @@ def render():
                     if rem>0 and str(r.get("No.",""))!="2185835": remain_rows.append({**r,"Quantity":rem})
                 st.session_state["df_mech"]=pd.DataFrame(mech_rows); st.session_state["df_remain"]=pd.DataFrame(remain_rows); st.session_state["mech_confirmed"]=True
                 if inputs["swing_frame"]:
-                    swing=pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No.":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
+                    swing=pd.DataFrame([{"Entry Type":"Item","Original Type":"9030+2970","No":"2185835","Quantity":1,"Document No.":inputs["project_number"],"Job No.":inputs["project_number"],"Job Task No.":1144,"Location Code":PURCHASE_LOCATION_CODE,"Bin Code":"","Description":"Swing frame component","Source":"Extra"}])
                     st.session_state["df_mech"]=pd.concat([st.session_state["df_mech"],swing],ignore_index=True)
-            st.stop()
-
-        else:
-            st.session_state["mech_confirmed"]=True
-
-    # ---- results + export
-    def show_table(df,title): 
+        st.stop()
+    def show_table(df,title):
         if df is not None and not df.empty: st.subheader(title); st.data_editor(df,use_container_width=True,hide_index=True,height=300)
-    show_table(st.session_state.get("df_mech"),"📑 Job Journal (CUBIC BOM TO MECH.)"); show_table(st.session_state.get("df_remain"),"📑 Job Journal (CUBIC BOM REMAINING)")
-    show_table(job_A,"📑 Job Journal (Project BOM)"); show_table(nav_A,"🛒 NAV Table (Project BOM)"); show_table(nav_B,"🛒 NAV Table (CUBIC BOM)")
-    calc=pipeline_4_1_calculation(df_bom_proc,df_cub_proc,df_hours,inputs["panel_type"],inputs["grounding"],inputs["project_number"],df_instr); show_table(calc,"💰 Calculation")
-    miss_nav_A=pipeline_4_2_missing_nav(df_bom_proc,"Project BOM"); miss_nav_B=pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM"); show_table(miss_nav_A,"⚠️ Missing NAV Numbers (Project BOM)"); show_table(miss_nav_B,"⚠️ Missing NAV Numbers (CUBIC BOM)")
+    def _apply_excl(df):
+        if df is None or df.empty: return df
+        t=df.copy()
+        if "Original Type" in t.columns:
+            t["_N"]=t["Original Type"].astype(str).str.upper().str.replace(" ","").str.strip()
+            t=t[~t["_N"].isin(ex_set)].drop(columns=["_N"])
+        return t
+    st.session_state["df_mech"]=_apply_excl(st.session_state.get("df_mech"))
+    st.session_state["df_remain"]=_apply_excl(st.session_state.get("df_remain"))
+    show_table(st.session_state.get("df_mech"),"📑 Job Journal (CUBIC BOM TO MECH.)")
+    show_table(st.session_state.get("df_remain"),"📑 Job Journal (CUBIC BOM REMAINING)")
+    show_table(job_A,"📑 Job Journal (Project BOM)")
+    show_table(nav_A,"🛒 NAV Table (Project BOM)")
+    show_table(nav_B,"🛒 NAV Table (CUBIC BOM)")
+    calc=pipeline_4_1_calculation(df_bom_proc,df_cub_proc,df_hours,inputs["panel_type"],inputs["grounding"],inputs["project_number"],df_instr)
+    show_table(calc,"💰 Calculation")
+    miss_nav_A=pipeline_4_2_missing_nav(df_bom_proc,"Project BOM")
+    miss_nav_B=pipeline_4_2_missing_nav(df_cub_proc,"CUBIC BOM")
+    show_table(miss_nav_A,"⚠️ Missing NAV Numbers (Project BOM)")
+    show_table(miss_nav_B,"⚠️ Missing NAV Numbers (CUBIC BOM)")
     st.session_state["export_bundle"]={"inputs":inputs,"calc":calc,"job_A":job_A,"nav_A":nav_A,"job_B":job_B,"nav_B":nav_B,"miss_nav_A":miss_nav_A,"miss_nav_B":miss_nav_B,"df_mech":st.session_state.get("df_mech"),"df_remain":st.session_state.get("df_remain")}
     st.subheader("💾 Export")
     if st.button("💾 Export Results to Excel"):
-        b=st.session_state["export_bundle"]; ts=datetime.datetime.now().strftime("%Y%m%d%H%M")
+        b=st.session_state.get("export_bundle",{})
+        if not b: st.warning("Nothing to export – run processing first."); st.stop()
+        ts=datetime.datetime.now().strftime("%Y%m%d%H%M")
         try: project_size=str(b["calc"][b["calc"]["Label"]=="Project size"]["Value"].iloc[0]); pallet_size=str(b["calc"][b["calc"]["Label"]=="Pallet size"]["Value"].iloc[0])
         except Exception: project_size=pallet_size=""
         filename=f"{b['inputs']['project_number']}_{b['inputs']['panel_type']}_{b['inputs']['grounding']}_{pallet_size}_{ts}.xlsx"
-        wb=Workbook(); ws=wb.active; ws.title="Info"; info=[["Project number",b["inputs"]["project_number"]],["Panel type",b["inputs"]["panel_type"]],["Grounding",b["inputs"]["grounding"]],["Main switch",b["inputs"]["main_switch"]],["Swing frame",b["inputs"]["swing_frame"]],["UPS",b["inputs"]["ups"]],["Rittal",b["inputs"]["rittal"]],["Project size",project_size],["Pallet size",pallet_size]]
-        for r in info: ws.append(r)
+        wb=Workbook(); ws=wb.active; ws.title="Info"
+        info_data=[["Project number",b["inputs"]["project_number"]],["Panel type",b["inputs"]["panel_type"]],["Grounding",b["inputs"]["grounding"]],["Main switch",b["inputs"]["main_switch"]],["Swing frame",b["inputs"]["swing_frame"]],["UPS",b["inputs"]["ups"]],["Rittal",b["inputs"]["rittal"]],["Project size",project_size],["Pallet size",pallet_size]]
+        for row in info_data: ws.append(row)
         ws.column_dimensions["A"].width=20; ws.column_dimensions["B"].width=20
         bold=Font(bold=True); grey=PatternFill(start_color="DDDDDD",end_color="DDDDDD",fill_type="solid"); thin=Border(left=Side(style="thin"),right=Side(style="thin"),top=Side(style="thin"),bottom=Side(style="thin"))
         for row in ws["A1":"A9"]:
             for c in row: c.font=bold; c.fill=grey; c.border=thin
         for row in ws["B1":"B9"]:
             for c in row: c.border=thin
-        def add_df(df,title,col_w=None,nav=False,calc=False):
+        def add_df_to_wb(df,title,col_widths=None,nav=False,calc=False):
             if df is None or df.empty: return
             w=wb.create_sheet(title); w.append(df.columns.tolist())
             for _,r in df.iterrows(): w.append(list(r.values))
-            if col_w:
-                for col,wid in col_w.items(): w.column_dimensions[col].width=wid
-            mr,mc=w.max_row,w.max_column
-            for rx in w.iter_rows(min_row=1,max_row=mr,min_col=1,max_col=mc):
-                for cc in rx: cc.border=thin
+            if col_widths:
+                for col,width in col_widths.items(): w.column_dimensions[col].width=width
+            max_row,max_col=w.max_row,w.max_column
+            for r in w.iter_rows(min_row=1,max_row=max_row,min_col=1,max_col=max_col):
+                for c in r: c.border=thin
             if nav:
                 for row in w["A1":"G1"]:
                     for c in row: c.font=bold; c.fill=grey
@@ -556,9 +572,17 @@ def render():
                     for c in row: c.font=bold; c.fill=grey
                 for row in w["B2":"B10"]:
                     for c in row: c.number_format=CURRENCY_FORMAT
-        jw={"A":8,"B":10,"C":12,"D":12,"E":12,"F":12,"G":13,"H":12,"I":40,"J":25}; add_df(b["df_mech"],"JobJournal_Mech",jw); add_df(b["df_remain"],"JobJournal_Remaining",jw); add_df(b["job_A"],"JobJournal_ProjectBOM",jw); add_df(b["job_B"],"JobJournal_CUBICBOM",jw)
-        nw={"A":8,"B":10,"C":9,"D":9,"E":9,"F":9,"G":50}; add_df(b["nav_B"],"NAV_CUBICBOM",nw,nav=True); add_df(b["nav_A"],"NAV_ProjectBOM",nw,nav=True); add_df(b["calc"],"Calculation",{"A":12,"B":18},calc=True); add_df(b["miss_nav_A"],"MissingNAV_ProjectBOM"); add_df(b["miss_nav_B"],"MissingNAV_CUBICBOM")
-        path=f"/mnt/data/{filename}"; wb.save(path); st.download_button("⬇️ Download Excel",data=open(path,"rb"),file_name=filename,mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        job_w={"A":8,"B":10,"C":12,"D":12,"E":12,"F":12,"G":13,"H":12,"I":40,"J":25}
+        add_df_to_wb(b["df_mech"],"JobJournal_Mech",job_w)
+        add_df_to_wb(b["df_remain"],"JobJournal_Remaining",job_w)
+        add_df_to_wb(b["job_A"],"JobJournal_ProjectBOM",job_w)
+        add_df_to_wb(b["job_B"],"JobJournal_CUBICBOM",job_w)
+        nav_w={"A":8,"B":10,"C":9,"D":9,"E":9,"F":9,"G":50}
+        add_df_to_wb(b["nav_B"],"NAV_CUBICBOM",nav_w,nav=True)
+        add_df_to_wb(b["nav_A"],"NAV_ProjectBOM",nav_w,nav=True)
+        add_df_to_wb(b["calc"],"Calculation",{"A":12,"B":18},calc=True)
+        add_df_to_wb(b["miss_nav_A"],"MissingNAV_ProjectBOM")
+        add_df_to_wb(b["miss_nav_B"],"MissingNAV_CUBICBOM")
+        save_xlsx_path=f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
+        st.download_button("⬇️ Download Excel",data=open(save_xlsx_path,"rb"),file_name=filename,mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 if __name__=="__main__": render()
-
-
