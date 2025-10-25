@@ -1,0 +1,70 @@
+import streamlit as st
+import pandas as pd
+import math
+import time
+from io import BytesIO
+from processing import (
+    stage1_pipeline_1, stage1_pipeline_2, stage1_pipeline_3, stage1_pipeline_4,
+    stage1_pipeline_5, stage1_pipeline_6, stage1_pipeline_7, stage1_pipeline_7_1,
+    stage1_pipeline_8, stage1_pipeline_9, stage1_pipeline_10, stage1_pipeline_11,
+    stage1_pipeline_12, stage1_pipeline_14, stage1_pipeline_15, stage1_pipeline_16,
+    stage1_pipeline_17, stage1_pipeline_18, stage1_pipeline_19, stage1_pipeline_20,
+    stage1_pipeline_21, stage1_pipeline_22, stage1_pipeline_23, stage1_pipeline_24,
+    stage1_pipeline_25, parse_component_functions, identify_blank_cells
+)
+
+def render():
+    st.header("Stage 1: Convert for EPLAN")
+
+    uploaded_file = st.file_uploader("📁 Upload main Excel file", type=["xlsx", "xls"], key="main_excel")
+    uploaded_advws = st.file_uploader("📥 Upload ADV_WS_functions file", type=["xlsx", "xls"], key="advws_excel")
+
+    if uploaded_file and uploaded_advws:
+        df = pd.read_excel(uploaded_file)
+        df_component = pd.read_excel(uploaded_advws)
+        group_symbols = parse_component_functions(df_component)
+
+        st.success("✅ Both files uploaded. Running EPLAN transformation...")
+
+        with st.spinner("Processing pipelines..."):
+            df_stage1, removed_duplicates = stage1_pipeline_1(df.copy())
+            df_stage1 = stage1_pipeline_2(df_stage1)
+            df_stage1 = stage1_pipeline_3(df_stage1)
+            df_stage1 = stage1_pipeline_4(df_stage1)
+            df_stage1 = stage1_pipeline_5(df_stage1)
+            df_stage1 = stage1_pipeline_6(df_stage1)
+            df_stage1 = stage1_pipeline_7(df_stage1)
+            df_stage1 = stage1_pipeline_8(df_stage1)
+            df_stage1 = stage1_pipeline_9(df_stage1)
+            df_stage1 = stage1_pipeline_16(df_stage1)
+            df_stage1 = stage1_pipeline_7_1(df_stage1)
+            df_stage1 = stage1_pipeline_10(df_stage1, group_symbols)
+            df_stage1 = stage1_pipeline_11(df_stage1)
+            df_stage1 = stage1_pipeline_14(df_stage1)
+            df_stage1 = stage1_pipeline_15(df_stage1)
+            df_stage1 = stage1_pipeline_17(df_stage1)
+            df_stage1 = stage1_pipeline_18(df_stage1)
+            df_stage1 = stage1_pipeline_19(df_stage1)
+            df_stage1 = stage1_pipeline_20(df_stage1)
+            df_stage1 = stage1_pipeline_21(df_stage1)
+            df_stage1 = stage1_pipeline_22(df_stage1)
+            df_stage1 = stage1_pipeline_23(df_stage1)
+            df_stage1 = stage1_pipeline_24(df_stage1)
+            df_stage1 = stage1_pipeline_25(df_stage1)
+            df_stage1 = stage1_pipeline_12(df_stage1)
+
+        st.success("✅ Transformation complete!")
+        st.dataframe(df_stage1.head(20), use_container_width=True)
+
+        # Download output
+        buf = BytesIO()
+        df_stage1.to_excel(buf, index=False)
+        base = uploaded_file.name[:8]
+        st.download_button(
+            "📥 Download EPLAN Output",
+            buf.getvalue(),
+            file_name=f"{base}_ADV_EPLAN_IMPORT.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.info("Upload both Excel files to begin processing.")
