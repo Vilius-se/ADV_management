@@ -11,6 +11,21 @@ def get_app_version():
         return f"v{int(cnt):03d} ({sha})"
     except Exception:
         env_ver=os.getenv("APP_VERSION") or os.getenv("COMMIT_SHA"); return env_ver if env_ver else "v000"
+def coalesce_cols(df, target, candidates):
+    if target not in df.columns: df[target] = ""
+    for c in candidates:
+        if c in df.columns:
+            df[target] = df[target].where(df[target].notna() & (df[target].astype(str).str.strip()!=""), df[c])
+    return df.drop(columns=[c for c in candidates if c in df.columns], errors="ignore")
+def ensure_scalar_strings(df):
+    import numpy as np
+    def _to_scalar(v):
+        if isinstance(v, pd.Series):
+            v = v.dropna()
+            return "" if v.empty else _to_scalar(v.iloc[0])
+        if isinstance(v, (list, tuple, set, np.ndarray, dict)): return str(v)
+        return v
+    return df.applymap(_to_scalar)
 def safe_parse_qty(x):
     if pd.isna(x): return 0.0
     if isinstance(x,(int,float)): return float(x)
@@ -296,7 +311,7 @@ def pipeline_4_2_missing_nav(df,source):
     qty=pd.to_numeric(missing.get("Quantity",0),errors="coerce").fillna(0).astype(float) if "Quantity" in missing else 0
     return pd.DataFrame({"Source":source,"Original Article":missing.get("Original Article",""),"Original Type":missing.get("Original Type",""),"Quantity":qty,"NAV No.":missing["No."]})
 def render():
-    st.header(f"Stage 3: BOM Management · {get_app_version()}")
+    st.header(f"BOM Management · {get_app_version()}")
     inputs=pipeline_2_1_user_inputs()
     if not inputs: return
     st.session_state["inputs"]=inputs
