@@ -91,7 +91,6 @@ st.markdown("""
   background: transparent !important;
 }
 
-/* elcor logo - clean text, no background box */
 #elcor-logo {
   position: absolute;
   top: 18px;
@@ -104,8 +103,6 @@ st.markdown("""
   background: none !important;
   box-shadow: none !important;
 }
-
-st.markdown('<div id="elcor-logo">elcor.</div>', unsafe_allow_html=True)
 
 @keyframes pulse {
   0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
@@ -186,7 +183,7 @@ st.markdown('<div id="elcor-logo">elcor.</div>', unsafe_allow_html=True)
 st.markdown('<h1 class="main-title">Advansor Project Preparation Tool</h1>', unsafe_allow_html=True)
 st.markdown('<div class="electric-line"></div>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Intelligent Excel Processing • Sustainable Data Solutions • The Future is Electric</p>', unsafe_allow_html=True)
-
+st.markdown('<div id="elcor-logo">elcor.</div>', unsafe_allow_html=True)
 # --- STAGE NAVIGATION ---
 if "stage" not in st.session_state:
     st.session_state.stage = None
