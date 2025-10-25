@@ -105,6 +105,8 @@ st.markdown("""
   box-shadow: none !important;
 }
 
+st.markdown('<div id="elcor-logo">elcor.</div>', unsafe_allow_html=True)
+
 @keyframes pulse {
   0% { text-shadow: 0 0 6px rgba(0, 212, 170, 0.3); opacity: 0.9; }
   50% { text-shadow: 0 0 24px rgba(0, 255, 204, 0.8); opacity: 1; }
