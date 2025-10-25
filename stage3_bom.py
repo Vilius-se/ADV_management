@@ -480,6 +480,13 @@ def render():
         job_w={"A":8,"B":10,"C":12,"D":12,"E":12,"F":12,"G":13,"H":12,"I":40,"J":25}; nav_w={"A":8,"B":10,"C":9,"D":9,"E":9,"F":9,"G":50}
         add_df_to_wb(b["df_mech"],"JobJournal_Mech",job_w); add_df_to_wb(b["df_remain"],"JobJournal_Remaining",job_w); add_df_to_wb(b["job_A"],"JobJournal_ProjectBOM",job_w); add_df_to_wb(b["job_B"],"JobJournal_CUBICBOM",job_w)
         add_df_to_wb(b["nav_B"],"NAV_CUBICBOM",nav_w,nav=True); add_df_to_wb(b["nav_A"],"NAV_ProjectBOM",nav_w,nav=True); add_df_to_wb(b["calc"],"Calculation",{"A":12,"B":18},calc=True); add_df_to_wb(b["miss_nav_A"],"MissingNAV_ProjectBOM"); add_df_to_wb(b["miss_nav_B"],"MissingNAV_CUBICBOM")
-        save_xlsx_path=f"/mnt/data/{filename}"; wb.save(save_xlsx_path)
-        st.download_button("⬇️ Download Excel",data=open(save_xlsx_path,"rb"),file_name=filename,mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="download_xlsx")
-if __name__=="__main__": render()
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        st.download_button(
+            "⬇️ Download Excel",
+            data=buf.getvalue(),
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_xlsx")
+        if __name__=="__main__": render()
