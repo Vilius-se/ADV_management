@@ -87,6 +87,23 @@ st.markdown("""
 
 
 
+[data-testid="stMarkdownContainer"] {
+  background: transparent !important;
+}
+
+/* elcor logo - clean text, no background box */
+#elcor-logo {
+  position: absolute;
+  top: 18px;
+  left: 30px;
+  font-size: 4.4rem;
+  font-weight: 700;
+  color: #00d4aa;
+  animation: pulse 2.5s infinite ease-in-out;
+  text-shadow: 0 0 14px rgba(0, 212, 170, 0.6);
+  background: none !important;
+  box-shadow: none !important;
+}
 
 /* elcor logo top-left */
 #elcor-logo {
