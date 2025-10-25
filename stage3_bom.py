@@ -97,7 +97,7 @@ def pipeline_2_1_user_inputs():
     if project_number and not re.match(r"^\d{4}-\d{3}$", project_number):
         st.error("Invalid format (must be 1234-567)")
         return None
-    panel_type = st.selectbox("Panel type", ['AA','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8','F','F1','F2','F3','F4','F4.1','F5','F6','F7','G','G1','G2','G3','G4','G5','G6','G7','Custom'])
+    panel_type = st.selectbox("Panel type", ['A','B','B1','B2','C','C1','C2','C3','C4','C4.1','C5','C6','C7','C8','F','F1','F2','F3','F4','F4.1','F5','F6','F7','G','G1','G2','G3','G4','G5','G6','G7','Custom'])
     grounding = st.selectbox("Grounding type", ["TT","TN-S","TN-C-S"])
     main_switch = st.selectbox("Main switch", ["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"])
     swing_frame = st.checkbox("Swing frame?")
