@@ -82,10 +82,14 @@ def allocate_from_stock(no,qty_needed,stock_rows):
 normalize_no=pipeline_1_4_normalize_no
 def pipeline_2_1_user_inputs():
     st.subheader("Project Information")
-    pn=st.text_input("Project number (1234-567)")
-    if pn and not re.match(r"^\\d{4}-\\d{3}$",pn): st.error("Invalid format (must be 1234-567)"); return None
-    types=["A","B","B1","B2","C","C1","C2","C3","C4","C4.1","C5","C6","C7","C8","F","F1","F2","F3","F4","F4.1","F5","F6","F7","G","G1","G2","G3","G4","G5","G6","G7","Custom"]; switches=["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"]
-    return {"project_number":pn,"panel_type":st.selectbox("Panel type",types),"grounding":st.selectbox("Grounding type",["TT","TN-S","TN-C-S"]),"main_switch":st.selectbox("Main switch",switches),"swing_frame":st.checkbox("Swing frame?"),"ups":st.checkbox("UPS?"),"rittal":st.checkbox("Rittal?")}
+    pn = st.text_input("Project number (1234-567)", help="Use 4 digits, dash, 3 digits. Regular -, en– or em— dash allowed.")
+    norm_pn = re.sub(r"\s*[-–—]\s*", "-", (pn or "").strip())
+    if norm_pn and not re.match(r"^\d{4}-\d{3}$", norm_pn):
+        st.error("Invalid format (must be 1234-567)")
+        return None
+    types=["A","B","B1","B2","C","C1","C2","C3","C4","C4.1","C5","C6","C7","C8","F","F1","F2","F3","F4","F4.1","F5","F6","F7","G","G1","G2","G3","G4","G5","G6","G7","Custom"]
+    switches=["C160S4FM","C125S4FM","C080S4FM","31115","31113","31111","31109","31107","C404400S","C634630S"]
+    return {"project_number":norm_pn,"panel_type":st.selectbox("Panel type",types),"grounding":st.selectbox("Grounding type",["TT","TN-S","TN-C-S"]),"main_switch":st.selectbox("Main switch",switches),"swing_frame":st.checkbox("Swing frame?"),"ups":st.checkbox("UPS?"),"rittal":st.checkbox("Rittal?")}
 def pipeline_2_2_file_uploads(rittal=False):
     st.subheader("Upload Required Files"); dfs={}
     if not rittal:
